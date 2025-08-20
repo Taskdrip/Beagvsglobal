@@ -202,7 +202,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(or(
         like(listings.title, `%${filters.search}%`),
         like(listings.description, `%${filters.search}%`)
-      ));
+      ) as any);
     }
 
     return await baseQuery

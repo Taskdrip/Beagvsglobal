@@ -35,7 +35,7 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const [showMessageDialog, setShowMessageDialog] = useState(false);
 
-  const isOwnProfile = user?.id === id;
+  const isOwnProfile = user && user.id === id;
 
   const { data: profileUser, isLoading: loadingUser } = useQuery({
     queryKey: ["/api/users", id],
@@ -44,7 +44,7 @@ export default function Profile() {
 
   const { data: userListings } = useQuery({
     queryKey: ["/api/listings"],
-    select: (data) => data?.filter((listing: any) => listing.sellerId === id) || [],
+    select: (data) => Array.isArray(data) ? data.filter((listing: any) => listing.sellerId === id) : [],
     enabled: !!id,
   });
 
@@ -69,13 +69,13 @@ export default function Profile() {
 
   const { data: followers } = useQuery({
     queryKey: ["/api/user/followers"],
-    select: (data) => data?.filter((follow: any) => follow.followeeId === id) || [],
+    select: (data) => Array.isArray(data) ? data.filter((follow: any) => follow.followeeId === id) : [],
     enabled: !!id,
   });
 
   const { data: following } = useQuery({
     queryKey: ["/api/user/following"],
-    select: (data) => data?.filter((follow: any) => follow.followerId === id) || [],
+    select: (data) => Array.isArray(data) ? data.filter((follow: any) => follow.followerId === id) : [],
     enabled: !!id,
   });
 

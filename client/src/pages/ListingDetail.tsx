@@ -56,12 +56,12 @@ export default function ListingDetail() {
 
   const { data: platformWallet } = useQuery({
     queryKey: ["/api/platform-wallets/currency", listing?.currency, "network", listing?.network],
-    enabled: !!listing?.currency && !!listing?.network,
+    enabled: !!(listing && listing.currency && listing.network),
   });
 
   const { data: followStatus } = useQuery({
     queryKey: ["/api/follows/status", listing?.seller?.id],
-    enabled: !!listing?.seller?.id && isAuthenticated && listing?.seller?.id !== user?.id,
+    enabled: !!(listing && listing.seller && listing.seller.id) && isAuthenticated && listing.seller.id !== user?.id,
   });
 
   const reviewForm = useForm<ReviewFormData>({
@@ -74,7 +74,7 @@ export default function ListingDetail() {
 
   const createEscrowMutation = useMutation({
     mutationFn: async () => {
-      if (!listing) return;
+      if (!listing || !listing.id) return;
       await apiRequest("POST", "/api/escrows", {
         listingId: listing.id,
         sellerId: listing.sellerId,
@@ -102,7 +102,7 @@ export default function ListingDetail() {
 
   const followMutation = useMutation({
     mutationFn: async () => {
-      if (!listing?.seller?.id) return;
+      if (!listing || !listing.seller || !listing.seller.id) return;
       await apiRequest("POST", "/api/follows", {
         followeeId: listing.seller.id,
       });
@@ -125,7 +125,7 @@ export default function ListingDetail() {
 
   const createReviewMutation = useMutation({
     mutationFn: async (data: ReviewFormData) => {
-      if (!listing) return;
+      if (!listing || !listing.id) return;
       await apiRequest("POST", "/api/reviews", {
         listingId: listing.id,
         ...data,
@@ -150,8 +150,8 @@ export default function ListingDetail() {
   });
 
   const generateWhatsAppLink = () => {
-    if (!listing?.seller?.whatsapp) return "#";
-    const message = `Hi! I'm interested in ${listing.title}`;
+    if (!listing || !listing.seller || !listing.seller.whatsapp) return "#";
+    const message = `Hi! I'm interested in ${listing.title || 'your listing'}`;
     return `https://wa.me/${listing.seller.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
   };
 
@@ -227,7 +227,7 @@ export default function ListingDetail() {
     );
   }
 
-  const isOwner = user?.id === listing.sellerId;
+  const isOwner = user?.id === listing?.sellerId;
 
   return (
     <div className="min-h-screen bg-slate-50">

@@ -32,9 +32,9 @@ export default function Home() {
     queryKey: ["/api/notifications"],
   });
 
-  const activeListings = userListings?.filter((listing: any) => listing.isActive)?.length || 0;
-  const pendingEscrows = userEscrows?.filter((escrow: any) => escrow.status === 'PENDING' || escrow.status === 'FUNDED')?.length || 0;
-  const unreadNotifications = notifications?.filter((notification: any) => !notification.readAt)?.length || 0;
+  const activeListings = Array.isArray(userListings) ? userListings.filter((listing: any) => listing.isActive)?.length : 0;
+  const pendingEscrows = Array.isArray(userEscrows) ? userEscrows.filter((escrow: any) => escrow.status === 'PENDING' || escrow.status === 'FUNDED')?.length : 0;
+  const unreadNotifications = Array.isArray(notifications) ? notifications.filter((notification: any) => !notification.readAt)?.length : 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -114,7 +114,7 @@ export default function Home() {
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="stat-connected-wallets">{userWallets?.length || 0}</div>
+              <div className="text-2xl font-bold" data-testid="stat-connected-wallets">{Array.isArray(userWallets) ? userWallets.length : 0}</div>
               <p className="text-xs text-muted-foreground">
                 Crypto wallets linked
               </p>
@@ -148,7 +148,7 @@ export default function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {userListings && userListings.length > 0 ? (
+              {Array.isArray(userListings) && userListings.length > 0 ? (
                 <div className="space-y-4">
                   {userListings.slice(0, 3).map((listing: any) => (
                     <div key={listing.id} className="flex items-center space-x-4 p-3 border rounded-lg" data-testid={`listing-item-${listing.id}`}>
@@ -186,7 +186,7 @@ export default function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {userEscrows && userEscrows.length > 0 ? (
+              {Array.isArray(userEscrows) && userEscrows.length > 0 ? (
                 <div className="space-y-4">
                   {userEscrows.slice(0, 3).map((escrow: any) => (
                     <div key={escrow.id} className="flex items-center space-x-4 p-3 border rounded-lg" data-testid={`escrow-item-${escrow.id}`}>

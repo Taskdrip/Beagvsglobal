@@ -48,12 +48,12 @@ export default function Dashboard() {
     queryKey: ["/api/user/following"],
   });
 
-  const activeListings = userListings?.filter((listing: any) => listing.isActive)?.length || 0;
-  const pendingEscrows = userEscrows?.filter((escrow: any) => escrow.status === 'PENDING' || escrow.status === 'FUNDED')?.length || 0;
-  const unreadNotifications = notifications?.filter((notification: any) => !notification.readAt)?.length || 0;
-  const totalEscrowValue = userEscrows?.reduce((sum: number, escrow: any) => {
+  const activeListings = Array.isArray(userListings) ? userListings.filter((listing: any) => listing.isActive)?.length : 0;
+  const pendingEscrows = Array.isArray(userEscrows) ? userEscrows.filter((escrow: any) => escrow.status === 'PENDING' || escrow.status === 'FUNDED')?.length : 0;
+  const unreadNotifications = Array.isArray(notifications) ? notifications.filter((notification: any) => !notification.readAt)?.length : 0;
+  const totalEscrowValue = Array.isArray(userEscrows) ? userEscrows.reduce((sum: number, escrow: any) => {
     return sum + (escrow.status !== 'REFUNDED' ? parseFloat(escrow.amount) : 0);
-  }, 0) || 0;
+  }, 0) : 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -64,7 +64,7 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-dark mb-2" data-testid="text-dashboard-title">
-              Welcome back, {user?.username || user?.firstName || 'User'}!
+              Welcome back, {(user && (user.username || user.firstName)) || 'User'}!
             </h1>
             <p className="text-slate-medium">Manage your crypto marketplace activities</p>
           </div>
