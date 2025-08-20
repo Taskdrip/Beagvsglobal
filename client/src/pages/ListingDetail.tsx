@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,11 @@ export default function ListingDetail() {
     queryKey: ["/api/follows/status", listing?.seller?.id],
     enabled: !!(listing && listing.seller && listing.seller.id) && isAuthenticated && listing.seller.id !== user?.id,
   });
+
+  // Scroll to top when component loads
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [slug]);
 
   const reviewForm = useForm<ReviewFormData>({
     resolver: zodResolver(reviewSchema),
@@ -259,7 +264,19 @@ export default function ListingDetail() {
                         alt={listing.title}
                         className="w-full h-full object-cover"
                         data-testid="img-listing-main"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const placeholder = target.nextElementSibling as HTMLElement;
+                          if (placeholder) placeholder.style.display = 'flex';
+                        }}
                       />
+                      <div 
+                        className="w-full h-full bg-slate-200 flex items-center justify-center" 
+                        style={{display: 'none'}}
+                      >
+                        <Package className="w-16 h-16 text-slate-400" />
+                      </div>
                       <div className="absolute top-4 left-4">
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                           listing.type === 'REAL_ESTATE' ? 'bg-green-100 text-green-800' :
@@ -300,7 +317,19 @@ export default function ListingDetail() {
                             }`}
                             data-testid={`button-image-${index}`}
                           >
-                            <img src={image} alt={`${listing.title} ${index + 1}`} className="w-full h-full object-cover" />
+                            <img 
+                              src={image} 
+                              alt={`${listing.title} ${index + 1}`} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const button = target.closest('button');
+                                if (button) {
+                                  button.innerHTML = '<div class="w-full h-full bg-slate-200 flex items-center justify-center"><svg class="w-6 h-6 text-slate-400" fill="currentColor" viewBox="0 0 24 24"><path d="M20,6H16L14,4H10L8,6H4A2,2 0 0,0 2,8V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8A2,2 0 0,0 20,6Z" /></svg></div>';
+                                }
+                              }}
+                            />
                           </button>
                         ))}
                       </div>
