@@ -137,15 +137,17 @@
   }
 
   .button-primary {
-    background: var(--gradient-primary);
-    border: none;
-    color: white;
+    background: var(--gradient-primary) !important;
+    border: none !important;
+    color: white !important;
     transition: all 0.3s ease;
   }
 
   .button-primary:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--gradient-primary) !important;
+    color: white !important;
   }
 
   .button-secondary {

@@ -16,10 +16,11 @@ import {
   MessageCircle,
   ArrowRight
 } from "lucide-react";
+import luxuryHomeImage from "@assets/generated_images/Luxury_home_exterior_dceccac4.png";
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <Navigation />
       
       {/* Hero Section */}
@@ -39,7 +40,7 @@ export default function Landing() {
                 <Link href="/marketplace">
                   <Button 
                     size="lg" 
-                    className="bg-white text-crypto-blue hover:bg-blue-50 font-semibold"
+                    className="button-primary font-semibold"
                     data-testid="button-explore-marketplace"
                   >
                     Explore Marketplace
@@ -49,7 +50,7 @@ export default function Landing() {
                   <Button 
                     size="lg" 
                     variant="outline" 
-                    className="border-2 border-white text-white hover:bg-white hover:text-crypto-blue font-semibold"
+                    className="button-secondary font-semibold border-2 border-white text-white hover:bg-white hover:text-crypto-blue"
                     data-testid="button-start-selling"
                   >
                     Start Selling
@@ -73,7 +74,7 @@ export default function Landing() {
             </div>
             <div className="relative">
               <img 
-                src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600" 
+                src={luxuryHomeImage} 
                 alt="Modern luxury real estate property" 
                 className="rounded-2xl shadow-2xl w-full h-auto"
                 data-testid="img-hero"
@@ -183,7 +184,7 @@ export default function Landing() {
       </section>
 
       {/* Escrow Features */}
-      <section className="py-20 bg-slate-50">
+      <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl lg:text-4xl font-bold text-slate-dark mb-4">Secure Escrow Protection</h2>
@@ -291,7 +292,7 @@ export default function Landing() {
               <Link href="/auth/sign-up">
                 <Button 
                   size="lg" 
-                  className="bg-white text-crypto-blue hover:bg-blue-50 font-semibold"
+                  className="button-primary font-semibold"
                   data-testid="button-create-account"
                 >
                   Create Free Account
