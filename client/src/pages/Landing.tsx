@@ -50,7 +50,7 @@ export default function Landing() {
                   <Button 
                     size="lg" 
                     variant="outline" 
-                    className="button-secondary font-semibold border-2 border-white text-white hover:bg-white hover:text-crypto-blue"
+                    className="button-white font-semibold"
                     data-testid="button-start-selling"
                   >
                     Start Selling

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import Navigation from "@/components/Navigation";
@@ -25,6 +26,7 @@ const signUpSchema = z.object({
   address: z.string().min(1, "Address is required"),
   location: z.string().min(1, "Location is required"),
   bio: z.string().optional(),
+  accountType: z.enum(['BUYER', 'SELLER', 'BOTH']).default('BUYER'),
 });
 
 const signInSchema = z.object({
@@ -53,6 +55,7 @@ export default function Auth() {
       address: "",
       location: "",
       bio: "",
+      accountType: "BUYER",
     },
   });
 
@@ -317,9 +320,31 @@ export default function Auth() {
                     />
                   </div>
                   
+                  <div>
+                    <Label htmlFor="accountType">Account Type *</Label>
+                    <Select
+                      value={signUpForm.watch("accountType")}
+                      onValueChange={(value) => signUpForm.setValue("accountType", value as "BUYER" | "SELLER" | "BOTH")}
+                    >
+                      <SelectTrigger className="focus:ring-2 focus:ring-crypto-blue focus:border-transparent" data-testid="select-account-type">
+                        <SelectValue placeholder="Select account type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BUYER">Buyer - I want to purchase items and services</SelectItem>
+                        <SelectItem value="SELLER">Seller - I want to list items and services for sale</SelectItem>
+                        <SelectItem value="BOTH">Both - I want to buy and sell</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {signUpForm.formState.errors.accountType && (
+                      <p className="text-sm text-red-600 mt-1">
+                        {signUpForm.formState.errors.accountType.message}
+                      </p>
+                    )}
+                  </div>
+                  
                   <Button
                     type="submit"
-                    className="w-full bg-crypto-blue hover:bg-crypto-teal font-semibold"
+                    className="w-full button-primary font-semibold"
                     disabled={signUpMutation.isPending}
                     data-testid="button-create-account"
                   >

@@ -27,6 +27,7 @@ export const sessions = pgTable(
 
 // Enums
 export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN']);
+export const accountTypeEnum = pgEnum('account_type', ['BUYER', 'SELLER', 'BOTH']);
 export const walletTypeEnum = pgEnum('wallet_type', ['PI', 'USDT_TRON', 'USDT_TON', 'USDT_BNB', 'USDT_SOL', 'USDT_AVAX']);
 export const listingTypeEnum = pgEnum('listing_type', ['REAL_ESTATE', 'SHIPPING_SERVICE', 'PRODUCT', 'SERVICE']);
 export const currencyEnum = pgEnum('currency', ['PI', 'USDT']);
@@ -50,6 +51,7 @@ export const users = pgTable("users", {
   location: varchar("location"),
   bio: text("bio"),
   role: userRoleEnum("role").default('USER'),
+  accountType: accountTypeEnum("account_type").default('BUYER'),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

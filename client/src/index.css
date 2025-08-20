@@ -151,15 +151,28 @@
   }
 
   .button-secondary {
-    background: white;
-    border: 2px solid var(--crypto-blue);
-    color: var(--crypto-blue);
+    background: white !important;
+    border: 2px solid var(--crypto-blue) !important;
+    color: var(--crypto-blue) !important;
     transition: all 0.3s ease;
   }
 
   .button-secondary:hover {
-    background: var(--crypto-blue);
-    color: white;
+    background: var(--crypto-blue) !important;
+    color: white !important;
+    transform: translateY(-1px);
+  }
+
+  .button-white {
+    background: white !important;
+    color: var(--crypto-blue) !important;
+    border: none !important;
+    transition: all 0.3s ease;
+  }
+
+  .button-white:hover {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: var(--crypto-blue) !important;
     transform: translateY(-1px);
   }
 

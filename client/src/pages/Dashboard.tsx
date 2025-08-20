@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import WalletManager from "@/components/WalletManager";
@@ -16,10 +18,14 @@ import {
   TrendingUp,
   MessageSquare,
   Star,
-  Clock
+  Clock,
+  ShoppingCart,
+  Store
 } from "lucide-react";
 
 export default function Dashboard() {
+  const [currentMode, setCurrentMode] = useState<"buyer" | "seller">("buyer");
+  
   const { data: user } = useQuery({
     queryKey: ["/api/auth/user"],
   });
@@ -66,15 +72,44 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold gradient-text mb-2" data-testid="text-dashboard-title">
               Welcome back, {(user && (user.username || user.firstName)) || 'User'}!
             </h1>
-            <p className="text-slate-medium">Manage your crypto marketplace activities</p>
+            <p className="text-slate-medium">
+              {currentMode === "buyer" ? "Browse and manage your purchases" : "Manage your listings and sales"}
+            </p>
           </div>
-          <div className="mt-4 md:mt-0">
-            <Link href="/sell/new">
-              <Button className="button-primary" data-testid="button-create-listing">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Listing
-              </Button>
-            </Link>
+          <div className="flex items-center gap-4 mt-4 md:mt-0">
+            {/* Account Mode Switcher for BOTH account types */}
+            {user?.accountType === "BOTH" && (
+              <div className="flex items-center gap-2">
+                <Select value={currentMode} onValueChange={(value) => setCurrentMode(value as "buyer" | "seller")}>
+                  <SelectTrigger className="w-48" data-testid="select-account-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="buyer">
+                      <div className="flex items-center gap-2">
+                        <ShoppingCart className="w-4 h-4" />
+                        Buyer Mode
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="seller">
+                      <div className="flex items-center gap-2">
+                        <Store className="w-4 h-4" />
+                        Seller Mode
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {(currentMode === "seller" || user?.accountType === "SELLER") && (
+              <Link href="/sell/new">
+                <Button className="button-primary" data-testid="button-create-listing">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Listing
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
