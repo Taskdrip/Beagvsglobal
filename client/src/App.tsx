@@ -19,6 +19,8 @@ import BlogPost from "@/pages/BlogPost";
 import About from "@/pages/About";
 import Contact from "@/pages/Contact";
 import Profile from "@/pages/Profile";
+import Checkout from "@/pages/Checkout";
+import Chat from "@/pages/Chat";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,6 +39,7 @@ function Router() {
           <Route path="/blog/:slug" component={BlogPost} />
           <Route path="/about" component={About} />
           <Route path="/contact" component={Contact} />
+          <Route path="/checkout/:escrowId" component={Checkout} />
         </>
       ) : (
         <>
@@ -52,6 +55,8 @@ function Router() {
           <Route path="/about" component={About} />
           <Route path="/contact" component={Contact} />
           <Route path="/profile/:id" component={Profile} />
+          <Route path="/checkout/:escrowId" component={Checkout} />
+          <Route path="/chat/:listingId" component={Chat} />
         </>
       )}
       <Route component={NotFound} />

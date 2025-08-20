@@ -263,6 +263,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const escrowData = insertEscrowSchema.parse({ ...req.body, buyerId: userId });
       
       const escrow = await storage.createEscrow(escrowData);
+      
+      // Create chat thread for the escrow
+      await storage.getOrCreateChatThread(escrow.listingId, escrow.buyerId, escrow.sellerId, escrow.id);
+      
       res.status(201).json(escrow);
     } catch (error: any) {
       console.error("Error creating escrow:", error);

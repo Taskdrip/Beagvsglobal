@@ -88,21 +88,26 @@ export default function ListingDetail() {
   const createEscrowMutation = useMutation({
     mutationFn: async () => {
       if (!listing || !listing.id) return;
-      await apiRequest("POST", "/api/escrows", {
+      const response = await apiRequest("POST", "/api/escrows", {
         listingId: listing.id,
         sellerId: listing.sellerId,
         amount: listing.priceCrypto,
         currency: listing.currency,
         network: listing.network,
       });
+      return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       toast({
         title: "Escrow created successfully",
-        description: "Follow the payment instructions to complete your purchase. Chat is now available!",
+        description: "Redirecting to secure checkout...",
       });
       setShowEscrowDialog(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
+      
+      // Redirect to checkout page
+      setTimeout(() => {
+        window.location.href = `/checkout/${data.id || 'new'}`;
+      }, 1000);
     },
     onError: (error: any) => {
       console.log("Escrow error:", error); // Debug log
