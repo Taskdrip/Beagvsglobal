@@ -213,7 +213,7 @@ export default function Marketplace() {
                       }`}>
                         {listing.currency === 'PI' ? 'π PI' : 'USDT'}
                       </span>
-                      <span className="font-bold text-slate-dark text-lg">{listing.priceCrypto}</span>
+                      <span className="font-bold text-slate-dark text-lg">{parseFloat(listing.priceCrypto).toLocaleString()}</span>
                     </div>
                     {listing.seller?.whatsapp && (
                       <a
