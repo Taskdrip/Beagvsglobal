@@ -105,7 +105,9 @@ export default function ListingDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
     },
     onError: (error: any) => {
-      if (error.message.includes("Unauthorized") || error.message.includes("Authentication required")) {
+      console.log("Escrow error:", error); // Debug log
+      // Check if error starts with "401:" which is the format from the API
+      if (error.message.startsWith("401:") || error.message.includes("Unauthorized")) {
         toast({
           title: "Authentication required",
           description: "Redirecting to sign in...",
