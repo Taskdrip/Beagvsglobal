@@ -162,7 +162,7 @@ export class DatabaseStorage implements IStorage {
 
   // Listing operations
   async getListings(filters?: { type?: string; currency?: string; location?: string; search?: string }) {
-    let query = db
+    let baseQuery = db
       .select({
         id: listings.id,
         sellerId: listings.sellerId,
@@ -179,35 +179,35 @@ export class DatabaseStorage implements IStorage {
         createdAt: listings.createdAt,
         updatedAt: listings.updatedAt,
         seller: users,
-        reviewCount: sql<number>`COALESCE(${count(reviews.id)}, 0)`,
+        reviewCount: sql<number>`COALESCE(COUNT(${reviews.id}), 0)`,
         avgRating: sql<number>`COALESCE(AVG(${reviews.rating}), 0)`,
       })
       .from(listings)
       .leftJoin(users, eq(listings.sellerId, users.id))
       .leftJoin(reviews, eq(listings.id, reviews.listingId))
-      .where(eq(listings.isActive, true))
       .groupBy(listings.id, users.id);
 
+    const conditions = [eq(listings.isActive, true)];
+    
     if (filters?.type) {
-      query = query.where(and(eq(listings.isActive, true), eq(listings.type, filters.type as any)));
+      conditions.push(eq(listings.type, filters.type as any));
     }
     if (filters?.currency) {
-      query = query.where(and(eq(listings.isActive, true), eq(listings.currency, filters.currency as any)));
+      conditions.push(eq(listings.currency, filters.currency as any));
     }
     if (filters?.location) {
-      query = query.where(and(eq(listings.isActive, true), like(listings.location, `%${filters.location}%`)));
+      conditions.push(like(listings.location, `%${filters.location}%`));
     }
     if (filters?.search) {
-      query = query.where(and(
-        eq(listings.isActive, true),
-        or(
-          like(listings.title, `%${filters.search}%`),
-          like(listings.description, `%${filters.search}%`)
-        )
+      conditions.push(or(
+        like(listings.title, `%${filters.search}%`),
+        like(listings.description, `%${filters.search}%`)
       ));
     }
 
-    return await query.orderBy(desc(listings.createdAt));
+    return await baseQuery
+      .where(and(...conditions))
+      .orderBy(desc(listings.createdAt));
   }
 
   async getListing(id: string) {
@@ -336,27 +336,37 @@ export class DatabaseStorage implements IStorage {
 
   // Escrow operations
   async getEscrows(filters?: { status?: string; userId?: string }) {
-    let query = db
+    const buyerUsers = db.select().from(users).as('buyerUsers');
+    const sellerUsers = db.select().from(users).as('sellerUsers');
+    
+    let baseQuery = db
       .select({
         escrow: escrows,
         listing: listings,
-        buyer: { ...users, id: users.id },
-        seller: { ...users, id: users.id },
+        buyer: buyerUsers,
+        seller: sellerUsers,
       })
       .from(escrows)
       .leftJoin(listings, eq(escrows.listingId, listings.id))
-      .leftJoin(users, eq(escrows.buyerId, users.id))
-      .leftJoin(users, eq(escrows.sellerId, users.id));
+      .leftJoin(buyerUsers, eq(escrows.buyerId, buyerUsers.id))
+      .leftJoin(sellerUsers, eq(escrows.sellerId, sellerUsers.id));
 
+    const conditions = [];
+    
     if (filters?.status) {
-      query = query.where(eq(escrows.status, filters.status as any));
+      conditions.push(eq(escrows.status, filters.status as any));
     }
 
     if (filters?.userId) {
-      query = query.where(or(
+      conditions.push(or(
         eq(escrows.buyerId, filters.userId),
         eq(escrows.sellerId, filters.userId)
       ));
+    }
+
+    let query = baseQuery;
+    if (conditions.length > 0) {
+      query = baseQuery.where(and(...conditions));
     }
 
     const results = await query.orderBy(desc(escrows.createdAt));
@@ -548,7 +558,7 @@ export class DatabaseStorage implements IStorage {
           .where(and(
             eq(messages.threadId, message.threadId),
             eq(messages.recipientId, userId),
-            eq(messages.readAt, null)
+            sql`${messages.readAt} IS NULL`
           ));
 
         threadsMap.set(message.threadId, {
@@ -586,7 +596,7 @@ export class DatabaseStorage implements IStorage {
 
   // Blog operations
   async getBlogPosts(published?: boolean) {
-    let query = db
+    let baseQuery = db
       .select({
         blogPost: blogPosts,
         author: users,
@@ -594,8 +604,9 @@ export class DatabaseStorage implements IStorage {
       .from(blogPosts)
       .leftJoin(users, eq(blogPosts.authorId, users.id));
 
+    let query = baseQuery;
     if (published !== undefined) {
-      query = query.where(eq(blogPosts.published, published));
+      query = baseQuery.where(eq(blogPosts.published, published));
     }
 
     const results = await query.orderBy(desc(blogPosts.createdAt));

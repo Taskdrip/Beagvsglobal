@@ -23,15 +23,15 @@ import {
 
 export default function Marketplace() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedType, setSelectedType] = useState("");
-  const [selectedCurrency, setSelectedCurrency] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [selectedCurrency, setSelectedCurrency] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("");
 
   const { data: listings, isLoading } = useQuery({
     queryKey: ["/api/listings", { 
       search: searchQuery || undefined,
-      type: selectedType || undefined,
-      currency: selectedCurrency || undefined,
+      type: selectedType === "all" ? undefined : selectedType,
+      currency: selectedCurrency === "all" ? undefined : selectedCurrency,
       location: selectedLocation || undefined
     }],
   });
@@ -88,7 +88,7 @@ export default function Marketplace() {
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   <SelectItem value="REAL_ESTATE">Real Estate</SelectItem>
                   <SelectItem value="SHIPPING_SERVICE">Shipping Services</SelectItem>
                   <SelectItem value="PRODUCT">Products</SelectItem>
@@ -101,7 +101,7 @@ export default function Marketplace() {
                   <SelectValue placeholder="All Currencies" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Currencies</SelectItem>
+                  <SelectItem value="all">All Currencies</SelectItem>
                   <SelectItem value="PI">Pi (π)</SelectItem>
                   <SelectItem value="USDT">USDT</SelectItem>
                 </SelectContent>
@@ -119,8 +119,8 @@ export default function Marketplace() {
                 className="flex items-center space-x-2"
                 onClick={() => {
                   setSearchQuery("");
-                  setSelectedType("");
-                  setSelectedCurrency("");
+                  setSelectedType("all");
+                  setSelectedCurrency("all");
                   setSelectedLocation("");
                 }}
                 data-testid="button-clear-filters"
