@@ -64,6 +64,14 @@ export default function ListingDetail() {
     enabled: !!(listing && listing.seller && listing.seller.id) && isAuthenticated && listing.seller.id !== user?.id,
   });
 
+  const { data: userEscrows } = useQuery({
+    queryKey: ["/api/user/escrows"],
+    enabled: isAuthenticated,
+  });
+
+  // Check if user has created an escrow for this listing
+  const hasEscrow = userEscrows?.some((escrow: any) => escrow.listingId === listing?.id);
+
   // Scroll to top when component loads
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -91,7 +99,7 @@ export default function ListingDetail() {
     onSuccess: () => {
       toast({
         title: "Escrow created successfully",
-        description: "Follow the payment instructions to complete your purchase",
+        description: "Follow the payment instructions to complete your purchase. Chat is now available!",
       });
       setShowEscrowDialog(false);
       queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
@@ -515,58 +523,103 @@ export default function ListingDetail() {
                       </DialogContent>
                     </Dialog>
 
-                    <Dialog>
-                      <DialogTrigger asChild>
+                    {!isAuthenticated ? (
+                      <a href="/api/login">
                         <Button 
                           variant="outline" 
                           className="w-full border-crypto-blue text-crypto-blue hover:bg-blue-50"
-                          data-testid="button-chat"
+                          data-testid="button-login-to-chat"
                         >
                           <MessageCircle className="w-4 h-4 mr-2" />
-                          Start Chat
+                          Login to Chat
                         </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                          <DialogTitle>Chat with Seller</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <p className="text-sm text-blue-700">
-                              Start a secure chat with <span className="font-semibold">{listing.seller?.firstName || 'the seller'}</span> about this {listing.type.toLowerCase().replace('_', ' ')}.
-                            </p>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div>
-                              <Label htmlFor="chat-message">Your Message</Label>
-                              <Textarea
-                                id="chat-message"
-                                placeholder="Hi! I'm interested in your listing..."
-                                className="min-h-[80px]"
-                                data-testid="textarea-chat-message"
-                              />
+                      </a>
+                    ) : hasEscrow ? (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            className="w-full border-green-500 text-green-600 hover:bg-green-50"
+                            data-testid="button-open-chat"
+                          >
+                            <MessageCircle className="w-4 h-4 mr-2" />
+                            Open Chat
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>Chat with {listing.seller?.firstName || 'Seller'}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                              <p className="text-sm text-green-700">
+                                💰 <span className="font-semibold">Escrow Active:</span> Your payment is secured. Chat safely with the seller about your transaction.
+                              </p>
+                            </div>
+                            
+                            <div className="space-y-3">
+                              <div>
+                                <Label htmlFor="chat-message">Your Message</Label>
+                                <Textarea
+                                  id="chat-message"
+                                  placeholder="Hi! I've created the escrow. When will you ship the item?"
+                                  className="min-h-[80px]"
+                                  data-testid="textarea-chat-message"
+                                  value=""
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex space-x-3">
+                              <Button
+                                variant="outline"
+                                className="flex-1"
+                                data-testid="button-cancel-chat"
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                className="flex-1 bg-crypto-blue hover:bg-crypto-teal"
+                                data-testid="button-send-message"
+                                onClick={async () => {
+                                  // This will start the actual chat thread
+                                  const chatMessage = (document.getElementById('chat-message') as HTMLTextAreaElement)?.value;
+                                  if (chatMessage.trim()) {
+                                    try {
+                                      await apiRequest('POST', '/api/chat/threads', {
+                                        listingId: listing.id,
+                                        sellerId: listing.sellerId,
+                                        escrowId: userEscrows?.find((e: any) => e.listingId === listing.id)?.id
+                                      });
+                                      
+                                      toast({
+                                        title: "Chat started!",
+                                        description: "You can now communicate securely with the seller.",
+                                      });
+                                    } catch (error: any) {
+                                      toast({
+                                        title: "Chat failed",
+                                        description: error.message,
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }
+                                }}
+                              >
+                                Start Chat
+                              </Button>
                             </div>
                           </div>
-
-                          <div className="flex space-x-3">
-                            <Button
-                              variant="outline"
-                              className="flex-1"
-                              data-testid="button-cancel-chat"
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              className="flex-1 bg-crypto-blue hover:bg-crypto-teal"
-                              data-testid="button-send-message"
-                            >
-                              Send Message
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                        </DialogContent>
+                      </Dialog>
+                    ) : (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p className="text-sm text-blue-700 font-medium mb-2">💬 Secure Chat Available</p>
+                        <p className="text-xs text-blue-600">
+                          Chat will be enabled after you create an escrow transaction. This ensures secure communication between all parties.
+                        </p>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
