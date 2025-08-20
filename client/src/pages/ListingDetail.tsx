@@ -381,7 +381,7 @@ export default function ListingDetail() {
                       <span className="text-xs text-slate-medium">{listing.network}</span>
                     </div>
                     <CardTitle className="text-3xl font-bold text-slate-dark" data-testid="text-listing-price">
-                      {listing.priceCrypto}
+                      {parseFloat(listing.priceCrypto).toLocaleString()}
                     </CardTitle>
                   </div>
                 </div>
