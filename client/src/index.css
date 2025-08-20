@@ -52,11 +52,13 @@
   --tracking-normal: 0em;
   --spacing: 0.25rem;
   
-  /* Crypto theme colors */
-  --crypto-blue: hsl(203.8863 88.2845% 53.1373%);
-  --crypto-teal: hsl(187.5000 100% 42.3529%);
-  --slate-dark: hsl(210 25% 7.8431%);
-  --slate-medium: hsl(215.8824 20.2703% 45.2941%);
+  /* Professional theme colors */
+  --crypto-blue: hsl(220 70% 50%);
+  --crypto-teal: hsl(195 75% 45%);
+  --slate-dark: hsl(0 0% 0%);
+  --slate-medium: hsl(0 0% 40%);
+  --gradient-primary: linear-gradient(135deg, hsl(220 70% 50%), hsl(195 75% 45%));
+  --gradient-text: linear-gradient(135deg, hsl(0 0% 0%), hsl(0 0% 30%));
 }
 
 .dark {
@@ -120,7 +122,43 @@
   }
 
   .crypto-gradient {
-    background: linear-gradient(135deg, var(--crypto-blue), var(--crypto-teal));
+    background: var(--gradient-primary);
+  }
+
+  .gradient-text {
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .professional-shadow {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .button-primary {
+    background: var(--gradient-primary);
+    border: none;
+    color: white;
+    transition: all 0.3s ease;
+  }
+
+  .button-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .button-secondary {
+    background: white;
+    border: 2px solid var(--crypto-blue);
+    color: var(--crypto-blue);
+    transition: all 0.3s ease;
+  }
+
+  .button-secondary:hover {
+    background: var(--crypto-blue);
+    color: white;
+    transform: translateY(-1px);
   }
 
   .text-crypto-blue {

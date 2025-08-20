@@ -117,16 +117,16 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <Navigation />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Globe className="w-8 h-8 text-crypto-blue" />
-            <span className="text-2xl font-bold text-slate-dark">Beagvs Global</span>
+            <span className="text-2xl font-bold gradient-text">Beagvs Global</span>
           </div>
-          <h2 className="text-3xl font-bold text-slate-dark mb-4">
+          <h2 className="text-3xl font-bold gradient-text mb-4">
             {isSignUp ? "Join Beagvs Global" : "Welcome Back"}
           </h2>
           <p className="text-slate-medium">
@@ -141,7 +141,7 @@ export default function Auth() {
           {/* Main Auth Form */}
           <Card className="shadow-lg border border-slate-100">
             <CardHeader>
-              <CardTitle className="text-xl font-semibold text-slate-dark">
+              <CardTitle className="text-xl font-semibold gradient-text">
                 {isSignUp ? "Create Account" : "Sign In"}
               </CardTitle>
             </CardHeader>
@@ -149,7 +149,7 @@ export default function Auth() {
               {/* Replit Auth Button */}
               <Button
                 onClick={handleReplitAuth}
-                className="w-full mb-6 bg-crypto-blue hover:bg-crypto-teal"
+                className="w-full mb-6 button-primary"
                 data-testid="button-replit-auth"
               >
                 Continue with Replit Auth

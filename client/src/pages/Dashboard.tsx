@@ -56,21 +56,21 @@ export default function Dashboard() {
   }, 0) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <Navigation />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Dashboard Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-dark mb-2" data-testid="text-dashboard-title">
+            <h1 className="text-3xl font-bold gradient-text mb-2" data-testid="text-dashboard-title">
               Welcome back, {(user && (user.username || user.firstName)) || 'User'}!
             </h1>
             <p className="text-slate-medium">Manage your crypto marketplace activities</p>
           </div>
           <div className="mt-4 md:mt-0">
             <Link href="/sell/new">
-              <Button className="bg-crypto-blue hover:bg-crypto-teal" data-testid="button-create-listing">
+              <Button className="button-primary" data-testid="button-create-listing">
                 <Plus className="w-4 h-4 mr-2" />
                 Create Listing
               </Button>

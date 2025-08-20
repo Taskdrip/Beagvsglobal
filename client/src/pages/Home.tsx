@@ -37,13 +37,13 @@ export default function Home() {
   const unreadNotifications = Array.isArray(notifications) ? notifications.filter((notification: any) => !notification.readAt)?.length : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <Navigation />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-dark mb-2" data-testid="text-welcome">Welcome back!</h1>
+          <h1 className="text-3xl font-bold gradient-text mb-2" data-testid="text-welcome">Welcome back!</h1>
           <p className="text-slate-medium">Manage your crypto-powered marketplace activities</p>
         </div>
 
@@ -53,7 +53,7 @@ export default function Home() {
             <Card className="hover:shadow-lg transition-shadow cursor-pointer border-2 border-dashed border-slate-200 hover:border-crypto-blue" data-testid="card-create-listing">
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Plus className="w-8 h-8 text-crypto-blue mb-3" />
-                <h3 className="font-semibold text-slate-dark mb-2">Create New Listing</h3>
+                <h3 className="font-semibold gradient-text mb-2">Create New Listing</h3>
                 <p className="text-sm text-slate-medium text-center">List your property, service, or product</p>
               </CardContent>
             </Card>
@@ -63,7 +63,7 @@ export default function Home() {
             <Card className="hover:shadow-lg transition-shadow cursor-pointer" data-testid="card-browse-marketplace">
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <TrendingUp className="w-8 h-8 text-green-600 mb-3" />
-                <h3 className="font-semibold text-slate-dark mb-2">Browse Marketplace</h3>
+                <h3 className="font-semibold gradient-text mb-2">Browse Marketplace</h3>
                 <p className="text-sm text-slate-medium text-center">Discover new opportunities</p>
               </CardContent>
             </Card>
@@ -73,7 +73,7 @@ export default function Home() {
             <Card className="hover:shadow-lg transition-shadow cursor-pointer" data-testid="card-manage-wallets">
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Wallet className="w-8 h-8 text-purple-600 mb-3" />
-                <h3 className="font-semibold text-slate-dark mb-2">Manage Wallets</h3>
+                <h3 className="font-semibold gradient-text mb-2">Manage Wallets</h3>
                 <p className="text-sm text-slate-medium text-center">Update your crypto wallets</p>
               </CardContent>
             </Card>
