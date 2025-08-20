@@ -27,7 +27,7 @@ export default function Marketplace() {
   const [selectedCurrency, setSelectedCurrency] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("");
 
-  const { data: listings, isLoading } = useQuery({
+  const { data: listings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/listings", { 
       search: searchQuery || undefined,
       type: selectedType === "all" ? undefined : selectedType,
