@@ -191,10 +191,10 @@ export default function Marketplace() {
                         {listing.title}
                       </h3>
                     </Link>
-                    {listing.avgRating > 0 && (
+                    {listing.avgRating && Number(listing.avgRating) > 0 && (
                       <div className="flex items-center space-x-1">
                         <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                        <span className="text-sm text-slate-medium">{listing.avgRating.toFixed(1)}</span>
+                        <span className="text-sm text-slate-medium">{Number(listing.avgRating).toFixed(1)}</span>
                       </div>
                     )}
                   </div>
@@ -253,12 +253,12 @@ export default function Marketplace() {
                     </Link>
                   </div>
 
-                  {listing.reviewCount > 0 && (
+                  {listing.reviewCount && Number(listing.reviewCount) > 0 && (
                     <div className="mt-3 pt-3 border-t border-slate-100">
                       <div className="flex items-center justify-between text-sm text-slate-medium">
-                        <span>{listing.reviewCount} review{listing.reviewCount !== 1 ? 's' : ''}</span>
+                        <span>{Number(listing.reviewCount)} review{Number(listing.reviewCount) !== 1 ? 's' : ''}</span>
                         <div className="flex items-center space-x-1">
-                          <StarRating rating={listing.avgRating} size="sm" readonly />
+                          <StarRating rating={Number(listing.avgRating || 0)} size="sm" readonly />
                         </div>
                       </div>
                     </div>
@@ -288,7 +288,7 @@ export default function Marketplace() {
         )}
 
         {/* Load More */}
-        {listings && listings.length > 0 && listings.length >= 12 && (
+        {listings && Array.isArray(listings) && listings.length > 0 && listings.length >= 12 && (
           <div className="text-center mt-12">
             <Button variant="outline" size="lg" data-testid="button-load-more">
               Load More Listings
