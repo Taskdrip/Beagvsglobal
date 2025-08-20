@@ -133,12 +133,12 @@ export default function Landing() {
               <Card className="group cursor-pointer hover:shadow-xl transition-all duration-300 border-slate-100 hover:border-crypto-blue/30" data-testid="card-shipping">
                 <div className="overflow-hidden rounded-t-lg">
                   <img 
-                    src="https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=600&h=300&fit=crop&crop=center" 
-                    alt="Global shipping and logistics" 
+                    src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=600&h=300&fit=crop&crop=center" 
+                    alt="Modern shipping containers and cargo logistics" 
                     className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      target.src = "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&h=300&fit=crop&crop=center";
+                      target.src = "https://images.unsplash.com/photo-1605745341112-85968b19335b?w=600&h=300&fit=crop&crop=center";
                     }}
                   />
                 </div>
