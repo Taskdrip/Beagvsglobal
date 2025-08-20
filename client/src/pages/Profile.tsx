@@ -372,12 +372,12 @@ export default function Profile() {
                               }`}>
                                 {listing.currency === 'PI' ? 'π PI' : 'USDT'}
                               </span>
-                              <span className="font-bold text-slate-dark">{listing.priceCrypto}</span>
+                              <span className="font-bold text-slate-dark">{parseFloat(listing.priceCrypto).toLocaleString()}</span>
                             </div>
                             {listing.avgRating > 0 && (
                               <div className="flex items-center space-x-1">
                                 <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                                <span className="text-sm text-slate-medium">{listing.avgRating.toFixed(1)}</span>
+                                <span className="text-sm text-slate-medium">{Number(listing.avgRating || 0).toFixed(1)}</span>
                               </div>
                             )}
                           </div>

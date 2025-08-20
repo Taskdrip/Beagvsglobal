@@ -416,16 +416,16 @@ export default function ListingDetail() {
                           <div className="space-y-3">
                             <div className="flex justify-between">
                               <span className="text-slate-medium">Item Price:</span>
-                              <span className="font-semibold">{listing.priceCrypto} {listing.currency}</span>
+                              <span className="font-semibold">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-slate-medium">Platform Fee (10%):</span>
-                              <span className="font-semibold">{(parseFloat(listing.priceCrypto) * 0.1).toFixed(8)} {listing.currency}</span>
+                              <span className="font-semibold">{(parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} {listing.currency}</span>
                             </div>
                             <Separator />
                             <div className="flex justify-between text-lg">
                               <span className="font-semibold">Total:</span>
-                              <span className="font-bold">{listing.priceCrypto} {listing.currency}</span>
+                              <span className="font-bold">{(parseFloat(listing.priceCrypto) + parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} {listing.currency}</span>
                             </div>
                           </div>
 

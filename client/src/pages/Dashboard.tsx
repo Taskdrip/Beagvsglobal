@@ -200,7 +200,7 @@ export default function Dashboard() {
                             <p className="text-sm text-slate-medium">{listing.type.replace('_', ' ')}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-slate-dark">{listing.priceCrypto} {listing.currency}</p>
+                            <p className="font-semibold text-slate-dark">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</p>
                             <span className={`text-xs px-2 py-1 rounded-full ${
                               listing.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                             }`}>
@@ -303,7 +303,7 @@ export default function Dashboard() {
                           <p className="text-xs text-slate-400">Created {new Date(listing.createdAt).toLocaleDateString()}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-slate-dark text-lg">{listing.priceCrypto} {listing.currency}</p>
+                          <p className="font-semibold text-slate-dark text-lg">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</p>
                           <p className="text-sm text-slate-medium">{listing.network}</p>
                         </div>
                         <div className="flex flex-col space-y-2">

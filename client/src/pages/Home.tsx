@@ -157,7 +157,7 @@ export default function Home() {
                         <p className="text-sm text-slate-medium">{listing.type.replace('_', ' ')}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-slate-dark">{listing.priceCrypto} {listing.currency}</p>
+                        <p className="font-semibold text-slate-dark">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</p>
                         <p className="text-sm text-slate-medium">{listing.isActive ? 'Active' : 'Inactive'}</p>
                       </div>
                     </div>
