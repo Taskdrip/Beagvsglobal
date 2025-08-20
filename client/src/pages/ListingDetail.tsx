@@ -105,11 +105,22 @@ export default function ListingDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Failed to create escrow",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error.message.includes("Unauthorized") || error.message.includes("Authentication required")) {
+        toast({
+          title: "Authentication required",
+          description: "Redirecting to sign in...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 1500);
+      } else {
+        toast({
+          title: "Failed to create escrow",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     },
   });
 
