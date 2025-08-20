@@ -43,6 +43,23 @@ export default function Auth() {
   const isSignUp = location.includes("sign-up");
   const { toast } = useToast();
 
+  // Auto-scroll to form when in signup mode
+  useEffect(() => {
+    if (isSignUp) {
+      // Small delay to ensure the page has rendered
+      setTimeout(() => {
+        const formElement = document.querySelector('[data-testid="form-sign-up"]') || 
+                            document.querySelector('.auth-form-container');
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          // Fallback: scroll to top of page
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 100);
+    }
+  }, [isSignUp]);
+
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
@@ -142,7 +159,7 @@ export default function Auth() {
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Main Auth Form */}
-          <Card className="shadow-lg border border-slate-100">
+          <Card className="auth-form-container shadow-lg border border-slate-100">
             <CardHeader>
               <CardTitle className="text-xl font-semibold gradient-text">
                 {isSignUp ? "Create Account" : "Sign In"}
