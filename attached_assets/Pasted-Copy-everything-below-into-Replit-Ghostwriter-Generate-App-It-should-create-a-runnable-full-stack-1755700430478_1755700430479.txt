@@ -1,0 +1,340 @@
+Copy everything below into Replit (Ghostwriter/Generate App). It should create a runnable full‑stack MVP in a single repo.
+
+
+---
+
+Build a full‑stack MVP for Beagvs Global (crypto‑powered Real Estate + Shipping SaaS + SocialFi Marketplace)
+
+You are an expert full‑stack engineer. Scaffold and implement a production‑grade MVP with the specs below. Prefer clear, well‑commented code and a clean UI.
+
+Tech Stack
+
+Next.js 14 (App Router) + TypeScript
+
+Tailwind CSS for styling; modern, clean, mobile‑first UI.
+
+Prisma ORM with PostgreSQL (fallback to SQLite if Postgres env vars are missing in Replit).
+
+NextAuth (Credentials provider) for email/password auth; JWT sessions.
+
+Zod for validation; React Hook Form for forms.
+
+Upload handling: simple image upload to /public/uploads (no cloud dependency for MVP).
+
+Realtime DMs: Socket.IO (fallback to polling if websockets are unavailable).
+
+API layer: Next.js route handlers under app/api/*.
+
+State: React Query (TanStack Query) for data fetching/cache.
+
+
+App Name & Branding
+
+App name: Beagvs Global.
+
+Primary purpose: "A crypto‑powered SaaS marketplace for real estate and global freight forwarding (shipping), with escrow, reviews, and social features."
+
+Top navigation: Marketplace, Shipping, Real Estate, Blog, About, Contact, Dashboard (if authenticated).
+
+
+User Roles
+
+Guest (browse public content)
+
+User (can list, buy via escrow, review, follow, DM)
+
+Admin (full CRUD; escrow release/resolve; set platform wallets; manage blog; moderate)
+
+
+Auth & Onboarding
+
+Signup page /auth/sign-up collecting Full name, Username, Profile description, WhatsApp number, Email, Password, Address, Location. All required except description optional.
+
+Validate: username unique, email unique, strong password, WhatsApp number numeric plus optional +.
+
+After successful signup, redirect to /welcome (Thank‑You page text below).
+
+Login page /auth/sign-in (email + password).
+
+
+Thank‑You Copy for /welcome
+
+> Welcome to the Beagvs Global community!
+Here, selling or acquiring real estate with Pi and other cryptocurrencies is seamless. We also power global freight forwarding—shipping your products, cargo, goods, and parcels worldwide, with crypto‑first escrow.
+Explore the marketplace, list your properties or services, and trade goods/services for Pi or USDT across multiple networks. Your deals are protected by our built‑in escrow and review system.
+— Team Beagvs Global
+
+
+
+Database Schema (Prisma)
+
+Create the following models with sensible indexes and relations:
+
+User: id, name, username (unique), email (unique), passwordHash, whatsapp, address, location, bio (profile description), avatarUrl, role (enum: USER, ADMIN), createdAt, updatedAt.
+
+Wallet: id, userId (FK), type (enum: PI, USDT_TRON, USDT_TON, USDT_BNB, USDT_SOL, USDT_AVAX), address, label, createdAt.
+
+Listing: id, sellerId (FK User), type (enum: REAL_ESTATE, SHIPPING_SERVICE, PRODUCT, SERVICE), title, slug, description, priceCrypto (decimal), currency (enum: PI, USDT), network (enum: PI_MAINNET, TRON, TON, BNB, SOL, AVAX), images (string[]), location, isActive (bool), createdAt, updatedAt.
+
+Review: id, listingId (FK), reviewerId (FK User), rating (int 1..5), comment, createdAt. (Guard so reviewers must have a completed escrow on that listing or with that seller.)
+
+Escrow: id, listingId (FK), buyerId (FK), sellerId (FK), amount (decimal), currency (enum as above), network (enum as above), status (enum: CREATED, FUNDED, SHIPPED, DELIVERED, DISPUTED, RELEASED, REFUNDED), buyerTxHash (string? for funding), sellerTxHash (string? for payout), adminNote (string), platformFeePct (default 10), platformFeeAmount (decimal), sellerNetAmount (decimal), createdAt, updatedAt.
+
+Follow: id, followerId (FK), followeeId (FK), status (enum: PENDING, ACCEPTED, REJECTED), createdAt.
+
+Message: id, threadId, senderId (FK), recipientId (FK), content, readAt (DateTime?), createdAt. (Implement threads by deterministic threadId composed of two user ids sorted.)
+
+Notification: id, userId (FK), type (enum: FOLLOW_REQUEST, MESSAGE, ESCROW_UPDATE, REVIEW), data (JSON), readAt?, createdAt.
+
+BlogPost: id, authorId (FK), title, slug, excerpt, contentMarkdown, coverImageUrl, published (bool), createdAt, updatedAt.
+
+PlatformWallet: id, type (enum: PI, USDT_TRON, USDT_TON, USDT_BNB, USDT_SOL, USDT_AVAX), address, createdAt, updatedAt. (Admin‑managed; used as escrow sink/source.)
+
+
+Key Features & Flows
+
+Marketplace
+
+Public /marketplace with filters (type, price, currency/network, location, rating). Card grid with image, title, price, rating, seller.
+
+/listing/[slug] detail page shows gallery, description, price, seller profile, average rating, reviews, Contact via WhatsApp button, Follow seller, DM button, and Buy via Escrow CTA.
+
+Create/Edit listing (authenticated) at /sell/new and /sell/[id]/edit.
+
+
+Escrow (10% platform fee)
+
+When buyer clicks Buy via Escrow, create Escrow with status=CREATED and show instructions:
+
+Display Platform wallet address for the selected currency/network (from PlatformWallet).
+
+Buyer enters amount and later submits buyerTxHash once on‑chain payment is made.
+
+Status moves to FUNDED after admin verifies (manual for MVP via admin dashboard action).
+
+Seller ships/provides service; buyer marks DELIVERED.
+
+Admin reviews and RELEASES escrow. Calculate platformFeeAmount = amount * 0.10 and sellerNetAmount = amount - platformFeeAmount. Store optional sellerTxHash if payout is on‑chain.
+
+Support DISPUTED and REFUNDED manual paths in admin.
+
+
+No automatic blockchain integration in MVP—record tx hashes only; admins verify manually.
+
+
+Reviews
+
+1–5 star with comment.
+
+Only users with a RELEASED escrow for that listing or seller can review. Prevent duplicates per buyer/listing.
+
+
+Social: Follow & DMs
+
+Follow requests: send, accept, reject, or cancel; profiles show counts and status. If a new user follows you, show request on your notifications page with buttons.
+
+DMs: authenticated users can message each other. Use Socket.IO if available; otherwise poll GET /api/messages?threadId=... every 5s. Show unread badges.
+
+
+WhatsApp Contact
+
+On listing page, render Contact Seller via WhatsApp deep link:
+
+https://wa.me/<seller.whatsapp>?text=Hi%20I%27m%20interested%20in%20<listingTitle>
+
+
+
+Pages
+
+Home / with hero (brief pitch), featured listings, and CTA to sign up/list.
+
+Auth: /auth/sign-up, /auth/sign-in, /welcome (thank‑you copy above).
+
+Dashboard /dashboard (User): quick stats (my listings, my escrows by status, messages, followers), shortcuts, and wallet manager.
+
+Admin /admin: tabs for Escrows (verify/release/dispute/refund), Listings (CRUD), Blog (CRUD), Users, Reviews moderation, Platform Wallets (CRUD), and Settings.
+
+Blog /blog list + /blog/[slug].
+
+About /about with founders info (below).
+
+Contact /contact (simple form that posts to /api/contact and emails console.log for MVP).
+
+
+Founders Content (About Page)
+
+Founder & CEO: Mr. Godspower Asemota — Real estate entrepreneur with over two decades in the industry and freight forwarding.
+
+Co‑Founder & CTO: Abraham Tahbat — Lawyer and web developer with 12+ years in blockchain, tech‑preneurship, and web3.
+
+Mission copy: “We’re building a world‑class SocialFi marketplace where crypto enthusiasts can acquire real estate, ship globally, and exchange goods/services with crypto, protected by escrow.”
+
+
+Admin Capabilities
+
+Manually add/edit PlatformWallets (Pi, USDT on TRON/TON/BNB/SOL/AVAX).
+
+CRUD for Listings (real estate, shipping projects/services, items/products).
+
+Approve/ban listings and users.
+
+Manage Escrow lifecycle (verify funding, release/resolve).
+
+Manage Blog posts.
+
+
+Security & Validation
+
+Hash passwords with bcrypt.
+
+Protect admin routes (role === ADMIN).
+
+Server‑side input validation with Zod; client‑side with RHF + Zod resolver.
+
+File type/size checks for uploads.
+
+Rate‑limit auth and messaging endpoints (simple in‑memory limiter OK for MVP).
+
+
+API Endpoints (illustrative)
+
+POST /api/auth/sign-up – create user.
+
+POST /api/auth/sign-in – session.
+
+GET/POST /api/listings – list/create.
+
+GET/PATCH/DELETE /api/listings/[id] – details/update/delete.
+
+POST /api/escrows – create escrow.
+
+GET/PATCH /api/escrows/[id] – update status, add tx hashes (admin‑gated for critical transitions).
+
+POST /api/reviews – add review (guards ensure completed escrow).
+
+POST /api/follow – send/accept/reject/cancel.
+
+GET/POST /api/messages – fetch/send messages.
+
+POST /api/platform-wallets (admin) – add platform wallets.
+
+POST /api/contact – capture contact form.
+
+
+UI Requirements
+
+Consistent header/footer; sticky top nav.
+
+Card‑based grids with soft shadows, rounded corners, generous spacing.
+
+Forms with labeled fields, inline errors, and success toasts.
+
+Ratings component (interactive stars) and review list.
+
+Escrow progress indicator (stepper): Created → Funded → Shipped → Delivered → Released (or Disputed/Refunded).
+
+Profile pages: avatar, bio, wallets, listings, follow/DM buttons.
+
+
+Fee Logic
+
+Store platformFeePct = 10 (default). On escrow RELEASED, compute and persist:
+platformFeeAmount = amount * 0.10
+sellerNetAmount = amount - platformFeeAmount
+
+Show these values on the escrow detail page and in admin.
+
+
+Environment Variables
+
+Create .env with fallbacks:
+
+DATABASE_URL=postgresql://user:pass@localhost:5432/beagvs
+NEXTAUTH_SECRET=devsecret
+NEXTAUTH_URL=http://localhost:3000
+
+If no Postgres is present, Prisma should switch to SQLite file:./dev.db automatically.
+
+Seed Script
+
+Add prisma/seed.ts to create:
+
+Admin user (role ADMIN):
+
+name: "Mr. Godspower Asemota"
+
+email: founder@beagvs.global (password: Admin#12345)
+
+
+CTO user (role USER):
+
+name: "Abraham Tahbat"
+
+email: cto@beagvs.global (password: Cto#12345)
+
+
+A few sample listings: 1 real estate, 1 shipping service, 1 product, each with images and different currencies/networks.
+
+A couple of platform wallets with placeholder addresses for each supported network.
+
+
+README
+
+Generate a README.md with:
+
+Overview of Beagvs Global MVP
+
+Features list & screenshots placeholders
+
+Getting started: install, prisma migrate dev, prisma db seed, npm run dev
+
+Env vars
+
+Notes on escrow/manual verification and tx hash recording only
+
+
+Developer Experience
+
+Strict TypeScript.
+
+ESLint + Prettier.
+
+Commit hooks with simple lint (optional).
+
+
+Acceptance Criteria (Demo Walkthrough)
+
+1. User signs up with all specified fields → redirected to /welcome with provided copy.
+
+
+2. User logs in, visits /dashboard, adds their wallets, creates a listing with images.
+
+
+3. Another user views listing, clicks WhatsApp contact, follows seller, sends a DM; seller receives it.
+
+
+4. Buyer clicks Buy via Escrow, creates escrow; submits buyerTxHash. Admin verifies and sets status to FUNDED.
+
+
+5. Buyer marks DELIVERED; admin RELEASES escrow → platform fee (10%) and seller net amount calculated and displayed.
+
+
+6. Buyer leaves a 5‑star review with comment → review appears on listing and seller profile.
+
+
+7. Admin can CRUD blog posts and platform wallets; About & Contact pages present.
+
+
+
+Visuals & Content
+
+Use royalty‑free placeholder images and icons. Sprinkle relevant images across Home/Marketplace/Shipping/Real Estate pages to illustrate features.
+
+Keep copy concise and professional. Emphasize crypto‑escrow safety and global reach.
+
+
+
+---
+
+Deliverables: Working Next.js app with the above pages, Prisma schema/migrations, API routes, auth, escrow logic (manual verification), review system, follow + DM, admin panel, blog, About/Contact pages, and README. Ensure npm run dev starts the app immediately on Replit.
+
