@@ -154,11 +154,6 @@ export default function ListingDetail() {
     },
   });
 
-  const generateWhatsAppLink = () => {
-    if (!listing || !listing.seller || !listing.seller.whatsapp) return "#";
-    const message = `Hi! I'm interested in ${listing.title || 'your listing'}`;
-    return `https://wa.me/${listing.seller.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
-  };
 
   const handleCreateEscrow = () => {
     if (!isAuthenticated) {
@@ -460,11 +455,41 @@ export default function ListingDetail() {
 
                           {platformWallet && (
                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                              <h4 className="font-semibold text-yellow-800 mb-2">Payment Instructions</h4>
-                              <p className="text-sm text-yellow-700 mb-2">Send payment to:</p>
-                              <p className="font-mono text-sm bg-white p-2 rounded border break-all">
-                                {platformWallet.address}
-                              </p>
+                              <h4 className="font-semibold text-yellow-800 mb-3">Payment Instructions</h4>
+                              
+                              <div className="mb-3">
+                                <div className="flex items-center justify-center space-x-2 mb-2">
+                                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                    listing.currency === 'PI' ? 'bg-purple-100 text-purple-800' : 'bg-teal-100 text-teal-800'
+                                  }`}>
+                                    {listing.currency === 'PI' ? 'π PI Network' : `USDT - ${listing.network}`}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-yellow-700 text-center">Send payment to this wallet address:</p>
+                              </div>
+
+                              <div className="bg-white p-3 rounded-lg border">
+                                <div className="flex items-center space-x-2">
+                                  <p className="font-mono text-sm flex-1 break-all">
+                                    {platformWallet.address}
+                                  </p>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(platformWallet.address);
+                                      toast({
+                                        title: "Copied!",
+                                        description: "Wallet address copied to clipboard",
+                                      });
+                                    }}
+                                    className="flex-shrink-0"
+                                    data-testid="button-copy-wallet"
+                                  >
+                                    Copy
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           )}
 
@@ -490,22 +515,58 @@ export default function ListingDetail() {
                       </DialogContent>
                     </Dialog>
 
-                    {listing.seller?.whatsapp && (
-                      <a
-                        href={generateWhatsAppLink()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
+                    <Dialog>
+                      <DialogTrigger asChild>
                         <Button 
                           variant="outline" 
-                          className="w-full border-green-500 text-green-600 hover:bg-green-50"
-                          data-testid="button-whatsapp"
+                          className="w-full border-crypto-blue text-crypto-blue hover:bg-blue-50"
+                          data-testid="button-chat"
                         >
                           <MessageCircle className="w-4 h-4 mr-2" />
-                          Contact via WhatsApp
+                          Start Chat
                         </Button>
-                      </a>
-                    )}
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Chat with Seller</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm text-blue-700">
+                              Start a secure chat with <span className="font-semibold">{listing.seller?.firstName || 'the seller'}</span> about this {listing.type.toLowerCase().replace('_', ' ')}.
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <Label htmlFor="chat-message">Your Message</Label>
+                              <Textarea
+                                id="chat-message"
+                                placeholder="Hi! I'm interested in your listing..."
+                                className="min-h-[80px]"
+                                data-testid="textarea-chat-message"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex space-x-3">
+                            <Button
+                              variant="outline"
+                              className="flex-1"
+                              data-testid="button-cancel-chat"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              className="flex-1 bg-crypto-blue hover:bg-crypto-teal"
+                              data-testid="button-send-message"
+                            >
+                              Send Message
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </>
                 ) : (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

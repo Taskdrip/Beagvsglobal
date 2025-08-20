@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 import bcrypt from "bcrypt";
-import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema } from "@shared/schema";
+import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -671,6 +671,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Chat routes
+  app.post('/api/chat/threads', isAuthenticated, async (req: any, res) => {
+    try {
+      const { listingId, sellerId, escrowId } = req.body;
+      const buyerId = req.user.claims.sub;
+
+      // Prevent users from creating threads with themselves
+      if (buyerId === sellerId) {
+        return res.status(400).json({ message: "Cannot create chat thread with yourself" });
+      }
+
+      const thread = await storage.getOrCreateChatThread(listingId, buyerId, sellerId, escrowId);
+      res.json(thread);
+    } catch (error) {
+      console.error("Error creating chat thread:", error);
+      res.status(500).json({ message: "Failed to create chat thread" });
+    }
+  });
+
+  app.get('/api/chat/threads', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const threads = await storage.getUserChatThreads(userId);
+      res.json(threads);
+    } catch (error) {
+      console.error("Error fetching chat threads:", error);
+      res.status(500).json({ message: "Failed to fetch chat threads" });
+    }
+  });
+
+  app.get('/api/chat/threads/:threadId/messages', isAuthenticated, async (req: any, res) => {
+    try {
+      const { threadId } = req.params;
+      const messages = await storage.getChatThreadMessages(threadId);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  app.post('/api/chat/threads/:threadId/messages', isAuthenticated, async (req: any, res) => {
+    try {
+      const { threadId } = req.params;
+      const { content, recipientId } = req.body;
+      const senderId = req.user.claims.sub;
+
+      const messageData = {
+        threadId,
+        senderId,
+        recipientId,
+        content,
+        messageType: 'text' as const,
+      };
+
+      const message = await storage.createMessage(messageData);
+      res.json(message);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  app.patch('/api/chat/messages/:messageId/read', isAuthenticated, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
+      await storage.markMessageAsRead(messageId);
+      res.json({ message: "Message marked as read" });
+    } catch (error) {
+      console.error("Error marking message as read:", error);
+      res.status(500).json({ message: "Failed to mark message as read" });
     }
   });
 

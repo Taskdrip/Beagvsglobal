@@ -118,12 +118,24 @@ export const follows = pgTable("follows", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const chatThreads = pgTable("chat_threads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  listingId: varchar("listing_id").references(() => listings.id, { onDelete: 'cascade' }),
+  buyerId: varchar("buyer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sellerId: varchar("seller_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  escrowId: varchar("escrow_id").references(() => escrows.id, { onDelete: 'set null' }),
+  status: varchar("status").default('active'), // active, archived, closed
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  threadId: varchar("thread_id").notNull(),
+  threadId: varchar("thread_id").notNull().references(() => chatThreads.id, { onDelete: 'cascade' }),
   senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   recipientId: varchar("recipient_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   content: text("content").notNull(),
+  messageType: varchar("message_type").default('text'), // text, system, escrow_update
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -169,6 +181,8 @@ export const userRelations = relations(users, ({ many }) => ({
   followsAsFollowee: many(follows, { relationName: "followeeFollows" }),
   sentMessages: many(messages, { relationName: "sentMessages" }),
   receivedMessages: many(messages, { relationName: "receivedMessages" }),
+  buyerChatThreads: many(chatThreads, { relationName: "buyerChatThreads" }),
+  sellerChatThreads: many(chatThreads, { relationName: "sellerChatThreads" }),
   notifications: many(notifications),
   blogPosts: many(blogPosts),
 }));
@@ -230,7 +244,33 @@ export const followRelations = relations(follows, ({ one }) => ({
   }),
 }));
 
+export const chatThreadRelations = relations(chatThreads, ({ one, many }) => ({
+  listing: one(listings, {
+    fields: [chatThreads.listingId],
+    references: [listings.id],
+  }),
+  buyer: one(users, {
+    fields: [chatThreads.buyerId],
+    references: [users.id],
+    relationName: "buyerChatThreads",
+  }),
+  seller: one(users, {
+    fields: [chatThreads.sellerId],
+    references: [users.id],
+    relationName: "sellerChatThreads",
+  }),
+  escrow: one(escrows, {
+    fields: [chatThreads.escrowId],
+    references: [escrows.id],
+  }),
+  messages: many(messages),
+}));
+
 export const messageRelations = relations(messages, ({ one }) => ({
+  thread: one(chatThreads, {
+    fields: [messages.threadId],
+    references: [chatThreads.id],
+  }),
   sender: one(users, {
     fields: [messages.senderId],
     references: [users.id],
@@ -292,6 +332,12 @@ export const insertFollowSchema = createInsertSchema(follows).omit({
   createdAt: true,
 });
 
+export const insertChatThreadSchema = createInsertSchema(chatThreads).omit({
+  id: true,
+  createdAt: true,
+  lastMessageAt: true,
+});
+
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   createdAt: true,
@@ -328,6 +374,8 @@ export type InsertEscrow = z.infer<typeof insertEscrowSchema>;
 export type Escrow = typeof escrows.$inferSelect;
 export type InsertFollow = z.infer<typeof insertFollowSchema>;
 export type Follow = typeof follows.$inferSelect;
+export type InsertChatThread = z.infer<typeof insertChatThreadSchema>;
+export type ChatThread = typeof chatThreads.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;

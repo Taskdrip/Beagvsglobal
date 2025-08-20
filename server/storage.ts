@@ -5,6 +5,7 @@ import {
   reviews,
   escrows,
   follows,
+  chatThreads,
   messages,
   notifications,
   blogPosts,
@@ -21,6 +22,8 @@ import {
   type Escrow,
   type InsertFollow,
   type Follow,
+  type ChatThread,
+  type InsertChatThread,
   type InsertMessage,
   type Message,
   type InsertNotification,
@@ -76,11 +79,14 @@ export interface IStorage {
   getUserFollowing(userId: string): Promise<(Follow & { followee: User })[]>;
   getFollowRequests(userId: string): Promise<(Follow & { follower: User })[]>;
   
-  // Message operations
-  getMessages(threadId: string): Promise<(Message & { sender: User; recipient: User })[]>;
+  // Chat operations
+  getChatThread(listingId: string, buyerId: string, sellerId: string): Promise<ChatThread | undefined>;
+  createChatThread(thread: InsertChatThread): Promise<ChatThread>;
+  getOrCreateChatThread(listingId: string, buyerId: string, sellerId: string, escrowId?: string): Promise<ChatThread>;
+  getChatThreadMessages(threadId: string): Promise<(Message & { sender: User })[]>;
   createMessage(message: InsertMessage): Promise<Message>;
   markMessageAsRead(id: string): Promise<void>;
-  getUserThreads(userId: string): Promise<{ threadId: string; otherUser: User; lastMessage: Message; unreadCount: number }[]>;
+  getUserChatThreads(userId: string): Promise<(ChatThread & { listing: Listing; buyer: User; seller: User; lastMessage?: Message; unreadCount: number })[]>;
   
   // Notification operations
   getUserNotifications(userId: string): Promise<Notification[]>;
@@ -682,6 +688,173 @@ export class DatabaseStorage implements IStorage {
       .from(platformWallets)
       .where(eq(platformWallets.type, type as any));
     return wallet;
+  }
+
+  // Chat operations
+  async getChatThread(listingId: string, buyerId: string, sellerId: string): Promise<ChatThread | undefined> {
+    const [thread] = await db
+      .select()
+      .from(chatThreads)
+      .where(
+        and(
+          eq(chatThreads.listingId, listingId),
+          eq(chatThreads.buyerId, buyerId),
+          eq(chatThreads.sellerId, sellerId)
+        )
+      );
+    return thread;
+  }
+
+  async createChatThread(thread: InsertChatThread): Promise<ChatThread> {
+    const [newThread] = await db
+      .insert(chatThreads)
+      .values(thread)
+      .returning();
+    return newThread;
+  }
+
+  async getOrCreateChatThread(listingId: string, buyerId: string, sellerId: string, escrowId?: string): Promise<ChatThread> {
+    const existingThread = await this.getChatThread(listingId, buyerId, sellerId);
+    if (existingThread) {
+      // Update escrow ID if provided and not set
+      if (escrowId && !existingThread.escrowId) {
+        const [updated] = await db
+          .update(chatThreads)
+          .set({ escrowId })
+          .where(eq(chatThreads.id, existingThread.id))
+          .returning();
+        return updated;
+      }
+      return existingThread;
+    }
+
+    return this.createChatThread({
+      listingId,
+      buyerId,
+      sellerId,
+      escrowId,
+    });
+  }
+
+  async getChatThreadMessages(threadId: string): Promise<(Message & { sender: User })[]> {
+    return await db
+      .select({
+        id: messages.id,
+        threadId: messages.threadId,
+        senderId: messages.senderId,
+        recipientId: messages.recipientId,
+        content: messages.content,
+        messageType: messages.messageType,
+        readAt: messages.readAt,
+        createdAt: messages.createdAt,
+        sender: {
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+          username: users.username,
+          role: users.role,
+        },
+      })
+      .from(messages)
+      .leftJoin(users, eq(messages.senderId, users.id))
+      .where(eq(messages.threadId, threadId))
+      .orderBy(desc(messages.createdAt));
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const [newMessage] = await db
+      .insert(messages)
+      .values(message)
+      .returning();
+    
+    // Update thread's last message time
+    await db
+      .update(chatThreads)
+      .set({ lastMessageAt: new Date() })
+      .where(eq(chatThreads.id, message.threadId));
+
+    return newMessage;
+  }
+
+  async markMessageAsRead(id: string): Promise<void> {
+    await db
+      .update(messages)
+      .set({ readAt: new Date() })
+      .where(eq(messages.id, id));
+  }
+
+  async getUserChatThreads(userId: string): Promise<(ChatThread & { listing: Listing; buyer: User; seller: User; lastMessage?: Message; unreadCount: number })[]> {
+    const userThreads = await db
+      .select({
+        id: chatThreads.id,
+        listingId: chatThreads.listingId,
+        buyerId: chatThreads.buyerId,
+        sellerId: chatThreads.sellerId,
+        escrowId: chatThreads.escrowId,
+        status: chatThreads.status,
+        lastMessageAt: chatThreads.lastMessageAt,
+        createdAt: chatThreads.createdAt,
+        listing: {
+          id: listings.id,
+          title: listings.title,
+          slug: listings.slug,
+          type: listings.type,
+          priceCrypto: listings.priceCrypto,
+          currency: listings.currency,
+        },
+        buyer: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+          username: users.username,
+        },
+        seller: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+          username: users.username,
+        },
+      })
+      .from(chatThreads)
+      .leftJoin(listings, eq(chatThreads.listingId, listings.id))
+      .leftJoin(users, or(eq(chatThreads.buyerId, users.id), eq(chatThreads.sellerId, users.id)))
+      .where(or(eq(chatThreads.buyerId, userId), eq(chatThreads.sellerId, userId)))
+      .orderBy(desc(chatThreads.lastMessageAt));
+
+    // Get unread counts and last messages for each thread
+    const threadsWithData = await Promise.all(
+      userThreads.map(async (thread) => {
+        const [unreadCount] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.threadId, thread.id),
+              eq(messages.recipientId, userId),
+              sql`${messages.readAt} IS NULL`
+            )
+          );
+
+        const [lastMessage] = await db
+          .select()
+          .from(messages)
+          .where(eq(messages.threadId, thread.id))
+          .orderBy(desc(messages.createdAt))
+          .limit(1);
+
+        return {
+          ...thread,
+          unreadCount: unreadCount?.count || 0,
+          lastMessage: lastMessage || undefined,
+        };
+      })
+    );
+
+    return threadsWithData as any;
   }
 }
 
