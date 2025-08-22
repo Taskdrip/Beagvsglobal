@@ -28,7 +28,7 @@ const listingSchema = z.object({
     (val) => !isNaN(Number(val)) && Number(val) > 0,
     "Price must be a positive number"
   ),
-  currency: z.enum(["PI", "USDT", "USD"], {
+  currency: z.enum(["PI", "USDT", "USD", "NGN", "EUR", "GBP", "CAD"], {
     required_error: "Please select a currency",
   }),
   network: z.enum(["PI_MAINNET", "TRON", "TON", "BNB", "SOL", "AVAX", "BANK_TRANSFER"], {
@@ -320,7 +320,7 @@ export default function CreateListing() {
                           form.setValue("network", "PI_MAINNET");
                         } else if (value === "USDT") {
                           form.setValue("network", "TRON");
-                        } else if (value === "USD") {
+                        } else if (["USD", "EUR", "GBP", "CAD", "NGN"].includes(value)) {
                           form.setValue("network", "BANK_TRANSFER");
                         }
                       }}
@@ -329,9 +329,13 @@ export default function CreateListing() {
                         <SelectValue placeholder="Select currency" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="PI">Pi (π)</SelectItem>
-                        <SelectItem value="USDT">USDT</SelectItem>
-                        <SelectItem value="USD">USD (Bank Transfer)</SelectItem>
+                        <SelectItem value="PI">π Pi (π)</SelectItem>
+                        <SelectItem value="USDT">💎 USDT</SelectItem>
+                        <SelectItem value="USD">🇺🇸 USD (Bank Transfer)</SelectItem>
+                        <SelectItem value="EUR">🇪🇺 EUR (Bank Transfer)</SelectItem>
+                        <SelectItem value="GBP">🇬🇧 GBP (Bank Transfer)</SelectItem>
+                        <SelectItem value="CAD">🇨🇦 CAD (Bank Transfer)</SelectItem>
+                        <SelectItem value="NGN">🇳🇬 NGN (Bank Transfer)</SelectItem>
                       </SelectContent>
                     </Select>
                     {form.formState.errors.currency && (
@@ -362,7 +366,7 @@ export default function CreateListing() {
                             <SelectItem value="SOL">Solana (SPL)</SelectItem>
                             <SelectItem value="AVAX">Avalanche</SelectItem>
                           </>
-                        ) : form.watch("currency") === "USD" ? (
+                        ) : ["USD", "EUR", "GBP", "CAD", "NGN"].includes(form.watch("currency") || "") ? (
                           <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
                         ) : null}
                       </SelectContent>

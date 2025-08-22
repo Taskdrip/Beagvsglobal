@@ -207,20 +207,20 @@ export default function Checkout() {
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <h4 className="font-semibold text-yellow-800 mb-3">Payment Instructions</h4>
               
-              {escrow.currency === 'USD' ? (
+              {['USD', 'EUR', 'GBP', 'CAD', 'NGN'].includes(escrow.currency) ? (
                 // Bank Transfer Instructions
                 <>
                   <div className="mb-3">
                     <div className="flex items-center justify-center space-x-2 mb-2">
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                        💳 Bank Transfer - USD
+                        💳 Bank Transfer - {escrow.currency}
                       </span>
                     </div>
                     <p className="text-sm text-yellow-700 text-center">Transfer funds to the bank account below:</p>
                   </div>
 
                   {paymentMethods && (() => {
-                    const bankTransfer = paymentMethods.find(method => method.type === 'BANK_TRANSFER' && method.currency === 'USD');
+                    const bankTransfer = paymentMethods.find(method => method.type === 'BANK_TRANSFER' && method.currency === escrow.currency);
                     if (bankTransfer?.details) {
                       return (
                         <div className="bg-white p-4 rounded-lg border space-y-3">
