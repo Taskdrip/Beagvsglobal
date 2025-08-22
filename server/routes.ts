@@ -2,20 +2,128 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { z } from "zod";
 import bcrypt from "bcrypt";
+import { z } from "zod";
 import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
+  // Custom auth routes (email/password)
+  app.post('/api/auth/signup', async (req, res) => {
+    try {
+      const { email, password, firstName, lastName, username, accountType } = req.body;
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User with this email already exists" });
+      }
+
+      // Check if username is taken
+      const existingUsername = await storage.getUserByUsername(username);
+      if (existingUsername) {
+        return res.status(400).json({ message: "Username is already taken" });
+      }
+
+      // Hash password
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create user
+      const user = await storage.createUser({
+        email,
+        firstName,
+        lastName,
+        username,
+        passwordHash,
+        accountType: accountType || 'BUYER',
+        role: 'USER'
+      });
+
+      // Create session
+      (req as any).session.userId = user.id;
+      (req as any).session.isCustomAuth = true;
+
+      // Remove sensitive data
+      const { passwordHash: _, ...publicUser } = user;
+      res.status(201).json(publicUser);
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      res.status(500).json({ message: "Failed to create account" });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.passwordHash) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      // Create session
+      (req as any).session.userId = user.id;
+      (req as any).session.isCustomAuth = true;
+
+      // Remove sensitive data
+      const { passwordHash: _, ...publicUser } = user;
+      res.json(publicUser);
+    } catch (error: any) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Failed to log in" });
+    }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    (req as any).session.destroy((err: any) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ message: "Failed to log out" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  // Enhanced auth middleware that handles both Replit auth and custom auth
+  const isAuthenticatedEnhanced = async (req: any, res: any, next: any) => {
+    // Check for custom auth session first
+    if (req.session?.userId && req.session?.isCustomAuth) {
+      try {
+        const user = await storage.getUser(req.session.userId);
+        if (user) {
+          req.user = { claims: { sub: user.id }, customAuth: true };
+          return next();
+        }
+      } catch (error) {
+        console.error("Session user lookup error:", error);
+      }
+    }
+    
+    // Fall back to Replit auth
+    return isAuthenticated(req, res, next);
+  };
+
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      res.json(user);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Remove sensitive data
+      const { passwordHash: _, ...publicUser } = user;
+      res.json(publicUser);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -488,7 +596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin payment method management
-  app.get('/api/admin/payment-methods', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.get('/api/admin/payment-methods', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const paymentMethods = await storage.getPaymentMethods();
       res.json(paymentMethods);
@@ -498,7 +606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/admin/payment-methods', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.post('/api/admin/payment-methods', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const paymentMethodData = insertPaymentMethodSchema.parse(req.body);
       const paymentMethod = await storage.createPaymentMethod(paymentMethodData);
@@ -509,7 +617,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/admin/payment-methods/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.patch('/api/admin/payment-methods/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const paymentMethodData = insertPaymentMethodSchema.partial().parse(req.body);
       const paymentMethod = await storage.updatePaymentMethod(req.params.id, paymentMethodData);
@@ -520,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/admin/payment-methods/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.delete('/api/admin/payment-methods/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       await storage.deletePaymentMethod(req.params.id);
       res.status(204).send();
@@ -531,7 +639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin user management
-  app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.get('/api/admin/users', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const users = await storage.getAllUsers();
       res.json(users);
@@ -563,7 +671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User account type switching
-  app.patch('/api/user/account-type', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/user/account-type', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { accountType } = req.body;

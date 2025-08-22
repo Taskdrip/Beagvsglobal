@@ -42,12 +42,19 @@ export default function Navigation() {
 
   const currentNavItems = isAuthenticated ? authenticatedNavItems : navItems;
 
-  const handleSignOut = () => {
-    window.location.href = "/api/logout";
+  const handleSignOut = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (response.ok) {
+        window.location.href = "/";
+      }
+    } catch (error) {
+      window.location.href = "/api/logout"; // Fallback to Replit auth logout
+    }
   };
 
   const handleSignIn = () => {
-    window.location.href = "/api/login";
+    window.location.href = "/login";
   };
 
   return (
@@ -142,7 +149,7 @@ export default function Navigation() {
                 >
                   Sign In
                 </Button>
-                <Link href="/auth/sign-up">
+                <Link href="/signup">
                   <Button 
                     className="bg-crypto-blue hover:bg-crypto-teal text-white font-medium"
                     data-testid="button-get-started"

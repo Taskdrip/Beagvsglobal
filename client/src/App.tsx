@@ -23,6 +23,8 @@ import Checkout from "@/pages/Checkout";
 import Chat from "@/pages/Chat";
 import AdminPaymentMethods from "@/pages/AdminPaymentMethods";
 import AccountSettings from "@/pages/AccountSettings";
+import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,8 +34,8 @@ function Router() {
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
-          <Route path="/auth/sign-up" component={Auth} />
-          <Route path="/auth/sign-in" component={Auth} />
+          <Route path="/login" component={Login} />
+          <Route path="/signup" component={Signup} />
           <Route path="/welcome" component={Welcome} />
           <Route path="/marketplace" component={Marketplace} />
           <Route path="/listing/:slug" component={ListingDetail} />

@@ -46,7 +46,7 @@ export default function Landing() {
                     Explore Marketplace
                   </Button>
                 </Link>
-                <Link href="/auth/sign-up">
+                <Link href="/signup">
                   <Button 
                     size="lg" 
                     variant="outline" 
@@ -293,7 +293,7 @@ export default function Landing() {
               </div>
             </div>
             <div className="mt-8">
-              <Link href="/auth/sign-up">
+              <Link href="/signup">
                 <Button 
                   size="lg" 
                   className="button-primary font-semibold"
