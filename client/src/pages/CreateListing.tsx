@@ -28,10 +28,10 @@ const listingSchema = z.object({
     (val) => !isNaN(Number(val)) && Number(val) > 0,
     "Price must be a positive number"
   ),
-  currency: z.enum(["PI", "USDT"], {
+  currency: z.enum(["PI", "USDT", "USD"], {
     required_error: "Please select a currency",
   }),
-  network: z.enum(["PI_MAINNET", "TRON", "TON", "BNB", "SOL", "AVAX"], {
+  network: z.enum(["PI_MAINNET", "TRON", "TON", "BNB", "SOL", "AVAX", "BANK_TRANSFER"], {
     required_error: "Please select a network",
   }),
   location: z.string().optional(),
@@ -320,6 +320,8 @@ export default function CreateListing() {
                           form.setValue("network", "PI_MAINNET");
                         } else if (value === "USDT") {
                           form.setValue("network", "TRON");
+                        } else if (value === "USD") {
+                          form.setValue("network", "BANK_TRANSFER");
                         }
                       }}
                     >
@@ -329,6 +331,7 @@ export default function CreateListing() {
                       <SelectContent>
                         <SelectItem value="PI">Pi (π)</SelectItem>
                         <SelectItem value="USDT">USDT</SelectItem>
+                        <SelectItem value="USD">USD (Bank Transfer)</SelectItem>
                       </SelectContent>
                     </Select>
                     {form.formState.errors.currency && (
@@ -359,6 +362,8 @@ export default function CreateListing() {
                             <SelectItem value="SOL">Solana (SPL)</SelectItem>
                             <SelectItem value="AVAX">Avalanche</SelectItem>
                           </>
+                        ) : form.watch("currency") === "USD" ? (
+                          <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
                         ) : null}
                       </SelectContent>
                     </Select>

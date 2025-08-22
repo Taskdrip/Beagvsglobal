@@ -207,39 +207,93 @@ export default function Checkout() {
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <h4 className="font-semibold text-yellow-800 mb-3">Payment Instructions</h4>
               
-              <div className="mb-3">
-                <div className="flex items-center justify-center space-x-2 mb-2">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    escrow.currency === 'PI' ? 'bg-purple-100 text-purple-800' : 'bg-teal-100 text-teal-800'
-                  }`}>
-                    {escrow.currency === 'PI' ? 'π PI Network' : `USDT - ${escrow.network}`}
-                  </span>
-                </div>
-                <p className="text-sm text-yellow-700 text-center">Send payment to this wallet address:</p>
-              </div>
+              {escrow.currency === 'USD' ? (
+                // Bank Transfer Instructions
+                <>
+                  <div className="mb-3">
+                    <div className="flex items-center justify-center space-x-2 mb-2">
+                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        💳 Bank Transfer - USD
+                      </span>
+                    </div>
+                    <p className="text-sm text-yellow-700 text-center">Transfer funds to the bank account below:</p>
+                  </div>
 
-              <div className="bg-white p-3 rounded-lg border">
-                <div className="flex items-center space-x-2">
-                  <p className="font-mono text-sm flex-1 break-all" data-testid="text-wallet-address">
-                    {platformWallet.address}
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(platformWallet.address);
-                      toast({
-                        title: "Copied!",
-                        description: "Wallet address copied to clipboard",
-                      });
-                    }}
-                    className="flex-shrink-0"
-                    data-testid="button-copy-wallet"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+                  {paymentMethods && (() => {
+                    const bankTransfer = paymentMethods.find(method => method.type === 'BANK_TRANSFER' && method.currency === 'USD');
+                    if (bankTransfer?.details) {
+                      return (
+                        <div className="bg-white p-4 rounded-lg border space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-sm font-medium text-gray-600">Bank Name:</label>
+                              <p className="font-semibold">{bankTransfer.details.bankName}</p>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-gray-600">Account Name:</label>
+                              <p className="font-semibold">{bankTransfer.details.accountName}</p>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-gray-600">Account Number:</label>
+                              <p className="font-mono text-sm">{bankTransfer.details.accountNumber}</p>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-gray-600">Routing Number:</label>
+                              <p className="font-mono text-sm">{bankTransfer.details.routingNumber}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                            <p className="text-sm text-blue-700">
+                              <strong>Important:</strong> {bankTransfer.instructions}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </>
+              ) : (
+                // Cryptocurrency Instructions
+                <>
+                  <div className="mb-3">
+                    <div className="flex items-center justify-center space-x-2 mb-2">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        escrow.currency === 'PI' ? 'bg-purple-100 text-purple-800' : 'bg-teal-100 text-teal-800'
+                      }`}>
+                        {escrow.currency === 'PI' ? 'π PI Network' : `USDT - ${escrow.network}`}
+                      </span>
+                    </div>
+                    <p className="text-sm text-yellow-700 text-center">Send payment to this wallet address:</p>
+                  </div>
+
+                  {platformWallet && (
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="flex items-center space-x-2">
+                        <p className="font-mono text-sm flex-1 break-all" data-testid="text-wallet-address">
+                          {platformWallet.address}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(platformWallet.address);
+                            toast({
+                              title: "Copied!",
+                              description: "Wallet address copied to clipboard",
+                            });
+                          }}
+                          className="flex-shrink-0"
+                          data-testid="button-copy-wallet"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

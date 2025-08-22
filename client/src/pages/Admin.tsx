@@ -413,11 +413,19 @@ export default function Admin() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="escrows" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="escrows" data-testid="tab-escrows">Escrows</TabsTrigger>
-            <TabsTrigger value="wallets" data-testid="tab-wallets">Platform Wallets</TabsTrigger>
-            <TabsTrigger value="blog" data-testid="tab-blog">Blog Management</TabsTrigger>
-            <TabsTrigger value="settings" data-testid="tab-settings">Settings</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 bg-slate-100 rounded-lg">
+            <TabsTrigger value="escrows" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-escrows">
+              Escrows
+            </TabsTrigger>
+            <TabsTrigger value="wallets" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-wallets">
+              Platform Wallets
+            </TabsTrigger>
+            <TabsTrigger value="blog" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-blog">
+              Blog Management
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-settings">
+              Payment Methods
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="escrows" className="space-y-4">
@@ -796,7 +804,15 @@ export default function Admin() {
           <TabsContent value="settings" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Platform Settings</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Payment Methods</span>
+                  <Link href="/admin/payment-methods">
+                    <Button variant="outline" size="sm">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Manage Payment Methods
+                    </Button>
+                  </Link>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
@@ -808,28 +824,45 @@ export default function Admin() {
                         <p className="font-semibold text-blue-800">10%</p>
                       </div>
                       <div>
-                        <p className="text-blue-700">Supported Networks:</p>
-                        <p className="font-semibold text-blue-800">Pi, TRON, TON, BNB, SOL, AVAX</p>
+                        <p className="text-blue-700">Supported Currencies:</p>
+                        <p className="font-semibold text-blue-800">PI, USDT, USD (Bank Transfer)</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-green-800 mb-2">System Status</h4>
+                    <h4 className="font-semibold text-green-800 mb-2">Payment Methods Status</h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-green-700">Escrow System: Operational</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-green-700">Cryptocurrency Payments</span>
+                        </div>
+                        <Badge variant="default" className="bg-green-600">Active</Badge>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-green-700">Payment Processing: Online</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-green-700">Bank Transfer</span>
+                        </div>
+                        <Badge variant="default" className="bg-green-600">Active</Badge>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-green-700">User Registration: Active</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-green-700">Escrow Protection</span>
+                        </div>
+                        <Badge variant="default" className="bg-green-600">Active</Badge>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-yellow-800 mb-2">Important Note</h4>
+                    <p className="text-sm text-yellow-700">
+                      Bank transfer details must be manually managed by admins. 
+                      Click "Manage Payment Methods" above to configure bank account information for customers.
+                    </p>
                   </div>
                 </div>
               </CardContent>
