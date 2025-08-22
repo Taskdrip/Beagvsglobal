@@ -178,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Wallet routes
-  app.get('/api/wallets', isAuthenticated, async (req: any, res) => {
+  app.get('/api/wallets', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const wallets = await storage.getUserWallets(userId);
@@ -189,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/wallets', isAuthenticated, async (req: any, res) => {
+  app.post('/api/wallets', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const walletData = insertWalletSchema.parse({ ...req.body, userId });
@@ -202,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/wallets/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/wallets/:id', isAuthenticatedEnhanced, async (req, res) => {
     try {
       await storage.deleteWallet(req.params.id);
       res.status(204).send();
@@ -256,7 +256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/listings', isAuthenticated, async (req: any, res) => {
+  app.post('/api/listings', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const listingData = insertListingSchema.parse({
@@ -273,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/listings/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/listings/:id', isAuthenticatedEnhanced, async (req, res) => {
     try {
       const listingData = insertListingSchema.partial().parse(req.body);
       const listing = await storage.updateListing(req.params.id, listingData);
@@ -284,7 +284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/listings/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/listings/:id', isAuthenticatedEnhanced, async (req, res) => {
     try {
       await storage.deleteListing(req.params.id);
       res.status(204).send();
@@ -294,7 +294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/user/listings', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user/listings', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const listings = await storage.getUserListings(userId);
@@ -316,7 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/reviews', isAuthenticated, async (req: any, res) => {
+  app.post('/api/reviews', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const reviewData = insertReviewSchema.parse({ ...req.body, reviewerId: userId });
@@ -336,7 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Escrow routes
-  app.get('/api/escrows', isAuthenticated, async (req: any, res) => {
+  app.get('/api/escrows', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const filters = {
@@ -352,7 +352,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/escrows/:id', isAuthenticated, async (req, res) => {
+  app.get('/api/escrows/:id', isAuthenticatedEnhanced, async (req, res) => {
     try {
       const escrow = await storage.getEscrow(req.params.id);
       if (!escrow) {
@@ -365,7 +365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/escrows', isAuthenticated, async (req: any, res) => {
+  app.post('/api/escrows', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const escrowData = insertEscrowSchema.parse({ ...req.body, buyerId: userId });
@@ -382,7 +382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/escrows/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/escrows/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const escrowData = insertEscrowSchema.partial().parse(req.body);
       
@@ -406,7 +406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/user/escrows', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user/escrows', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const escrows = await storage.getUserEscrows(userId);
@@ -418,7 +418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Follow routes
-  app.get('/api/follows/status/:userId', isAuthenticated, async (req: any, res) => {
+  app.get('/api/follows/status/:userId', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const followerId = req.user.claims.sub;
       const followeeId = req.params.userId;
@@ -430,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/follows', isAuthenticated, async (req: any, res) => {
+  app.post('/api/follows', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const followerId = req.user.claims.sub;
       const followData = insertFollowSchema.parse({ ...req.body, followerId });
@@ -451,7 +451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/follows/:id', isAuthenticated, async (req, res) => {
+  app.patch('/api/follows/:id', isAuthenticatedEnhanced, async (req, res) => {
     try {
       const { status } = req.body;
       const follow = await storage.updateFollow(req.params.id, status);
@@ -462,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/user/followers', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user/followers', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const followers = await storage.getUserFollowers(userId);
@@ -473,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/user/following', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user/following', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const following = await storage.getUserFollowing(userId);
@@ -484,7 +484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/user/follow-requests', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user/follow-requests', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const requests = await storage.getFollowRequests(userId);
@@ -496,7 +496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Message routes
-  app.get('/api/messages/:threadId', isAuthenticated, async (req, res) => {
+  app.get('/api/messages/:threadId', isAuthenticatedEnhanced, async (req, res) => {
     try {
       const messages = await storage.getMessages(req.params.threadId);
       res.json(messages);
@@ -506,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/messages', isAuthenticated, async (req: any, res) => {
+  app.post('/api/messages', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const senderId = req.user.claims.sub;
       const messageData = insertMessageSchema.parse({ ...req.body, senderId });
@@ -527,7 +527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/messages/:id/read', isAuthenticated, async (req, res) => {
+  app.patch('/api/messages/:id/read', isAuthenticatedEnhanced, async (req, res) => {
     try {
       await storage.markMessageAsRead(req.params.id);
       res.status(204).send();
@@ -537,7 +537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/user/threads', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user/threads', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const threads = await storage.getUserThreads(userId);
@@ -549,7 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Notification routes
-  app.get('/api/notifications', isAuthenticated, async (req: any, res) => {
+  app.get('/api/notifications', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const notifications = await storage.getUserNotifications(userId);
@@ -560,7 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/notifications/:id/read', isAuthenticated, async (req, res) => {
+  app.patch('/api/notifications/:id/read', isAuthenticatedEnhanced, async (req, res) => {
     try {
       await storage.markNotificationAsRead(req.params.id);
       res.status(204).send();
@@ -649,7 +649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/admin/users/:id/role', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.patch('/api/admin/users/:id/role', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const { role } = req.body;
       const user = await storage.updateUserRole(req.params.id, role);
@@ -660,7 +660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/escrows', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.get('/api/admin/escrows', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const escrows = await storage.getAllEscrows();
       res.json(escrows);
@@ -708,7 +708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/blog', isAuthenticated, async (req: any, res) => {
+  app.post('/api/blog', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -731,7 +731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/blog/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/blog/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -749,7 +749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/blog/:id', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/blog/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -767,7 +767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Platform wallet routes (admin only)
-  app.get('/api/platform-wallets', isAuthenticated, async (req: any, res) => {
+  app.get('/api/platform-wallets', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -784,7 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/platform-wallets', isAuthenticated, async (req: any, res) => {
+  app.post('/api/platform-wallets', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -802,7 +802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/platform-wallets/:id', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/platform-wallets/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -820,7 +820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/platform-wallets/:id', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/platform-wallets/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -900,7 +900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Chat routes
-  app.post('/api/chat/threads', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat/threads', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const { listingId, sellerId, escrowId } = req.body;
       const buyerId = req.user.claims.sub;
@@ -918,7 +918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/chat/threads', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chat/threads', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const threads = await storage.getUserChatThreads(userId);
@@ -929,7 +929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/chat/threads/:threadId/messages', isAuthenticated, async (req: any, res) => {
+  app.get('/api/chat/threads/:threadId/messages', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const { threadId } = req.params;
       const messages = await storage.getChatThreadMessages(threadId);
@@ -940,7 +940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/chat/threads/:threadId/messages', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat/threads/:threadId/messages', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const { threadId } = req.params;
       const { content, recipientId } = req.body;
@@ -962,7 +962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/chat/messages/:messageId/read', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/chat/messages/:messageId/read', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const { messageId } = req.params;
       await storage.markMessageAsRead(messageId);
