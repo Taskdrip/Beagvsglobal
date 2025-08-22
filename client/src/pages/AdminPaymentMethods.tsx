@@ -33,9 +33,15 @@ export default function AdminPaymentMethods() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showDetailsFor, setShowDetailsFor] = useState<string | null>(null);
   const [detailsInput, setDetailsInput] = useState('');
+  const [bankDetails, setBankDetails] = useState({
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    routingNumber: ''
+  });
 
   // Check admin access
-  if (!isAuthenticated || user?.role !== 'ADMIN') {
+  if (!isAuthenticated || (user as any)?.role !== 'ADMIN') {
     return (
       <div className="min-h-screen bg-white">
         <Navigation />
@@ -130,17 +136,38 @@ export default function AdminPaymentMethods() {
     const method = editingPayment || newPaymentMethod;
     let details = {};
     
-    try {
-      if (detailsInput) {
-        details = JSON.parse(detailsInput);
+    if (method.type === 'BANK_TRANSFER') {
+      // Use structured bank details
+      details = {
+        bankName: bankDetails.bankName,
+        accountName: bankDetails.accountName,
+        accountNumber: bankDetails.accountNumber,
+        routingNumber: bankDetails.routingNumber
+      };
+      
+      // Validate required bank fields
+      if (!bankDetails.bankName || !bankDetails.accountName || !bankDetails.accountNumber) {
+        toast({
+          title: "Error",
+          description: "Bank name, account name, and account number are required for bank transfers",
+          variant: "destructive",
+        });
+        return;
       }
-    } catch {
-      toast({
-        title: "Error",
-        description: "Invalid JSON in details field",
-        variant: "destructive",
-      });
-      return;
+    } else {
+      // Use JSON for crypto details
+      try {
+        if (detailsInput) {
+          details = JSON.parse(detailsInput);
+        }
+      } catch {
+        toast({
+          title: "Error",
+          description: "Invalid JSON in details field",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const paymentMethodData = {
@@ -158,6 +185,24 @@ export default function AdminPaymentMethods() {
   const openEditDialog = (method: any) => {
     setEditingPayment(method);
     setDetailsInput(JSON.stringify(method.details, null, 2));
+    
+    // Populate bank details if it's a bank transfer
+    if (method.type === 'BANK_TRANSFER' && method.details) {
+      setBankDetails({
+        bankName: method.details.bankName || '',
+        accountName: method.details.accountName || '',
+        accountNumber: method.details.accountNumber || '',
+        routingNumber: method.details.routingNumber || ''
+      });
+    } else {
+      setBankDetails({
+        bankName: '',
+        accountName: '',
+        accountNumber: '',
+        routingNumber: ''
+      });
+    }
+    
     setShowPaymentDialog(true);
   };
 
@@ -173,6 +218,12 @@ export default function AdminPaymentMethods() {
       isActive: true
     });
     setDetailsInput('{}');
+    setBankDetails({
+      bankName: '',
+      accountName: '',
+      accountNumber: '',
+      routingNumber: ''
+    });
     setShowPaymentDialog(true);
   };
 
@@ -204,7 +255,7 @@ export default function AdminPaymentMethods() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {paymentMethods && paymentMethods.length > 0 ? (
+            {paymentMethods && (paymentMethods as any[]).length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -217,7 +268,7 @@ export default function AdminPaymentMethods() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paymentMethods.map((method: any) => (
+                  {(paymentMethods as any[]).map((method: any) => (
                     <TableRow key={method.id}>
                       <TableCell className="font-medium">{method.name}</TableCell>
                       <TableCell>
@@ -315,9 +366,19 @@ export default function AdminPaymentMethods() {
                   value={editingPayment ? editingPayment.type : newPaymentMethod.type}
                   onValueChange={(value) => {
                     if (editingPayment) {
-                      setEditingPayment({ ...editingPayment, type: value });
+                      setEditingPayment({ 
+                        ...editingPayment, 
+                        type: value,
+                        currency: value === 'BANK_TRANSFER' ? 'USD' : editingPayment.currency,
+                        network: value === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : editingPayment.network
+                      });
                     } else {
-                      setNewPaymentMethod({ ...newPaymentMethod, type: value });
+                      setNewPaymentMethod({ 
+                        ...newPaymentMethod, 
+                        type: value,
+                        currency: value === 'BANK_TRANSFER' ? 'USD' : '',
+                        network: value === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : ''
+                      });
                     }
                   }}
                 >
@@ -343,7 +404,8 @@ export default function AdminPaymentMethods() {
                       setNewPaymentMethod({ ...newPaymentMethod, currency: e.target.value });
                     }
                   }}
-                  placeholder="e.g., USDT, PI, USD"
+                  placeholder={(editingPayment?.type || newPaymentMethod.type) === 'BANK_TRANSFER' ? 'USD' : 'e.g., USDT, PI'}
+                  disabled={(editingPayment?.type || newPaymentMethod.type) === 'BANK_TRANSFER'}
                 />
               </div>
               
@@ -359,24 +421,73 @@ export default function AdminPaymentMethods() {
                       setNewPaymentMethod({ ...newPaymentMethod, network: e.target.value });
                     }
                   }}
-                  placeholder="e.g., TRON, TON, BNB, SOL, AVAX"
+                  placeholder={(editingPayment?.type || newPaymentMethod.type) === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'e.g., TRON, TON, BNB'}
+                  disabled={(editingPayment?.type || newPaymentMethod.type) === 'BANK_TRANSFER'}
                 />
               </div>
             </div>
             
-            <div>
-              <Label htmlFor="details">Details (JSON)</Label>
-              <Textarea
-                id="details"
-                value={detailsInput}
-                onChange={(e) => setDetailsInput(e.target.value)}
-                placeholder='{"walletAddress": "TXXXxxx...", "bankName": "Example Bank", "accountNumber": "1234567890"}'
-                className="h-24 font-mono text-sm"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                For crypto: {"{"}"walletAddress": "address"{"}"}, For bank: {"{"}"bankName": "name", "accountNumber": "number", "routingNumber": "routing"{"}"}
-              </p>
-            </div>
+            {/* Conditional Details Section */}
+            {(editingPayment?.type || newPaymentMethod.type) === 'BANK_TRANSFER' ? (
+              <div className="space-y-4">
+                <h4 className="font-semibold text-gray-900">Bank Transfer Details</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="bankName">Bank Name *</Label>
+                    <Input
+                      id="bankName"
+                      value={bankDetails.bankName}
+                      onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
+                      placeholder="e.g., Chase Bank"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="accountName">Account Name *</Label>
+                    <Input
+                      id="accountName"
+                      value={bankDetails.accountName}
+                      onChange={(e) => setBankDetails({ ...bankDetails, accountName: e.target.value })}
+                      placeholder="e.g., Beagvs Global LLC"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="accountNumber">Account Number *</Label>
+                    <Input
+                      id="accountNumber"
+                      value={bankDetails.accountNumber}
+                      onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
+                      placeholder="e.g., 1234567890"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="routingNumber">Routing Number</Label>
+                    <Input
+                      id="routingNumber"
+                      value={bankDetails.routingNumber}
+                      onChange={(e) => setBankDetails({ ...bankDetails, routingNumber: e.target.value })}
+                      placeholder="e.g., 021000021"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="details">Cryptocurrency Details (JSON)</Label>
+                <Textarea
+                  id="details"
+                  value={detailsInput}
+                  onChange={(e) => setDetailsInput(e.target.value)}
+                  placeholder='{"walletAddress": "TXXXxxx..."}'
+                  className="h-24 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Example: {"{"}"walletAddress": "TXXXxxx..."{"}"}
+                </p>
+              </div>
+            )}
             
             <div>
               <Label htmlFor="instructions">Payment Instructions</Label>
