@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 import bcrypt from "bcrypt";
-import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema } from "@shared/schema";
+import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -459,6 +459,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking notification as read:", error);
       res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  // Admin middleware function
+  const isAdmin = async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'ADMIN') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      next();
+    } catch (error) {
+      res.status(403).json({ message: "Admin access required" });
+    }
+  };
+
+  // Payment method routes
+  app.get('/api/payment-methods', async (req, res) => {
+    try {
+      const paymentMethods = await storage.getPaymentMethods();
+      res.json(paymentMethods.filter(pm => pm.isActive));
+    } catch (error: any) {
+      console.error("Error fetching payment methods:", error);
+      res.status(500).json({ message: "Failed to fetch payment methods" });
+    }
+  });
+
+  // Admin payment method management
+  app.get('/api/admin/payment-methods', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const paymentMethods = await storage.getPaymentMethods();
+      res.json(paymentMethods);
+    } catch (error: any) {
+      console.error("Error fetching payment methods:", error);
+      res.status(500).json({ message: "Failed to fetch payment methods" });
+    }
+  });
+
+  app.post('/api/admin/payment-methods', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const paymentMethodData = insertPaymentMethodSchema.parse(req.body);
+      const paymentMethod = await storage.createPaymentMethod(paymentMethodData);
+      res.status(201).json(paymentMethod);
+    } catch (error: any) {
+      console.error("Error creating payment method:", error);
+      res.status(400).json({ message: error.message || "Failed to create payment method" });
+    }
+  });
+
+  app.patch('/api/admin/payment-methods/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const paymentMethodData = insertPaymentMethodSchema.partial().parse(req.body);
+      const paymentMethod = await storage.updatePaymentMethod(req.params.id, paymentMethodData);
+      res.json(paymentMethod);
+    } catch (error: any) {
+      console.error("Error updating payment method:", error);
+      res.status(400).json({ message: error.message || "Failed to update payment method" });
+    }
+  });
+
+  app.delete('/api/admin/payment-methods/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      await storage.deletePaymentMethod(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting payment method:", error);
+      res.status(500).json({ message: "Failed to delete payment method" });
+    }
+  });
+
+  // Admin user management
+  app.get('/api/admin/users', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error: any) {
+      console.error("Error fetching all users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.patch('/api/admin/users/:id/role', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { role } = req.body;
+      const user = await storage.updateUserRole(req.params.id, role);
+      res.json(user);
+    } catch (error: any) {
+      console.error("Error updating user role:", error);
+      res.status(400).json({ message: error.message || "Failed to update user role" });
+    }
+  });
+
+  app.get('/api/admin/escrows', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const escrows = await storage.getAllEscrows();
+      res.json(escrows);
+    } catch (error: any) {
+      console.error("Error fetching all escrows:", error);
+      res.status(500).json({ message: "Failed to fetch escrows" });
+    }
+  });
+
+  // User account type switching
+  app.patch('/api/user/account-type', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { accountType } = req.body;
+      const user = await storage.updateUserAccountType(userId, accountType);
+      res.json(user);
+    } catch (error: any) {
+      console.error("Error updating account type:", error);
+      res.status(400).json({ message: error.message || "Failed to update account type" });
     }
   });
 

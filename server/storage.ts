@@ -10,6 +10,7 @@ import {
   notifications,
   blogPosts,
   platformWallets,
+  paymentMethods,
   type User,
   type UpsertUser,
   type InsertWallet,
@@ -32,6 +33,8 @@ import {
   type BlogPost,
   type InsertPlatformWallet,
   type PlatformWallet,
+  type InsertPaymentMethod,
+  type PaymentMethod,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, sql, count } from "drizzle-orm";
@@ -106,6 +109,19 @@ export interface IStorage {
   updatePlatformWallet(id: string, wallet: Partial<InsertPlatformWallet>): Promise<PlatformWallet>;
   deletePlatformWallet(id: string): Promise<void>;
   getPlatformWalletByType(type: string): Promise<PlatformWallet | undefined>;
+  
+  // Payment method operations (Admin only)
+  getPaymentMethods(): Promise<PaymentMethod[]>;
+  createPaymentMethod(paymentMethod: InsertPaymentMethod): Promise<PaymentMethod>;
+  updatePaymentMethod(id: string, paymentMethod: Partial<InsertPaymentMethod>): Promise<PaymentMethod>;
+  deletePaymentMethod(id: string): Promise<void>;
+  getPaymentMethodsByType(type: string): Promise<PaymentMethod[]>;
+  
+  // Admin operations
+  updateUserRole(userId: string, role: string): Promise<User>;
+  updateUserAccountType(userId: string, accountType: string): Promise<User>;
+  getAllUsers(): Promise<User[]>;
+  getAllEscrows(): Promise<(Escrow & { listing: Listing; buyer: User; seller: User })[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -342,21 +358,7 @@ export class DatabaseStorage implements IStorage {
 
   // Escrow operations
   async getEscrows(filters?: { status?: string; userId?: string }) {
-    const buyerUsers = db.select().from(users).as('buyerUsers');
-    const sellerUsers = db.select().from(users).as('sellerUsers');
-    
-    let baseQuery = db
-      .select({
-        escrow: escrows,
-        listing: listings,
-        buyer: buyerUsers,
-        seller: sellerUsers,
-      })
-      .from(escrows)
-      .leftJoin(listings, eq(escrows.listingId, listings.id))
-      .leftJoin(buyerUsers, eq(escrows.buyerId, buyerUsers.id))
-      .leftJoin(sellerUsers, eq(escrows.sellerId, sellerUsers.id));
-
+    // Use a simpler approach with separate queries to avoid stack overflow
     const conditions = [];
     
     if (filters?.status) {
@@ -370,19 +372,29 @@ export class DatabaseStorage implements IStorage {
       ));
     }
 
-    let query = baseQuery;
+    let escrowQuery = db.select().from(escrows);
     if (conditions.length > 0) {
-      query = baseQuery.where(and(...conditions));
+      escrowQuery = escrowQuery.where(and(...conditions));
     }
 
-    const results = await query.orderBy(desc(escrows.createdAt));
+    const escrowResults = await escrowQuery.orderBy(desc(escrows.createdAt));
     
-    return results.map(r => ({
-      ...r.escrow,
-      listing: r.listing!,
-      buyer: r.buyer!,
-      seller: r.seller!,
-    }));
+    // Fetch related data separately to avoid circular references
+    const results = [];
+    for (const escrow of escrowResults) {
+      const [listing] = await db.select().from(listings).where(eq(listings.id, escrow.listingId));
+      const [buyer] = await db.select().from(users).where(eq(users.id, escrow.buyerId));
+      const [seller] = await db.select().from(users).where(eq(users.id, escrow.sellerId));
+      
+      results.push({
+        ...escrow,
+        listing: listing!,
+        buyer: buyer!,
+        seller: seller!,
+      });
+    }
+    
+    return results;
   }
 
   async getEscrow(id: string) {
@@ -688,6 +700,64 @@ export class DatabaseStorage implements IStorage {
       .from(platformWallets)
       .where(eq(platformWallets.type, type as any));
     return wallet;
+  }
+
+  // Payment method operations (Admin only)
+  async getPaymentMethods(): Promise<PaymentMethod[]> {
+    return await db.select().from(paymentMethods).orderBy(paymentMethods.name);
+  }
+
+  async createPaymentMethod(paymentMethod: InsertPaymentMethod): Promise<PaymentMethod> {
+    const [newPaymentMethod] = await db.insert(paymentMethods).values(paymentMethod).returning();
+    return newPaymentMethod;
+  }
+
+  async updatePaymentMethod(id: string, paymentMethod: Partial<InsertPaymentMethod>): Promise<PaymentMethod> {
+    const [updated] = await db
+      .update(paymentMethods)
+      .set({ ...paymentMethod, updatedAt: new Date() })
+      .where(eq(paymentMethods.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePaymentMethod(id: string): Promise<void> {
+    await db.delete(paymentMethods).where(eq(paymentMethods.id, id));
+  }
+
+  async getPaymentMethodsByType(type: string): Promise<PaymentMethod[]> {
+    return await db
+      .select()
+      .from(paymentMethods)
+      .where(eq(paymentMethods.type, type))
+      .orderBy(paymentMethods.name);
+  }
+
+  // Admin operations
+  async updateUserRole(userId: string, role: string): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ role: role as any, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserAccountType(userId: string, accountType: string): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ accountType: accountType as any, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async getAllEscrows(): Promise<(Escrow & { listing: Listing; buyer: User; seller: User })[]> {
+    return await this.getEscrows();
   }
 
   // Chat operations

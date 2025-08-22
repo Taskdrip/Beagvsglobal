@@ -23,10 +23,24 @@ export default function Checkout() {
     enabled: !!escrowId && isAuthenticated,
   });
 
+  const { data: paymentMethods } = useQuery<any[]>({
+    queryKey: ["/api/payment-methods"],
+  });
+
   const { data: platformWallet } = useQuery<any>({
     queryKey: ["/api/platform-wallets/currency", escrow?.currency, "network", escrow?.network],
     enabled: !!(escrow && escrow.currency && escrow.network),
   });
+
+  const getPaymentDetails = (currency: string, network: string) => {
+    if (!paymentMethods) return null;
+    
+    return paymentMethods.find(method => 
+      method.currency === currency && 
+      method.network === network &&
+      method.isActive
+    );
+  };
 
   // Countdown timer effect
   useEffect(() => {

@@ -21,6 +21,8 @@ import Contact from "@/pages/Contact";
 import Profile from "@/pages/Profile";
 import Checkout from "@/pages/Checkout";
 import Chat from "@/pages/Chat";
+import AdminPaymentMethods from "@/pages/AdminPaymentMethods";
+import AccountSettings from "@/pages/AccountSettings";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -57,6 +59,8 @@ function Router() {
           <Route path="/profile/:id" component={Profile} />
           <Route path="/checkout/:escrowId" component={Checkout} />
           <Route path="/chat/:listingId" component={Chat} />
+          <Route path="/admin/payment-methods" component={AdminPaymentMethods} />
+          <Route path="/account/settings" component={AccountSettings} />
         </>
       )}
       <Route component={NotFound} />

@@ -110,6 +110,12 @@ export default function Dashboard() {
                 </Button>
               </Link>
             )}
+            
+            <Link href="/account/settings">
+              <Button variant="outline" data-testid="button-account-settings">
+                Account Settings
+              </Button>
+            </Link>
           </div>
         </div>
 

@@ -170,6 +170,20 @@ export const platformWallets = pgTable("platform_wallets", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Payment methods that admin can configure
+export const paymentMethods = pgTable("payment_methods", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(), // "Bank Transfer", "PI Network", "USDT Tron", etc.
+  type: varchar("type").notNull(), // "BANK_TRANSFER", "CRYPTO"
+  currency: varchar("currency"), // "USDT", "PI", "USD", etc.
+  network: varchar("network"), // "TRON", "TON", "BNB", "SOL", "AVAX", etc.
+  details: jsonb("details").notNull(), // Bank details or wallet addresses
+  isActive: boolean("is_active").default(true),
+  instructions: text("instructions"), // Payment instructions for users
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   wallets: many(wallets),
@@ -360,6 +374,12 @@ export const insertPlatformWalletSchema = createInsertSchema(platformWallets).om
   updatedAt: true,
 });
 
+export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Exported types
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -384,3 +404,5 @@ export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type InsertPlatformWallet = z.infer<typeof insertPlatformWalletSchema>;
 export type PlatformWallet = typeof platformWallets.$inferSelect;
+export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
