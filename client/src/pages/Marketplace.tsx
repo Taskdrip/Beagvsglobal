@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 
 export default function Marketplace() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCurrency, setSelectedCurrency] = useState("all");

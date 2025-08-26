@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -35,6 +35,10 @@ const contactSchema = z.object({
 type ContactFormData = z.infer<typeof contactSchema>;
 
 export default function Contact() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const { toast } = useToast();
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -338,7 +342,7 @@ export default function Contact() {
                   <Link href="/marketplace" className="flex-1">
                     <Button 
                       variant="outline" 
-                      className="w-full border-white text-white hover:bg-white hover:text-crypto-blue font-semibold"
+                      className="w-full border-2 border-white text-white bg-white/10 backdrop-blur-sm hover:bg-white hover:text-crypto-blue font-semibold transition-all duration-300"
                       data-testid="button-browse-marketplace-cta"
                     >
                       Browse Marketplace

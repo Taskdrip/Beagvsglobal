@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
@@ -29,6 +30,10 @@ import escrowSystemImage from "@assets/generated_images/Escrow_protection_system
 import globalServicesImage from "@assets/generated_images/Global_marketplace_services_illustration_b30909d5.png";
 
 export default function Landing() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
@@ -572,7 +577,7 @@ export default function Landing() {
               <Button 
                 size="lg" 
                 variant="outline" 
-                className="border-white text-white hover:bg-white hover:text-slate-900 font-semibold px-8 py-4"
+                className="border-2 border-white text-white bg-white/10 backdrop-blur-sm hover:bg-white hover:text-slate-900 font-semibold px-8 py-4 transition-all duration-300"
                 data-testid="button-learn-more"
               >
                 Learn More
