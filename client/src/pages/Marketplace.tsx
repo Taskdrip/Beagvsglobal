@@ -65,7 +65,7 @@ export default function Marketplace() {
           <h1 className="text-3xl font-bold text-slate-dark mb-2" data-testid="text-marketplace-title">
             Marketplace
           </h1>
-          <p className="text-slate-medium">Discover real estate, shipping services, and products with crypto payments</p>
+          <p className="text-slate-medium">Discover real estate, shipping services, and products with comprehensive crypto and fiat payment options. All transactions protected by military-grade escrow security across 180+ countries.</p>
         </div>
 
         {/* Filters */}
@@ -102,8 +102,13 @@ export default function Marketplace() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Currencies</SelectItem>
-                  <SelectItem value="PI">Pi (π)</SelectItem>
-                  <SelectItem value="USDT">USDT</SelectItem>
+                  <SelectItem value="PI">Pi Network (π)</SelectItem>
+                  <SelectItem value="USDT">USDT (Multi-Network)</SelectItem>
+                  <SelectItem value="USD">US Dollar (USD)</SelectItem>
+                  <SelectItem value="EUR">Euro (EUR)</SelectItem>
+                  <SelectItem value="GBP">British Pound (GBP)</SelectItem>
+                  <SelectItem value="CAD">Canadian Dollar (CAD)</SelectItem>
+                  <SelectItem value="NGN">Nigerian Naira (NGN)</SelectItem>
                 </SelectContent>
               </Select>
 

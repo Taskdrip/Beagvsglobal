@@ -29,12 +29,12 @@ export default function About() {
             <span className="text-3xl font-bold">RealShipEX</span>
           </div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6" data-testid="text-about-title">
-            Building the Future of<br />
-            <span className="text-blue-200">Crypto Commerce</span>
+            The World's Premier<br />
+            <span className="text-blue-200">Crypto & Fiat Marketplace</span>
           </h1>
           <p className="text-xl text-blue-100 max-w-3xl mx-auto">
-            We're revolutionizing how people buy, sell, and ship globally with cryptocurrency, 
-            creating a world-class SocialFi marketplace for real estate and logistics.
+            We're revolutionizing global commerce with military-grade security, comprehensive escrow protection, 
+            and support for multiple cryptocurrencies and traditional payment methods across 180+ countries.
           </p>
         </div>
       </section>
@@ -45,9 +45,10 @@ export default function About() {
           <Target className="w-16 h-16 text-crypto-blue mx-auto mb-8" />
           <h2 className="text-3xl font-bold text-slate-dark mb-6" data-testid="text-mission-title">Our Mission</h2>
           <p className="text-xl text-slate-medium leading-relaxed" data-testid="text-mission-content">
-            We're building a world-class SocialFi marketplace where crypto enthusiasts can acquire real estate, 
-            ship globally, and exchange goods/services with crypto, protected by escrow. Our platform bridges 
-            traditional commerce with the future of decentralized finance.
+            We're building the world's most comprehensive crypto and fiat marketplace where users can trade real estate, 
+            access global shipping services, and exchange goods with complete security. Our advanced escrow system supports 
+            Pi Network, USDT across multiple blockchain networks (TRON, TON, BNB, Solana, Avalanche), and traditional currencies 
+            (USD, EUR, GBP, CAD, NGN) with military-grade protection.
           </p>
         </div>
       </section>
