@@ -25,6 +25,7 @@ import AdminPaymentMethods from "@/pages/AdminPaymentMethods";
 import AccountSettings from "@/pages/AccountSettings";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
+import KycVerification from "@/pages/KycVerification";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -63,6 +64,7 @@ function Router() {
           <Route path="/chat/:listingId" component={Chat} />
           <Route path="/admin/payment-methods" component={AdminPaymentMethods} />
           <Route path="/account/settings" component={AccountSettings} />
+          <Route path="/kyc" component={KycVerification} />
         </>
       )}
       <Route component={NotFound} />

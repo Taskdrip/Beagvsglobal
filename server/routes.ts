@@ -4,7 +4,8 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema } from "@shared/schema";
+import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema } from "@shared/schema";
+import { ObjectStorageService } from "./objectStorage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -970,6 +971,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking message as read:", error);
       res.status(500).json({ message: "Failed to mark message as read" });
+    }
+  });
+
+  // KYC Verification routes
+  app.get('/api/kyc/status', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json({
+        kycStatus: user.kycStatus,
+        kycSubmittedAt: user.kycSubmittedAt,
+        kycApprovedAt: user.kycApprovedAt,
+        kycRejectedAt: user.kycRejectedAt,
+        kycRejectionReason: user.kycRejectionReason,
+      });
+    } catch (error) {
+      console.error("Error fetching KYC status:", error);
+      res.status(500).json({ message: "Failed to fetch KYC status" });
+    }
+  });
+
+  app.post('/api/kyc/facial-upload-url', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getFacialVerificationUploadURL(userId);
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error("Error generating facial upload URL:", error);
+      res.status(500).json({ message: "Failed to generate upload URL" });
+    }
+  });
+
+  app.post('/api/kyc/document-upload-url', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { documentType } = req.body;
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getKycDocumentUploadURL(userId, documentType);
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error("Error generating document upload URL:", error);
+      res.status(500).json({ message: "Failed to generate upload URL" });
+    }
+  });
+
+  app.post('/api/kyc/submit', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { facialImageUrl, documentUrl, documentForm } = req.body;
+
+      // Update user KYC status
+      await storage.updateUserKycStatus(userId, 'UNDER_REVIEW');
+
+      // Create notification
+      await storage.createNotification({
+        userId,
+        type: 'KYC_STATUS',
+        data: { status: 'UNDER_REVIEW' },
+      });
+
+      res.json({ 
+        message: 'KYC verification submitted successfully'
+      });
+    } catch (error: any) {
+      console.error("Error submitting KYC:", error);
+      res.status(400).json({ message: error.message || "Failed to submit KYC verification" });
     }
   });
 

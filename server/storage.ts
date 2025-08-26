@@ -117,6 +117,9 @@ export interface IStorage {
   deletePaymentMethod(id: string): Promise<void>;
   getPaymentMethodsByType(type: string): Promise<PaymentMethod[]>;
   
+  // KYC operations
+  updateUserKycStatus(userId: string, status: string): Promise<User>;
+  
   // Admin operations
   updateUserRole(userId: string, role: string): Promise<User>;
   updateUserAccountType(userId: string, accountType: string): Promise<User>;
@@ -921,6 +924,33 @@ export class DatabaseStorage implements IStorage {
     );
 
     return threadsWithData as any;
+  }
+
+  // KYC operations
+  async updateUserKycStatus(userId: string, status: string): Promise<User> {
+    const now = new Date().toISOString();
+    const updateData: any = { 
+      kycStatus: status as any,
+      kycSubmittedAt: status === 'UNDER_REVIEW' ? now : undefined,
+      kycApprovedAt: status === 'APPROVED' ? now : undefined,
+      kycRejectedAt: status === 'REJECTED' ? now : undefined,
+    };
+
+    const [user] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.id, userId))
+      .returning();
+    
+    return user;
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [newNotification] = await db
+      .insert(notifications)
+      .values(notification)
+      .returning();
+    return newNotification;
   }
 }
 

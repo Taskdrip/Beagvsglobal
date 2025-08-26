@@ -34,7 +34,10 @@ export const currencyEnum = pgEnum('currency', ['PI', 'USDT', 'USD', 'NGN', 'EUR
 export const networkEnum = pgEnum('network', ['PI_MAINNET', 'TRON', 'TON', 'BNB', 'SOL', 'AVAX', 'BANK_TRANSFER']);
 export const escrowStatusEnum = pgEnum('escrow_status', ['CREATED', 'FUNDED', 'SHIPPED', 'DELIVERED', 'DISPUTED', 'RELEASED', 'REFUNDED']);
 export const followStatusEnum = pgEnum('follow_status', ['PENDING', 'ACCEPTED', 'REJECTED']);
-export const notificationTypeEnum = pgEnum('notification_type', ['FOLLOW_REQUEST', 'MESSAGE', 'ESCROW_UPDATE', 'REVIEW']);
+export const notificationTypeEnum = pgEnum('notification_type', ['FOLLOW_REQUEST', 'MESSAGE', 'ESCROW_UPDATE', 'REVIEW', 'KYC_STATUS']);
+export const kycStatusEnum = pgEnum('kyc_status', ['NOT_STARTED', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED']);
+export const documentTypeEnum = pgEnum('document_type', ['DRIVERS_LICENSE', 'INTERNATIONAL_PASSPORT', 'NATIONAL_ID', 'VOTER_ID']);
+export const verificationTypeEnum = pgEnum('verification_type', ['FACIAL', 'DOCUMENT']);
 
 // User storage table (required for Replit Auth)
 export const users = pgTable("users", {
@@ -52,6 +55,13 @@ export const users = pgTable("users", {
   bio: text("bio"),
   role: userRoleEnum("role").default('USER'),
   accountType: accountTypeEnum("account_type").default('BUYER'),
+  // KYC fields
+  kycStatus: kycStatusEnum("kyc_status").default('NOT_STARTED'),
+  kycSubmittedAt: timestamp("kyc_submitted_at"),
+  kycApprovedAt: timestamp("kyc_approved_at"),
+  kycRejectedAt: timestamp("kyc_rejected_at"),
+  kycRejectionReason: text("kyc_rejection_reason"),
+  kycNotes: text("kyc_notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -184,6 +194,52 @@ export const paymentMethods = pgTable("payment_methods", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// KYC Verification table - stores verification attempts and results
+export const kycVerifications = pgTable("kyc_verifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  verificationType: verificationTypeEnum("verification_type").notNull(),
+  status: kycStatusEnum("status").default('PENDING'),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: 'set null' }),
+  rejectionReason: text("rejection_reason"),
+  notes: text("notes"),
+  metadata: jsonb("metadata"), // Store additional verification data like confidence scores
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// KYC Documents table - stores uploaded documents
+export const kycDocuments = pgTable("kyc_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  verificationId: varchar("verification_id").notNull().references(() => kycVerifications.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  documentType: documentTypeEnum("document_type").notNull(),
+  country: varchar("country").notNull(),
+  documentNumber: varchar("document_number"),
+  expiryDate: timestamp("expiry_date"),
+  fileUrl: varchar("file_url").notNull(), // Object storage URL
+  fileName: varchar("file_name").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type"),
+  isDeleted: boolean("is_deleted").default(false),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+});
+
+// Facial verification data
+export const facialVerifications = pgTable("facial_verifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  verificationId: varchar("verification_id").notNull().references(() => kycVerifications.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  imageUrl: varchar("image_url").notNull(), // Object storage URL for facial image
+  livenessScore: decimal("liveness_score", { precision: 5, scale: 4 }), // 0.0000 to 1.0000
+  confidenceScore: decimal("confidence_score", { precision: 5, scale: 4 }), // AI confidence score
+  biometricHash: varchar("biometric_hash"), // Encrypted biometric template
+  verificationData: jsonb("verification_data"), // Additional verification metadata
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   wallets: many(wallets),
@@ -199,6 +255,9 @@ export const userRelations = relations(users, ({ many }) => ({
   sellerChatThreads: many(chatThreads, { relationName: "sellerChatThreads" }),
   notifications: many(notifications),
   blogPosts: many(blogPosts),
+  kycVerifications: many(kycVerifications),
+  kycDocuments: many(kycDocuments),
+  facialVerifications: many(facialVerifications),
 }));
 
 export const walletRelations = relations(wallets, ({ one }) => ({
@@ -311,6 +370,41 @@ export const blogPostRelations = relations(blogPosts, ({ one }) => ({
   }),
 }));
 
+export const kycVerificationRelations = relations(kycVerifications, ({ one, many }) => ({
+  user: one(users, {
+    fields: [kycVerifications.userId],
+    references: [users.id],
+  }),
+  reviewer: one(users, {
+    fields: [kycVerifications.reviewedBy],
+    references: [users.id],
+  }),
+  documents: many(kycDocuments),
+  facialVerification: many(facialVerifications),
+}));
+
+export const kycDocumentRelations = relations(kycDocuments, ({ one }) => ({
+  verification: one(kycVerifications, {
+    fields: [kycDocuments.verificationId],
+    references: [kycVerifications.id],
+  }),
+  user: one(users, {
+    fields: [kycDocuments.userId],
+    references: [users.id],
+  }),
+}));
+
+export const facialVerificationRelations = relations(facialVerifications, ({ one }) => ({
+  verification: one(kycVerifications, {
+    fields: [facialVerifications.verificationId],
+    references: [kycVerifications.id],
+  }),
+  user: one(users, {
+    fields: [facialVerifications.userId],
+    references: [users.id],
+  }),
+}));
+
 // Schema types
 export const upsertUserSchema = createInsertSchema(users);
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -380,6 +474,23 @@ export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit
   updatedAt: true,
 });
 
+export const insertKycVerificationSchema = createInsertSchema(kycVerifications).omit({
+  id: true,
+  submittedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertFacialVerificationSchema = createInsertSchema(facialVerifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Exported types
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -406,3 +517,9 @@ export type InsertPlatformWallet = z.infer<typeof insertPlatformWalletSchema>;
 export type PlatformWallet = typeof platformWallets.$inferSelect;
 export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
 export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type InsertKycVerification = z.infer<typeof insertKycVerificationSchema>;
+export type KycVerification = typeof kycVerifications.$inferSelect;
+export type InsertKycDocument = z.infer<typeof insertKycDocumentSchema>;
+export type KycDocument = typeof kycDocuments.$inferSelect;
+export type InsertFacialVerification = z.infer<typeof insertFacialVerificationSchema>;
+export type FacialVerification = typeof facialVerifications.$inferSelect;

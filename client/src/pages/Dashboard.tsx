@@ -8,6 +8,7 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import WalletManager from "@/components/WalletManager";
 import EscrowProgress from "@/components/EscrowProgress";
+import { KycStatus } from "@/components/KycStatus";
 import { Link } from "wouter";
 import { 
   Plus,
@@ -118,6 +119,13 @@ export default function Dashboard() {
             </Link>
           </div>
         </div>
+
+        {/* KYC Status - Show if not approved */}
+        {user && user.kycStatus !== 'APPROVED' && (
+          <div className="mb-8">
+            <KycStatus user={user} />
+          </div>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
