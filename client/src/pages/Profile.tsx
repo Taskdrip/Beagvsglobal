@@ -127,7 +127,7 @@ export default function Profile() {
 
   const generateWhatsAppLink = () => {
     if (!profileUser?.whatsapp) return "#";
-    const message = `Hi! I found your profile on Beagvs Global.`;
+    const message = `Hi! I found your profile on RealShipEX.`;
     return `https://wa.me/${profileUser.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
   };
 

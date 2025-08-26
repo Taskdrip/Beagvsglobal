@@ -144,10 +144,10 @@ export default function Auth() {
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Globe className="w-8 h-8 text-crypto-blue" />
-            <span className="text-2xl font-bold gradient-text">Beagvs Global</span>
+            <span className="text-2xl font-bold gradient-text">RealShipEX</span>
           </div>
           <h2 className="text-3xl font-bold gradient-text mb-4">
-            {isSignUp ? "Join Beagvs Global" : "Welcome Back"}
+{isSignUp ? "Join RealShipEX" : "Welcome Back"}
           </h2>
           <p className="text-slate-medium">
             {isSignUp 

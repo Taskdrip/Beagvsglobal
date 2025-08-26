@@ -9,10 +9,10 @@ const defaultPaymentMethods = [
     currency: "USD",
     network: null,
     details: {
-      bankName: "Beagvs Global Bank",
+      bankName: "RealShipEX Bank",
       accountNumber: "1234567890",
       routingNumber: "021000021",
-      accountName: "Beagvs Global LLC"
+      accountName: "RealShipEX LLC"
     },
     instructions: "Transfer funds to the bank account above. Include your transaction ID in the payment memo.",
     isActive: true

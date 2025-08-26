@@ -46,7 +46,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  // Additional fields for Beagvs Global
+  // Additional fields for RealShipEX
   username: varchar("username").unique(),
   passwordHash: varchar("password_hash"),
   whatsapp: varchar("whatsapp"),

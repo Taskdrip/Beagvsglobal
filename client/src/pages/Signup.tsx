@@ -58,7 +58,7 @@ export default function Signup() {
       
       toast({
         title: "Account created successfully!",
-        description: "Welcome to Beagvs Global. You can now start trading.",
+        description: "Welcome to RealShipEX. You can now start trading.",
       });
 
       // Invalidate auth queries to refresh user data
@@ -82,7 +82,7 @@ export default function Signup() {
       <Navigation />
       <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Join Beagvs Global</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Join RealShipEX</h1>
           <p className="text-gray-600">Create your account and start trading</p>
         </div>
 

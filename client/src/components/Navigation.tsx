@@ -65,7 +65,7 @@ export default function Navigation() {
           <div className="flex items-center space-x-8">
             <Link href="/" className="flex items-center space-x-2" data-testid="link-home">
               <Globe className="w-8 h-8 text-crypto-blue" />
-              <span className="text-xl font-bold text-slate-dark">Beagvs Global</span>
+              <span className="text-xl font-bold text-slate-dark">RealShipEX</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -179,7 +179,7 @@ export default function Navigation() {
                   {/* Mobile Logo */}
                   <div className="flex items-center space-x-2 pb-4 border-b border-slate-200">
                     <Globe className="w-6 h-6 text-crypto-blue" />
-                    <span className="font-bold text-slate-dark">Beagvs Global</span>
+                    <span className="font-bold text-slate-dark">RealShipEX</span>
                   </div>
 
                   {/* Mobile Navigation Links */}
@@ -271,7 +271,7 @@ export default function Navigation() {
                   {/* Mobile Footer */}
                   <div className="pt-4 border-t border-slate-200">
                     <p className="text-xs text-slate-400 text-center">
-                      © 2024 Beagvs Global
+                      © 2024 RealShipEX
                     </p>
                   </div>
                 </div>

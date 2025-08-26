@@ -37,7 +37,7 @@ export default function Blog() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-slate-dark mb-4" data-testid="text-blog-title">
-            Beagvs Global Blog
+            RealShipEX Blog
           </h1>
           <p className="text-xl text-slate-medium max-w-3xl mx-auto">
             Stay updated with the latest news, insights, and developments in crypto-powered real estate and global shipping.

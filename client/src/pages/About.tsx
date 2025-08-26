@@ -26,7 +26,7 @@ export default function About() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="flex items-center justify-center space-x-2 mb-6">
             <Globe className="w-12 h-12" />
-            <span className="text-3xl font-bold">Beagvs Global</span>
+            <span className="text-3xl font-bold">RealShipEX</span>
           </div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6" data-testid="text-about-title">
             Building the Future of<br />
@@ -113,7 +113,7 @@ export default function About() {
                     Lawyer and web developer with 12+ years in blockchain, tech-preneurship, and web3. 
                     Abraham leads our technical vision and ensures our platform meets the highest standards 
                     of security and compliance in the crypto space. His expertise in both law and technology 
-                    ensures Beagvs Global operates within regulatory frameworks while pushing innovation.
+                    ensures RealShipEX operates within regulatory frameworks while pushing innovation.
                   </p>
                   <div className="flex justify-center lg:justify-start space-x-4">
                     <Button variant="ghost" size="sm" className="p-2" data-testid="button-cto-linkedin">
@@ -136,7 +136,7 @@ export default function About() {
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-slate-dark mb-4">Our Core Values</h2>
             <p className="text-xl text-slate-medium max-w-3xl mx-auto">
-              The principles that guide everything we do at Beagvs Global
+              The principles that guide everything we do at RealShipEX
             </p>
           </div>
           
@@ -181,7 +181,7 @@ export default function About() {
       <section className="py-20 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-dark mb-4">Why Choose Beagvs Global?</h2>
+            <h2 className="text-3xl font-bold text-slate-dark mb-4">Why Choose RealShipEX?</h2>
             <p className="text-xl text-slate-medium max-w-3xl mx-auto">
               We offer unique advantages that set us apart in the crypto marketplace space
             </p>
@@ -290,7 +290,7 @@ export default function About() {
             <h2 className="text-3xl font-bold mb-6">Ready to Join the Revolution?</h2>
             <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
               Start your journey in crypto-powered commerce today. Whether you're buying real estate, 
-              shipping globally, or trading services, Beagvs Global has you covered.
+              shipping globally, or trading services, RealShipEX has you covered.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/auth/sign-up">

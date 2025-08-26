@@ -582,7 +582,7 @@ export default function AdminPaymentMethods() {
                         id="accountName"
                         value={bankDetails.accountName}
                         onChange={(e) => setBankDetails({ ...bankDetails, accountName: e.target.value })}
-                        placeholder="e.g., Beagvs Global LLC"
+                        placeholder="e.g., RealShipEX LLC"
                         className="mt-1 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
