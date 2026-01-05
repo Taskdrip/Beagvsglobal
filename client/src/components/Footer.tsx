@@ -20,7 +20,7 @@ export default function Footer() {
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <Globe className="w-8 h-8 text-crypto-blue" />
-              <span className="text-xl font-bold">RealShipEX</span>
+              <span className="text-xl font-bold">Beagvs Global</span>
             </div>
             <p className="text-slate-300 leading-relaxed">
               The world's first crypto-powered marketplace for real estate and global shipping services.
@@ -172,7 +172,7 @@ export default function Footer() {
           <div className="max-w-md mx-auto text-center">
             <h4 className="text-lg font-semibold mb-2">Stay Updated</h4>
             <p className="text-slate-300 mb-4 text-sm">
-              Get the latest news and updates from RealShipEX
+              Get the latest news and updates from Beagvs Global
             </p>
             <div className="flex space-x-2">
               <Input 
@@ -195,7 +195,7 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
               <p className="text-slate-400 text-sm">
-                © 2024 RealShipEX. All rights reserved.
+                © 2024 Beagvs Global. All rights reserved.
               </p>
               <div className="flex items-center space-x-2 text-sm text-slate-400">
                 <MapPin className="w-4 h-4" />

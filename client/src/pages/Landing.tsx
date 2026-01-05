@@ -45,9 +45,8 @@ export default function Landing() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="text-left">
               <h1 className="text-5xl lg:text-6xl font-bold mb-6 leading-tight" data-testid="text-hero-title">
-                The World's Premier <br />
-                <span className="text-blue-200">Crypto & Fiat</span> <br />
-                Marketplace
+                Building the Future of<br />
+            <span className="text-blue-200">Beagvs Global</span>
               </h1>
               <p className="text-xl text-blue-100 mb-8 leading-relaxed">
                 Buy, sell, and trade real estate, shipping services, and products with advanced cryptocurrency and traditional payment options. Every transaction is protected by our military-grade escrow system.
@@ -336,7 +335,7 @@ export default function Landing() {
           <div className="text-center mb-16">
             <h2 className="text-3xl lg:text-4xl font-bold text-slate-dark mb-6">Military-Grade Security & Escrow Protection</h2>
             <p className="text-xl text-slate-medium max-w-4xl mx-auto leading-relaxed">
-              Every transaction on RealShipEX is secured with bank-level encryption and our advanced escrow system. 
+              Every transaction on Beagvs Global is secured with bank-level encryption and our advanced escrow system. 
               Your funds are protected until delivery confirmation, ensuring complete peace of mind for all parties.
             </p>
           </div>
@@ -517,11 +516,11 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Why Choose RealShipEX */}
+      {/* Why Choose Beagvs Global */}
       <section className="py-20 bg-gradient-to-r from-crypto-blue to-crypto-teal text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl lg:text-4xl font-bold mb-6">Why Choose RealShipEX?</h2>
+            <h2 className="text-3xl lg:text-4xl font-bold mb-6">Why Choose Beagvs Global?</h2>
             <p className="text-xl text-blue-100 max-w-4xl mx-auto">
               We're revolutionizing global commerce with cutting-edge technology, unmatched security, and exceptional service.
             </p>
@@ -560,7 +559,7 @@ export default function Landing() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl lg:text-4xl font-bold mb-6">Ready to Start Trading?</h2>
           <p className="text-xl text-slate-300 mb-8">
-            Join thousands of successful traders and businesses who trust RealShipEX for their global commerce needs.
+            Join thousands of successful traders and businesses who trust Beagvs Global for their global commerce needs.
           </p>
           <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6">
             <Link href="/signup">

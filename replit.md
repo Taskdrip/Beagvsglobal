@@ -1,6 +1,6 @@
 # Overview
 
-This is a full-stack MVP for RealShipEX, a crypto-powered SaaS marketplace that combines real estate, global shipping services, and social features. The platform enables users to buy, sell, and trade using cryptocurrencies like Pi Network and USDT across multiple blockchain networks, with built-in escrow protection and social networking capabilities.
+This is a full-stack MVP for Beagvs Global, a crypto-powered SaaS marketplace that combines real estate, global shipping services, and social features. The platform enables users to buy, sell, and trade using cryptocurrencies like Pi Network and USDT across multiple blockchain networks, with built-in escrow protection and social networking capabilities.
 
 The application serves as a comprehensive marketplace where users can list real estate properties, offer shipping services, trade products, and interact through direct messaging and follow/review systems. All transactions are protected by an escrow system that ensures secure crypto payments.
 

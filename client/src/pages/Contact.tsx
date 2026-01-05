@@ -87,7 +87,7 @@ export default function Contact() {
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Globe className="w-8 h-8 text-crypto-blue" />
-            <span className="text-2xl font-bold text-slate-dark">RealShipEX</span>
+            <span className="text-2xl font-bold text-slate-dark">Beagvs Global</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-dark mb-4" data-testid="text-contact-title">
             Get In Touch

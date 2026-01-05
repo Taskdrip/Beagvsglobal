@@ -15,7 +15,7 @@ export default function Welcome() {
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Globe className="w-12 h-12 text-crypto-blue" />
-            <span className="text-3xl font-bold text-slate-dark">RealShipEX</span>
+            <span className="text-3xl font-bold text-slate-dark">Beagvs Global</span>
           </div>
           <div className="flex items-center justify-center space-x-2 mb-6">
             <CheckCircle className="w-8 h-8 text-green-500" />
@@ -28,7 +28,7 @@ export default function Welcome() {
           <CardContent className="p-8">
             <div className="prose max-w-none" data-testid="welcome-content">
               <p className="text-lg text-slate-dark mb-6 leading-relaxed">
-                Welcome to the RealShipEX community!
+                Welcome to the Beagvs Global community!
               </p>
               
               <p className="text-slate-medium mb-4 leading-relaxed">
@@ -40,7 +40,7 @@ export default function Welcome() {
               </p>
               
               <p className="text-slate-medium font-medium">
-                — Team RealShipEX
+                — Team Beagvs Global
               </p>
             </div>
           </CardContent>
