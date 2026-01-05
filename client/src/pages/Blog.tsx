@@ -18,7 +18,7 @@ import {
 export default function Blog() {
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: blogPosts, isLoading } = useQuery({
+  const { data: blogPosts, isLoading } = useQuery<any[]>({
     queryKey: ["/api/blog"],
   });
 

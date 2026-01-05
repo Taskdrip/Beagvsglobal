@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 export default function Navigation() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth() as { user: any, isAuthenticated: boolean };
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 

@@ -44,12 +44,13 @@ export default function Landing() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="text-left">
-              <h1 className="text-5xl lg:text-6xl font-bold mb-6 leading-tight" data-testid="text-hero-title">
-                Building the Future of<br />
-            <span className="text-blue-200">Beagvs Global</span>
+              <h1 className="text-5xl lg:text-7xl font-extrabold mb-6 leading-tight tracking-tight" data-testid="text-hero-title">
+                Revolutionizing the <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-100">Future of Global Commerce</span>
               </h1>
-              <p className="text-xl text-blue-100 mb-8 leading-relaxed">
-                Buy, sell, and trade real estate, shipping services, and products with advanced cryptocurrency and traditional payment options. Every transaction is protected by our military-grade escrow system.
+              <p className="text-xl lg:text-2xl text-blue-100 mb-10 leading-relaxed max-w-2xl">
+                Experience the next generation of <span className="font-semibold text-white underline decoration-blue-400 decoration-2 underline-offset-4">Beagvs Global</span>. 
+                Trade real estate, ship globally, and exchange premium products with secure crypto & fiat escrow protection.
               </p>
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                 <Link href="/signup">
