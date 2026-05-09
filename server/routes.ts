@@ -1275,6 +1275,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Extended Admin Routes ────────────────────────────────────────────────────
+
+  // Admin: get platform stats
+  app.get('/api/admin/stats', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const stats = await storage.getAdminStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  // Admin: update user fields (role, accountType, kycStatus, email, name, etc.)
+  app.patch('/api/admin/users/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { role, accountType, kycStatus, email, firstName, lastName, username } = req.body;
+      const data: any = {};
+      if (role !== undefined) data.role = role;
+      if (accountType !== undefined) data.accountType = accountType;
+      if (kycStatus !== undefined) data.kycStatus = kycStatus;
+      if (email !== undefined) data.email = email;
+      if (firstName !== undefined) data.firstName = firstName;
+      if (lastName !== undefined) data.lastName = lastName;
+      if (username !== undefined) data.username = username;
+      const updated = await storage.updateUser(id, data);
+      const { passwordHash, ...publicUser } = updated;
+      res.json(publicUser);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update user" });
+    }
+  });
+
+  // Admin: delete user
+  app.delete('/api/admin/users/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      if (req.params.id === adminId) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+      await storage.deleteUser(req.params.id);
+      res.json({ message: "User deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  // Admin: reset a user's password (sets temp password, forces change on next login)
+  app.post('/api/admin/users/:id/reset-password', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { newPassword } = req.body;
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(id, passwordHash, true);
+      res.json({ message: "Password reset. User must change it on next login." });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // ─── Change Password (for mustChangePassword flow) ────────────────────────────
+
+  app.post('/api/auth/change-password', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ message: "New password must be at least 8 characters" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Verify current password if user has one and one is provided
+      if (user.passwordHash && currentPassword) {
+        const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(userId, passwordHash, false);
+      res.json({ message: "Password changed successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
+  // Check if current user must change password
+  app.get('/api/auth/must-change-password', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json({ mustChangePassword: user?.mustChangePassword ?? false });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

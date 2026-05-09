@@ -41,7 +41,14 @@ import {
   MapPin,
   Percent,
   Sliders,
-  Save
+  Save,
+  KeyRound,
+  UserCog,
+  Database,
+  RefreshCw,
+  Search,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const platformWalletSchema = z.object({
@@ -69,6 +76,10 @@ export default function Admin() {
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [showBlogDialog, setShowBlogDialog] = useState(false);
   const [editingBlogPost, setEditingBlogPost] = useState<any>(null);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<any>(null);
+  const [newTempPassword, setNewTempPassword] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [editingUser, setEditingUser] = useState<any>(null);
 
   // Check admin access
   if (!isAuthenticated || user?.role !== 'ADMIN') {
@@ -134,6 +145,14 @@ export default function Admin() {
 
   const { data: allShipments } = useQuery({
     queryKey: ["/api/admin/shipments"],
+  });
+
+  const { data: allUsers, refetch: refetchUsers } = useQuery({
+    queryKey: ["/api/admin/users"],
+  });
+
+  const { data: adminStats } = useQuery({
+    queryKey: ["/api/admin/stats"],
   });
 
   const [feeEdits, setFeeEdits] = useState<Record<string, any>>({});
@@ -320,6 +339,42 @@ export default function Admin() {
     onError: (err: any) => toast({ title: "Failed to save", description: err.message, variant: "destructive" }),
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ id, newPassword }: { id: string; newPassword: string }) => {
+      await apiRequest("POST", `/api/admin/users/${id}/reset-password`, { newPassword });
+    },
+    onSuccess: () => {
+      toast({ title: "Password reset", description: "User will be prompted to change on next login." });
+      setResetPasswordTarget(null);
+      setNewTempPassword("");
+      refetchUsers();
+    },
+    onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      await apiRequest("PATCH", `/api/admin/users/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "User updated" });
+      setEditingUser(null);
+      refetchUsers();
+    },
+    onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/users/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "User deleted" });
+      refetchUsers();
+    },
+    onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
   const updateShipmentStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       apiRequest("PATCH", `/api/shipments/${id}`, { status }),
@@ -465,9 +520,12 @@ export default function Admin() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="escrows" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto p-1 bg-slate-100 rounded-lg">
+          <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-slate-100 rounded-lg w-full">
             <TabsTrigger value="escrows" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-escrows">
               Escrows
+            </TabsTrigger>
+            <TabsTrigger value="users" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-users">
+              Users
             </TabsTrigger>
             <TabsTrigger value="wallets" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-wallets">
               Wallets
@@ -483,6 +541,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-settings">
               Payment Methods
+            </TabsTrigger>
+            <TabsTrigger value="database" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-database">
+              Database
             </TabsTrigger>
           </TabsList>
 
@@ -1082,6 +1143,319 @@ export default function Admin() {
                     })}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Users Management Tab ── */}
+          <TabsContent value="users" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  User Management ({(allUsers as any[])?.length ?? 0} users)
+                </CardTitle>
+                <div className="relative mt-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by username, email, or name..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    data-testid="input-user-search"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!(allUsers as any[])?.length ? (
+                  <div className="text-center py-10">
+                    <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-400">No users found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(allUsers as any[])
+                      .filter((u: any) => {
+                        const q = userSearch.toLowerCase();
+                        return !q || u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.firstName?.toLowerCase().includes(q) || u.lastName?.toLowerCase().includes(q);
+                      })
+                      .map((u: any) => (
+                        <div key={u.id} className="p-3 border rounded-xl hover:shadow-sm transition-shadow" data-testid={`user-row-${u.id}`}>
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                                {(u.firstName?.[0] || u.username?.[0] || "?").toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-slate-900 text-sm">{u.username || "—"}</span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {u.role}
+                                  </span>
+                                  {u.mustChangePassword && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Must Change PW</span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-500 truncate">{u.email || "No email"}{u.firstName ? ` · ${u.firstName} ${u.lastName || ""}` : ""}</p>
+                                <p className="text-xs text-slate-400">Joined {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs"
+                                onClick={() => setEditingUser(u)}
+                                data-testid={`button-edit-user-${u.id}`}
+                              >
+                                <UserCog className="w-3.5 h-3.5 mr-1" /> Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                                onClick={() => { setResetPasswordTarget(u); setNewTempPassword(""); }}
+                                data-testid={`button-reset-pw-${u.id}`}
+                              >
+                                <KeyRound className="w-3.5 h-3.5 mr-1" /> Reset PW
+                              </Button>
+                              {u.id !== (user as any)?.id && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="h-8 text-xs"
+                                  onClick={() => {
+                                    if (confirm(`Delete user "${u.username}"? This is permanent.`)) {
+                                      deleteUserMutation.mutate(u.id);
+                                    }
+                                  }}
+                                  data-testid={`button-delete-user-${u.id}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Edit User Dialog */}
+            {editingUser && (
+              <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit User: {editingUser.username}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Username", key: "username" },
+                      { label: "Email", key: "email" },
+                      { label: "First Name", key: "firstName" },
+                      { label: "Last Name", key: "lastName" },
+                    ].map(({ label, key }) => (
+                      <div key={key}>
+                        <Label className="text-sm">{label}</Label>
+                        <Input
+                          defaultValue={editingUser[key] || ""}
+                          onChange={(e) => setEditingUser({ ...editingUser, [key]: e.target.value })}
+                          className="mt-1"
+                          data-testid={`input-user-${key}`}
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <Label className="text-sm">Role</Label>
+                      <Select defaultValue={editingUser.role} onValueChange={(v) => setEditingUser({ ...editingUser, role: v })}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USER">User</SelectItem>
+                          <SelectItem value="ADMIN">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Account Type</Label>
+                      <Select defaultValue={editingUser.accountType || "INDIVIDUAL"} onValueChange={(v) => setEditingUser({ ...editingUser, accountType: v })}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="INDIVIDUAL">Individual</SelectItem>
+                          <SelectItem value="BUSINESS">Business</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button variant="outline" className="flex-1" onClick={() => setEditingUser(null)}>Cancel</Button>
+                      <Button
+                        className="flex-1"
+                        disabled={updateUserMutation.isPending}
+                        onClick={() => updateUserMutation.mutate({
+                          id: editingUser.id,
+                          data: {
+                            username: editingUser.username,
+                            email: editingUser.email,
+                            firstName: editingUser.firstName,
+                            lastName: editingUser.lastName,
+                            role: editingUser.role,
+                            accountType: editingUser.accountType,
+                          },
+                        })}
+                        data-testid="button-save-user-edit"
+                      >
+                        {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Reset Password Dialog */}
+            {resetPasswordTarget && (
+              <Dialog open={!!resetPasswordTarget} onOpenChange={() => setResetPasswordTarget(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Reset Password for {resetPasswordTarget.username}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-600">Set a temporary password. The user will be required to change it on their next login.</p>
+                    <div>
+                      <Label className="text-sm">New Temporary Password</Label>
+                      <Input
+                        type="text"
+                        value={newTempPassword}
+                        onChange={(e) => setNewTempPassword(e.target.value)}
+                        placeholder="Min. 8 characters"
+                        className="mt-1 font-mono"
+                        data-testid="input-temp-password"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button variant="outline" className="flex-1" onClick={() => setResetPasswordTarget(null)}>Cancel</Button>
+                      <Button
+                        className="flex-1 bg-amber-600 hover:bg-amber-700"
+                        disabled={resetPasswordMutation.isPending || newTempPassword.length < 8}
+                        onClick={() => resetPasswordMutation.mutate({ id: resetPasswordTarget.id, newPassword: newTempPassword })}
+                        data-testid="button-confirm-reset-pw"
+                      >
+                        {resetPasswordMutation.isPending ? "Resetting..." : "Reset Password"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </TabsContent>
+
+          {/* ── Database Management Tab ── */}
+          <TabsContent value="database" className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Total Users", value: (adminStats as any)?.totalUsers ?? "—", color: "blue" },
+                { label: "Total Listings", value: (adminStats as any)?.totalListings ?? "—", color: "green" },
+                { label: "Total Escrows", value: (adminStats as any)?.totalEscrows ?? "—", color: "purple" },
+                { label: "Total Wallets", value: (adminStats as any)?.totalWallets ?? "—", color: "cyan" },
+              ].map(({ label, value, color }) => (
+                <Card key={label}>
+                  <CardContent className="p-4 text-center">
+                    <Database className={`w-6 h-6 text-${color}-500 mx-auto mb-2`} />
+                    <p className="text-2xl font-bold text-slate-900">{value}</p>
+                    <p className="text-xs text-slate-500 mt-1">{label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-slate-600" />
+                    Database Overview
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                    toast({ title: "Refreshed" });
+                  }} data-testid="button-refresh-db">
+                    <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[
+                    { table: "users", label: "Users", count: (adminStats as any)?.totalUsers, desc: "Registered accounts (regular + admin)" },
+                    { table: "listings", label: "Listings", count: (adminStats as any)?.totalListings, desc: "Active and archived marketplace listings" },
+                    { table: "escrows", label: "Escrows", count: (adminStats as any)?.totalEscrows, desc: "Transaction escrow records" },
+                    { table: "wallets", label: "Wallets", count: (adminStats as any)?.totalWallets, desc: "User crypto wallets registered" },
+                    { table: "blog_posts", label: "Blog Posts", count: (adminStats as any)?.totalBlogPosts, desc: "Published and draft blog content" },
+                    { table: "reviews", label: "Reviews", count: (adminStats as any)?.totalReviews, desc: "User-submitted ratings and reviews" },
+                    { table: "messages", label: "Messages", count: (adminStats as any)?.totalMessages, desc: "Direct messages between users" },
+                    { table: "shipments", label: "Shipments", count: (adminStats as any)?.totalShipments, desc: "Shipping tracking records" },
+                  ].map(({ table, label, count, desc }) => (
+                    <div key={table} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors" data-testid={`db-table-${table}`}>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-slate-700">{table}</span>
+                          <span className="text-xs text-slate-400">{desc}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-bold text-slate-900 min-w-[2.5rem] text-right">
+                          {count !== undefined ? count : <Loader2 className="w-4 h-4 animate-spin inline" />}
+                        </span>
+                        <span className="text-xs text-slate-400">rows</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Recent Users</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-slate-500">
+                        <th className="pb-2 pr-4 font-medium">Username</th>
+                        <th className="pb-2 pr-4 font-medium">Email</th>
+                        <th className="pb-2 pr-4 font-medium">Role</th>
+                        <th className="pb-2 pr-4 font-medium">Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(allUsers as any[])?.slice(0, 10).map((u: any) => (
+                        <tr key={u.id} className="border-b hover:bg-slate-50" data-testid={`db-user-row-${u.id}`}>
+                          <td className="py-2 pr-4 font-medium text-slate-900">{u.username || "—"}</td>
+                          <td className="py-2 pr-4 text-slate-600">{u.email || "—"}</td>
+                          <td className="py-2 pr-4">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="py-2 text-slate-400">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!(allUsers as any[])?.length && (
+                    <p className="text-center text-slate-400 py-6">No users found.</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

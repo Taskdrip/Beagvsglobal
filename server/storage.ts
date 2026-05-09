@@ -134,6 +134,10 @@ export interface IStorage {
   updateUserAccountType(userId: string, accountType: string): Promise<User>;
   getAllUsers(): Promise<User[]>;
   getAllEscrows(): Promise<(Escrow & { listing: Listing; buyer: User; seller: User })[]>;
+  updateUserPassword(userId: string, passwordHash: string, mustChangePassword?: boolean): Promise<User>;
+  deleteUser(userId: string): Promise<void>;
+  getAdminStats(): Promise<{ totalUsers: number; totalListings: number; totalEscrows: number; totalShipments: number }>;
+  updateUser(userId: string, data: Partial<User>): Promise<User>;
 
   // Shipment operations
   createShipment(shipment: InsertShipment): Promise<Shipment>;
@@ -782,6 +786,53 @@ export class DatabaseStorage implements IStorage {
 
   async getAllEscrows(): Promise<(Escrow & { listing: Listing; buyer: User; seller: User })[]> {
     return await this.getEscrows();
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string, mustChangePassword: boolean = false): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ passwordHash, mustChangePassword, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, userId));
+  }
+
+  async updateUser(userId: string, data: Partial<User>): Promise<User> {
+    const { id: _, createdAt: __, ...safeData } = data as any;
+    const [updated] = await db
+      .update(users)
+      .set({ ...safeData, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async getAdminStats(): Promise<{
+    totalUsers: number; totalListings: number; totalEscrows: number; totalShipments: number;
+    totalWallets: number; totalBlogPosts: number; totalReviews: number; totalMessages: number;
+  }> {
+    const [uCount] = await db.select({ count: count() }).from(users);
+    const [lCount] = await db.select({ count: count() }).from(listings);
+    const [eCount] = await db.select({ count: count() }).from(escrows);
+    const [sCount] = await db.select({ count: count() }).from(shipments);
+    const [wCount] = await db.select({ count: count() }).from(wallets);
+    const [bCount] = await db.select({ count: count() }).from(blogPosts);
+    const [rCount] = await db.select({ count: count() }).from(reviews);
+    const [mCount] = await db.select({ count: count() }).from(messages);
+    return {
+      totalUsers: Number(uCount.count),
+      totalListings: Number(lCount.count),
+      totalEscrows: Number(eCount.count),
+      totalShipments: Number(sCount.count),
+      totalWallets: Number(wCount.count),
+      totalBlogPosts: Number(bCount.count),
+      totalReviews: Number(rCount.count),
+      totalMessages: Number(mCount.count),
+    };
   }
 
   // Chat operations

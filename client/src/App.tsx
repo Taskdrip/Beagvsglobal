@@ -14,6 +14,8 @@ import Marketplace from "@/pages/Marketplace";
 import ListingDetail from "@/pages/ListingDetail";
 import CreateListing from "@/pages/CreateListing";
 import Admin from "@/pages/Admin";
+import AdminLogin from "@/pages/AdminLogin";
+import ChangePassword from "@/pages/ChangePassword";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import About from "@/pages/About";
@@ -35,6 +37,10 @@ function Router() {
 
   return (
     <Switch>
+      {/* Admin login & change-password are always accessible */}
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/change-password" component={ChangePassword} />
+
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
