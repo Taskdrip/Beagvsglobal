@@ -21,7 +21,8 @@ import {
   Star,
   Clock,
   ShoppingCart,
-  Store
+  Store,
+  Truck
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -399,18 +400,34 @@ export default function Dashboard() {
 
                         <EscrowProgress status={escrow.status} />
 
-                        <div className="flex items-center justify-between mt-4">
+                        <div className="flex items-center justify-between mt-4 flex-wrap gap-2">
                           <p className="text-sm text-slate-medium">
                             {escrow.buyerId === user?.id 
                               ? `Buying from ${escrow.seller?.username}` 
                               : `Selling to ${escrow.buyer?.username}`
                             }
                           </p>
-                          {(escrow.status === 'SHIPPED' && escrow.buyerId === user?.id) && (
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700" data-testid={`button-mark-delivered-${escrow.id}`}>
-                              Mark as Delivered
-                            </Button>
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {(escrow.status === 'SHIPPED' || escrow.status === 'DELIVERED') && (
+                              <Link href={`/shipments?escrow=${escrow.id}`}>
+                                <Button size="sm" variant="outline" data-testid={`button-track-shipment-${escrow.id}`}>
+                                  <Truck className="w-3 h-3 mr-1" /> Track Shipment
+                                </Button>
+                              </Link>
+                            )}
+                            {(escrow.status === 'FUNDED' && escrow.sellerId === user?.id) && (
+                              <Link href={`/shipments?create=1&escrowId=${escrow.id}`}>
+                                <Button size="sm" variant="outline" data-testid={`button-add-shipment-${escrow.id}`}>
+                                  <Truck className="w-3 h-3 mr-1" /> Add Tracking
+                                </Button>
+                              </Link>
+                            )}
+                            {(escrow.status === 'SHIPPED' && escrow.buyerId === user?.id) && (
+                              <Button size="sm" className="bg-green-600 hover:bg-green-700" data-testid={`button-mark-delivered-${escrow.id}`}>
+                                Mark as Delivered
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}

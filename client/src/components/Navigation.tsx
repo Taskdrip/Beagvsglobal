@@ -27,6 +27,7 @@ export default function Navigation({ dark = false }: NavigationProps) {
   const navItems = [
     { label: "Marketplace", href: "/marketplace" },
     { label: "Shipping", href: "/marketplace?type=SHIPPING_SERVICE" },
+    { label: "Track", href: "/tracking" },
     { label: "Real Estate", href: "/marketplace?type=REAL_ESTATE" },
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
@@ -35,6 +36,7 @@ export default function Navigation({ dark = false }: NavigationProps) {
 
   const authenticatedNavItems = [
     ...navItems,
+    { label: "My Shipments", href: "/shipments" },
     { label: "Dashboard", href: "/dashboard" },
   ];
 

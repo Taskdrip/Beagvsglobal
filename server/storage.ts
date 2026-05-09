@@ -11,6 +11,8 @@ import {
   blogPosts,
   platformWallets,
   paymentMethods,
+  shipments,
+  shipmentEvents,
   type User,
   type UpsertUser,
   type InsertWallet,
@@ -35,6 +37,10 @@ import {
   type PlatformWallet,
   type InsertPaymentMethod,
   type PaymentMethod,
+  type InsertShipment,
+  type Shipment,
+  type InsertShipmentEvent,
+  type ShipmentEvent,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, sql, count } from "drizzle-orm";
@@ -125,6 +131,16 @@ export interface IStorage {
   updateUserAccountType(userId: string, accountType: string): Promise<User>;
   getAllUsers(): Promise<User[]>;
   getAllEscrows(): Promise<(Escrow & { listing: Listing; buyer: User; seller: User })[]>;
+
+  // Shipment operations
+  createShipment(shipment: InsertShipment): Promise<Shipment>;
+  getShipment(id: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined>;
+  getShipmentByTrackingNumber(trackingNumber: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined>;
+  getShipmentByEscrowId(escrowId: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined>;
+  getShipmentsByUser(userId: string): Promise<(Shipment & { seller: User; buyer: User })[]>;
+  updateShipment(id: string, data: Partial<InsertShipment>): Promise<Shipment>;
+  addShipmentEvent(event: InsertShipmentEvent): Promise<ShipmentEvent>;
+  getAllShipments(): Promise<(Shipment & { seller: User; buyer: User })[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -951,6 +967,77 @@ export class DatabaseStorage implements IStorage {
       .values(notification)
       .returning();
     return newNotification;
+  }
+
+  // Shipment operations
+  async createShipment(shipment: InsertShipment): Promise<Shipment> {
+    const [s] = await db.insert(shipments).values(shipment).returning();
+    return s;
+  }
+
+  private async _enrichShipment(shipment: Shipment): Promise<Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }> {
+    const [seller] = await db.select().from(users).where(eq(users.id, shipment.sellerId));
+    const [buyer] = await db.select().from(users).where(eq(users.id, shipment.buyerId));
+    const events = await db
+      .select()
+      .from(shipmentEvents)
+      .where(eq(shipmentEvents.shipmentId, shipment.id))
+      .orderBy(desc(shipmentEvents.eventTimestamp));
+    return { ...shipment, seller, buyer, events };
+  }
+
+  async getShipment(id: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined> {
+    const [shipment] = await db.select().from(shipments).where(eq(shipments.id, id));
+    if (!shipment) return undefined;
+    return this._enrichShipment(shipment);
+  }
+
+  async getShipmentByTrackingNumber(trackingNumber: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined> {
+    const [shipment] = await db.select().from(shipments).where(eq(shipments.trackingNumber, trackingNumber));
+    if (!shipment) return undefined;
+    return this._enrichShipment(shipment);
+  }
+
+  async getShipmentByEscrowId(escrowId: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined> {
+    const [shipment] = await db.select().from(shipments).where(eq(shipments.escrowId, escrowId));
+    if (!shipment) return undefined;
+    return this._enrichShipment(shipment);
+  }
+
+  async getShipmentsByUser(userId: string): Promise<(Shipment & { seller: User; buyer: User })[]> {
+    const rows = await db
+      .select()
+      .from(shipments)
+      .where(or(eq(shipments.sellerId, userId), eq(shipments.buyerId, userId)))
+      .orderBy(desc(shipments.createdAt));
+    return Promise.all(rows.map(async (s) => {
+      const [seller] = await db.select().from(users).where(eq(users.id, s.sellerId));
+      const [buyer] = await db.select().from(users).where(eq(users.id, s.buyerId));
+      return { ...s, seller, buyer };
+    }));
+  }
+
+  async updateShipment(id: string, data: Partial<InsertShipment>): Promise<Shipment> {
+    const [s] = await db
+      .update(shipments)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(shipments.id, id))
+      .returning();
+    return s;
+  }
+
+  async addShipmentEvent(event: InsertShipmentEvent): Promise<ShipmentEvent> {
+    const [e] = await db.insert(shipmentEvents).values(event).returning();
+    return e;
+  }
+
+  async getAllShipments(): Promise<(Shipment & { seller: User; buyer: User })[]> {
+    const rows = await db.select().from(shipments).orderBy(desc(shipments.createdAt));
+    return Promise.all(rows.map(async (s) => {
+      const [seller] = await db.select().from(users).where(eq(users.id, s.sellerId));
+      const [buyer] = await db.select().from(users).where(eq(users.id, s.buyerId));
+      return { ...s, seller, buyer };
+    }));
   }
 }
 

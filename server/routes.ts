@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema } from "@shared/schema";
+import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1066,6 +1066,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error submitting KYC:", error);
       res.status(400).json({ message: error.message || "Failed to submit KYC verification" });
+    }
+  });
+
+  // ─── Shipment / Tracking Routes ─────────────────────────────────────────────
+
+  // Public: look up any shipment by tracking number (no auth required)
+  app.get('/api/tracking/:trackingNumber', async (req, res) => {
+    try {
+      const { trackingNumber } = req.params;
+      const shipment = await storage.getShipmentByTrackingNumber(trackingNumber);
+      if (!shipment) return res.status(404).json({ message: "Tracking number not found" });
+      res.json(shipment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch tracking information" });
+    }
+  });
+
+  // Authenticated: get shipments for current user
+  app.get('/api/shipments/me', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userShipments = await storage.getShipmentsByUser(userId);
+      res.json(userShipments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch shipments" });
+    }
+  });
+
+  // Get shipment attached to a specific escrow
+  app.get('/api/shipments/escrow/:escrowId', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { escrowId } = req.params;
+      const shipment = await storage.getShipmentByEscrowId(escrowId);
+      if (!shipment) return res.status(404).json({ message: "No shipment found for this escrow" });
+      res.json(shipment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch shipment" });
+    }
+  });
+
+  // Get single shipment by ID
+  app.get('/api/shipments/:id', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const shipment = await storage.getShipment(id);
+      if (!shipment) return res.status(404).json({ message: "Shipment not found" });
+      res.json(shipment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch shipment" });
+    }
+  });
+
+  // Create a new shipment (seller only — must own the escrow)
+  app.post('/api/shipments', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const body = insertShipmentSchema.parse({ ...req.body, sellerId: userId });
+
+      // If linked to an escrow, verify the user is the seller
+      if (body.escrowId) {
+        const escrow = await storage.getEscrow(body.escrowId);
+        if (!escrow) return res.status(404).json({ message: "Escrow not found" });
+        if (escrow.sellerId !== userId) return res.status(403).json({ message: "Not authorised" });
+        // Automatically set buyerId from escrow
+        (body as any).buyerId = escrow.buyerId;
+      }
+
+      const shipment = await storage.createShipment(body);
+
+      // Add initial "Shipment Created" event
+      await storage.addShipmentEvent({
+        shipmentId: shipment.id,
+        status: 'PENDING',
+        description: 'Shipment created and tracking number assigned',
+        location: body.origin || undefined,
+        country: body.originCountry || undefined,
+        createdBy: userId,
+      });
+
+      // Update escrow status to SHIPPED if linked
+      if (body.escrowId) {
+        await storage.updateEscrow(body.escrowId, { status: 'SHIPPED' });
+      }
+
+      const enriched = await storage.getShipment(shipment.id);
+      res.status(201).json(enriched);
+    } catch (error: any) {
+      console.error("Create shipment error:", error);
+      res.status(400).json({ message: error.message || "Failed to create shipment" });
+    }
+  });
+
+  // Update shipment details (seller or admin)
+  app.patch('/api/shipments/:id', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const existing = await storage.getShipment(id);
+      if (!existing) return res.status(404).json({ message: "Shipment not found" });
+
+      const user = await storage.getUser(userId);
+      if (existing.sellerId !== userId && user?.role !== 'ADMIN') {
+        return res.status(403).json({ message: "Not authorised" });
+      }
+
+      const updated = await storage.updateShipment(id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update shipment" });
+    }
+  });
+
+  // Add a tracking event (seller or admin)
+  app.post('/api/shipments/:id/events', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const existing = await storage.getShipment(id);
+      if (!existing) return res.status(404).json({ message: "Shipment not found" });
+
+      const user = await storage.getUser(userId);
+      if (existing.sellerId !== userId && user?.role !== 'ADMIN') {
+        return res.status(403).json({ message: "Not authorised" });
+      }
+
+      const eventData = insertShipmentEventSchema.parse({
+        ...req.body,
+        shipmentId: id,
+        createdBy: userId,
+      });
+      const event = await storage.addShipmentEvent(eventData);
+
+      // Sync shipment status with the latest event status
+      await storage.updateShipment(id, { status: eventData.status });
+
+      // If delivered, update escrow to DELIVERED
+      if (eventData.status === 'DELIVERED' && existing.escrowId) {
+        await storage.updateEscrow(existing.escrowId, { status: 'DELIVERED' });
+        await storage.updateShipment(id, { actualDelivery: new Date() as any });
+      }
+
+      res.status(201).json(event);
+    } catch (error: any) {
+      console.error("Add shipment event error:", error);
+      res.status(400).json({ message: error.message || "Failed to add event" });
+    }
+  });
+
+  // Admin: list all shipments
+  app.get('/api/admin/shipments', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'ADMIN') return res.status(403).json({ message: "Admin only" });
+      const all = await storage.getAllShipments();
+      res.json(all);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch shipments" });
     }
   });
 

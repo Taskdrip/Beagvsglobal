@@ -240,6 +240,53 @@ export const facialVerifications = pgTable("facial_verifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Shipment tracking enums
+export const shipmentStatusEnum = pgEnum('shipment_status', [
+  'PENDING', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'RETURNED'
+]);
+
+// Shipments table
+export const shipments = pgTable("shipments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  escrowId: varchar("escrow_id").references(() => escrows.id, { onDelete: 'cascade' }),
+  sellerId: varchar("seller_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  buyerId: varchar("buyer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  trackingNumber: varchar("tracking_number").notNull().unique(),
+  carrier: varchar("carrier").notNull(),
+  carrierUrl: varchar("carrier_url"),
+  status: shipmentStatusEnum("status").default('PENDING'),
+  serviceType: varchar("service_type"), // Express, Standard, Economy
+  origin: varchar("origin"),
+  originCountry: varchar("origin_country"),
+  destination: varchar("destination"),
+  destinationCountry: varchar("destination_country"),
+  recipientName: varchar("recipient_name"),
+  recipientPhone: varchar("recipient_phone"),
+  weightKg: decimal("weight_kg", { precision: 10, scale: 3 }),
+  dimensions: jsonb("dimensions"), // { length, width, height, unit }
+  estimatedDelivery: timestamp("estimated_delivery"),
+  actualDelivery: timestamp("actual_delivery"),
+  specialInstructions: text("special_instructions"),
+  insuranceValue: decimal("insurance_value", { precision: 18, scale: 2 }),
+  insuranceCurrency: varchar("insurance_currency"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Shipment tracking events
+export const shipmentEvents = pgTable("shipment_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  shipmentId: varchar("shipment_id").notNull().references(() => shipments.id, { onDelete: 'cascade' }),
+  status: shipmentStatusEnum("status").notNull(),
+  location: varchar("location"),
+  country: varchar("country"),
+  description: text("description").notNull(),
+  eventTimestamp: timestamp("event_timestamp").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: 'set null' }),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   wallets: many(wallets),
@@ -491,6 +538,17 @@ export const insertFacialVerificationSchema = createInsertSchema(facialVerificat
   createdAt: true,
 });
 
+export const insertShipmentSchema = createInsertSchema(shipments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertShipmentEventSchema = createInsertSchema(shipmentEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Exported types
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -520,6 +578,10 @@ export type PaymentMethod = typeof paymentMethods.$inferSelect;
 export type InsertKycVerification = z.infer<typeof insertKycVerificationSchema>;
 export type KycVerification = typeof kycVerifications.$inferSelect;
 export type InsertKycDocument = z.infer<typeof insertKycDocumentSchema>;
+export type InsertShipment = z.infer<typeof insertShipmentSchema>;
+export type Shipment = typeof shipments.$inferSelect;
+export type InsertShipmentEvent = z.infer<typeof insertShipmentEventSchema>;
+export type ShipmentEvent = typeof shipmentEvents.$inferSelect;
 export type KycDocument = typeof kycDocuments.$inferSelect;
 export type InsertFacialVerification = z.infer<typeof insertFacialVerificationSchema>;
 export type FacialVerification = typeof facialVerifications.$inferSelect;

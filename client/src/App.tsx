@@ -26,6 +26,8 @@ import AccountSettings from "@/pages/AccountSettings";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import KycVerification from "@/pages/KycVerification";
+import ShippingTracker from "@/pages/ShippingTracker";
+import ShipmentManagement from "@/pages/ShipmentManagement";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -45,6 +47,8 @@ function Router() {
           <Route path="/about" component={About} />
           <Route path="/contact" component={Contact} />
           <Route path="/checkout/:escrowId" component={Checkout} />
+          <Route path="/tracking" component={ShippingTracker} />
+          <Route path="/tracking/:trackingNumber" component={ShippingTracker} />
         </>
       ) : (
         <>
@@ -65,6 +69,10 @@ function Router() {
           <Route path="/admin/payment-methods" component={AdminPaymentMethods} />
           <Route path="/account/settings" component={AccountSettings} />
           <Route path="/kyc" component={KycVerification} />
+          <Route path="/tracking" component={ShippingTracker} />
+          <Route path="/tracking/:trackingNumber" component={ShippingTracker} />
+          <Route path="/shipments" component={ShipmentManagement} />
+          <Route path="/shipments/:id" component={ShipmentManagement} />
         </>
       )}
       <Route component={NotFound} />
