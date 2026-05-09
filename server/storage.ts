@@ -99,6 +99,7 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   markMessageAsRead(id: string): Promise<void>;
   getUserChatThreads(userId: string): Promise<(ChatThread & { listing: Listing; buyer: User; seller: User; lastMessage?: Message; unreadCount: number })[]>;
+  getAllChatThreads(): Promise<(ChatThread & { listing: any; buyer: any; seller: any; unreadCount: number; lastMessage?: any })[]>;
   
   // Notification operations
   getUserNotifications(userId: string): Promise<Notification[]>;
@@ -999,6 +1000,34 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
+    return threadsWithData as any;
+  }
+
+  async getAllChatThreads(): Promise<(ChatThread & { listing: any; buyer: any; seller: any; unreadCount: number; lastMessage?: any })[]> {
+    const allThreads = await db
+      .select({
+        id: chatThreads.id,
+        listingId: chatThreads.listingId,
+        buyerId: chatThreads.buyerId,
+        sellerId: chatThreads.sellerId,
+        escrowId: chatThreads.escrowId,
+        status: chatThreads.status,
+        lastMessageAt: chatThreads.lastMessageAt,
+        createdAt: chatThreads.createdAt,
+      })
+      .from(chatThreads)
+      .orderBy(desc(chatThreads.lastMessageAt));
+
+    const threadsWithData = await Promise.all(
+      allThreads.map(async (thread) => {
+        const [buyerRow] = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, username: users.username, role: users.role, profileImageUrl: users.profileImageUrl }).from(users).where(eq(users.id, thread.buyerId));
+        const [sellerRow] = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, username: users.username, role: users.role, profileImageUrl: users.profileImageUrl }).from(users).where(eq(users.id, thread.sellerId));
+        const [listingRow] = await db.select({ id: listings.id, title: listings.title, slug: listings.slug, type: listings.type }).from(listings).where(eq(listings.id, thread.listingId));
+        const [lastMsg] = await db.select().from(messages).where(eq(messages.threadId, thread.id)).orderBy(desc(messages.createdAt)).limit(1);
+        const [unreadRow] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(eq(messages.threadId, thread.id), sql`${messages.readAt} IS NULL`));
+        return { ...thread, buyer: buyerRow, seller: sellerRow, listing: listingRow, lastMessage: lastMsg, unreadCount: unreadRow?.count || 0 };
+      })
+    );
     return threadsWithData as any;
   }
 

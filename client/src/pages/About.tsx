@@ -129,7 +129,7 @@ export default function About() {
               <CardContent className="p-8 text-center lg:text-left flex flex-col lg:flex-row gap-8 items-start">
                 <div className="shrink-0 mx-auto lg:mx-0">
                   <img 
-                    src="https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" 
+                    src="/uploads/ceo-photo.jpeg" 
                     alt="Mr. Godspower Asemota - Founder & CEO" 
                     className="w-48 h-48 rounded-2xl object-cover shadow-lg"
                     data-testid="img-founder-ceo"

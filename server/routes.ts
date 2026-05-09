@@ -1125,6 +1125,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin chat route — see all escrow threads
+  app.get('/api/admin/chat/threads', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const threads = await storage.getAllChatThreads();
+      res.json(threads);
+    } catch (error) {
+      console.error("Error fetching all chat threads:", error);
+      res.status(500).json({ message: "Failed to fetch chat threads" });
+    }
+  });
+
   // KYC Verification routes
   app.get('/api/kyc/status', isAuthenticatedEnhanced, async (req: any, res) => {
     try {

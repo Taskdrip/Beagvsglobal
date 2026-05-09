@@ -173,6 +173,11 @@ export const blogPosts = pgTable("blog_posts", {
   contentMarkdown: text("content_markdown").notNull(),
   coverImageUrl: varchar("cover_image_url"),
   published: boolean("published").default(false),
+  metaDescription: text("meta_description"),
+  focusKeyword: varchar("focus_keyword"),
+  tags: text("tags").array().default([]),
+  ogTitle: varchar("og_title"),
+  ogDescription: text("og_description"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

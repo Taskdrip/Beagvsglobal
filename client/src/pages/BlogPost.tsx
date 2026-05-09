@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,13 +10,13 @@ import { Link } from "wouter";
 import { 
   ArrowLeft,
   Calendar,
-  User,
   Share2,
   Twitter,
   Facebook,
   Linkedin,
   Clock,
-  FileText
+  FileText,
+  Tag,
 } from "lucide-react";
 
 export default function BlogPost() {
@@ -28,6 +29,24 @@ export default function BlogPost() {
   const { data: recentPosts } = useQuery({
     queryKey: ["/api/blog"],
   });
+
+  useEffect(() => {
+    if (!blogPost) return;
+    const post = blogPost as any;
+    document.title = `${post.ogTitle || post.title} | Beagvs Global Blog`;
+    const setMeta = (name: string, content: string) => {
+      let el = document.querySelector(`meta[name="${name}"]`) || document.querySelector(`meta[property="${name}"]`);
+      if (!el) { el = document.createElement("meta"); el.setAttribute(name.startsWith("og:") ? "property" : "name", name); document.head.appendChild(el); }
+      el.setAttribute("content", content);
+    };
+    if (post.metaDescription) setMeta("description", post.metaDescription);
+    setMeta("og:title", post.ogTitle || post.title);
+    setMeta("og:description", post.ogDescription || post.metaDescription || post.excerpt || "");
+    if (post.coverImageUrl) setMeta("og:image", post.coverImageUrl);
+    setMeta("og:type", "article");
+    if (post.focusKeyword) setMeta("keywords", Array.isArray(post.tags) ? post.tags.join(", ") : post.focusKeyword);
+    return () => { document.title = "Beagvs Global"; };
+  }, [blogPost]);
 
   if (isLoading) {
     return (
@@ -179,6 +198,17 @@ export default function BlogPost() {
               <p className="text-xl text-slate-medium leading-relaxed" data-testid="text-blog-excerpt">
                 {blogPost.excerpt}
               </p>
+            )}
+
+            {Array.isArray((blogPost as any).tags) && (blogPost as any).tags.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap mt-4" data-testid="blog-tags">
+                <Tag className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                {(blogPost as any).tags.map((tag: string) => (
+                  <span key={tag} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full border border-slate-200 hover:bg-blue-50 hover:text-blue-700 transition-colors">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             )}
           </header>
 

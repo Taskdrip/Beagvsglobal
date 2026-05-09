@@ -50,6 +50,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Tag,
+  Globe,
 } from "lucide-react";
 
 const platformWalletSchema = z.object({
@@ -63,6 +65,11 @@ const blogPostSchema = z.object({
   contentMarkdown: z.string().min(1, "Content is required"),
   coverImageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   published: z.boolean().default(false),
+  metaDescription: z.string().max(160, "Keep under 160 characters for best SEO").optional().or(z.literal("")),
+  focusKeyword: z.string().optional().or(z.literal("")),
+  tags: z.string().optional().or(z.literal("")),
+  ogTitle: z.string().max(60, "Keep under 60 characters").optional().or(z.literal("")),
+  ogDescription: z.string().max(160, "Keep under 160 characters").optional().or(z.literal("")),
 });
 
 type PlatformWalletFormData = z.infer<typeof platformWalletSchema>;
@@ -310,6 +317,11 @@ export default function Admin() {
       contentMarkdown: "",
       coverImageUrl: "",
       published: false,
+      metaDescription: "",
+      focusKeyword: "",
+      tags: "",
+      ogTitle: "",
+      ogDescription: "",
     },
   });
 
@@ -381,7 +393,11 @@ export default function Admin() {
     mutationFn: async (data: BlogPostFormData) => {
       const endpoint = editingBlogPost ? `/api/blog/${editingBlogPost.id}` : "/api/blog";
       const method = editingBlogPost ? "PATCH" : "POST";
-      await apiRequest(method, endpoint, data);
+      const payload = {
+        ...data,
+        tags: data.tags ? data.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [],
+      };
+      await apiRequest(method, endpoint, payload);
     },
     onSuccess: () => {
       toast({
@@ -537,10 +553,15 @@ export default function Admin() {
     setEditingBlogPost(post);
     blogForm.reset({
       title: post.title,
-      excerpt: post.excerpt,
+      excerpt: post.excerpt || "",
       contentMarkdown: post.contentMarkdown,
       coverImageUrl: post.coverImageUrl || "",
       published: post.published,
+      metaDescription: post.metaDescription || "",
+      focusKeyword: post.focusKeyword || "",
+      tags: Array.isArray(post.tags) ? post.tags.join(", ") : (post.tags || ""),
+      ogTitle: post.ogTitle || "",
+      ogDescription: post.ogDescription || "",
     });
     setShowBlogDialog(true);
   };
@@ -903,83 +924,203 @@ export default function Admin() {
                         New Post
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle>
                           {editingBlogPost ? "Edit Blog Post" : "Create New Blog Post"}
                         </DialogTitle>
                       </DialogHeader>
                       <form onSubmit={blogForm.handleSubmit(handleBlogSubmit)} className="space-y-4">
-                        <div>
-                          <Label>Title</Label>
-                          <Input
-                            {...blogForm.register("title")}
-                            placeholder="Enter blog post title"
-                            data-testid="input-blog-title"
-                          />
-                          {blogForm.formState.errors.title && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {blogForm.formState.errors.title.message}
-                            </p>
-                          )}
-                        </div>
+                        <Tabs defaultValue="content" className="w-full">
+                          <TabsList className="w-full">
+                            <TabsTrigger value="content" className="flex-1 flex items-center gap-2">
+                              <FileText className="w-4 h-4" /> Content
+                            </TabsTrigger>
+                            <TabsTrigger value="seo" className="flex-1 flex items-center gap-2">
+                              <Globe className="w-4 h-4" /> SEO
+                            </TabsTrigger>
+                            <TabsTrigger value="social" className="flex-1 flex items-center gap-2">
+                              <Tag className="w-4 h-4" /> Social & Tags
+                            </TabsTrigger>
+                          </TabsList>
 
-                        <div>
-                          <Label>Excerpt</Label>
-                          <Textarea
-                            {...blogForm.register("excerpt")}
-                            placeholder="Brief description of the post"
-                            rows={2}
-                            data-testid="input-blog-excerpt"
-                          />
-                          {blogForm.formState.errors.excerpt && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {blogForm.formState.errors.excerpt.message}
-                            </p>
-                          )}
-                        </div>
+                          <TabsContent value="content" className="space-y-4 mt-4">
+                            <div>
+                              <Label>Title *</Label>
+                              <Input
+                                {...blogForm.register("title")}
+                                placeholder="Enter blog post title"
+                                data-testid="input-blog-title"
+                              />
+                              {blogForm.formState.errors.title && (
+                                <p className="text-sm text-red-600 mt-1">{blogForm.formState.errors.title.message}</p>
+                              )}
+                            </div>
 
-                        <div>
-                          <Label>Cover Image URL (optional)</Label>
-                          <Input
-                            {...blogForm.register("coverImageUrl")}
-                            placeholder="https://example.com/image.jpg"
-                            data-testid="input-blog-cover"
-                          />
-                          {blogForm.formState.errors.coverImageUrl && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {blogForm.formState.errors.coverImageUrl.message}
-                            </p>
-                          )}
-                        </div>
+                            <div>
+                              <Label>Excerpt *</Label>
+                              <Textarea
+                                {...blogForm.register("excerpt")}
+                                placeholder="Brief description shown in post listings and search results"
+                                rows={2}
+                                data-testid="input-blog-excerpt"
+                              />
+                              {blogForm.formState.errors.excerpt && (
+                                <p className="text-sm text-red-600 mt-1">{blogForm.formState.errors.excerpt.message}</p>
+                              )}
+                            </div>
 
-                        <div>
-                          <Label>Content (Markdown)</Label>
-                          <Textarea
-                            {...blogForm.register("contentMarkdown")}
-                            placeholder="Write your content in Markdown format..."
-                            rows={10}
-                            data-testid="input-blog-content"
-                          />
-                          {blogForm.formState.errors.contentMarkdown && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {blogForm.formState.errors.contentMarkdown.message}
-                            </p>
-                          )}
-                        </div>
+                            <div>
+                              <Label>Cover Image URL (optional)</Label>
+                              <Input
+                                {...blogForm.register("coverImageUrl")}
+                                placeholder="https://example.com/image.jpg"
+                                data-testid="input-blog-cover"
+                              />
+                              {blogForm.formState.errors.coverImageUrl && (
+                                <p className="text-sm text-red-600 mt-1">{blogForm.formState.errors.coverImageUrl.message}</p>
+                              )}
+                            </div>
 
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id="published"
-                            {...blogForm.register("published")}
-                            className="rounded"
-                            data-testid="checkbox-blog-published"
-                          />
-                          <Label htmlFor="published">Publish immediately</Label>
-                        </div>
+                            <div>
+                              <Label>Content (Markdown) *</Label>
+                              <Textarea
+                                {...blogForm.register("contentMarkdown")}
+                                placeholder="Write your content in Markdown format...&#10;&#10;# Heading&#10;## Subheading&#10;&#10;**Bold**, *italic*, `code`&#10;&#10;- List item&#10;- List item"
+                                rows={14}
+                                className="font-mono text-sm"
+                                data-testid="input-blog-content"
+                              />
+                              {blogForm.formState.errors.contentMarkdown && (
+                                <p className="text-sm text-red-600 mt-1">{blogForm.formState.errors.contentMarkdown.message}</p>
+                              )}
+                            </div>
 
-                        <div className="flex space-x-3">
+                            <div className="flex items-center space-x-2 p-3 bg-slate-50 rounded-lg">
+                              <input
+                                type="checkbox"
+                                id="published"
+                                {...blogForm.register("published")}
+                                className="rounded"
+                                data-testid="checkbox-blog-published"
+                              />
+                              <Label htmlFor="published" className="cursor-pointer">Publish immediately (visible to all users)</Label>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="seo" className="space-y-4 mt-4">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                              <strong>SEO Tips:</strong> Meta description should be 120–160 characters. Focus keyword should appear in title, first paragraph, and headings. Fill all fields for best search engine visibility.
+                            </div>
+
+                            <div>
+                              <Label className="flex items-center gap-2">
+                                <Search className="w-4 h-4 text-slate-400" />
+                                Focus Keyword
+                              </Label>
+                              <Input
+                                {...blogForm.register("focusKeyword")}
+                                placeholder="e.g. customs clearance Nigeria"
+                                data-testid="input-blog-focus-keyword"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">The primary keyword this post should rank for in search engines</p>
+                            </div>
+
+                            <div>
+                              <Label>Meta Description</Label>
+                              <Textarea
+                                {...blogForm.register("metaDescription")}
+                                placeholder="Brief summary for search engines (120–160 characters recommended)"
+                                rows={3}
+                                data-testid="input-blog-meta-description"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">
+                                {(blogForm.watch("metaDescription") || "").length}/160 characters
+                                {(blogForm.watch("metaDescription") || "").length > 160 && <span className="text-red-500 ml-2">Too long!</span>}
+                                {(blogForm.watch("metaDescription") || "").length > 0 && (blogForm.watch("metaDescription") || "").length < 120 && <span className="text-amber-500 ml-2">Could be longer for better SEO</span>}
+                                {(blogForm.watch("metaDescription") || "").length >= 120 && (blogForm.watch("metaDescription") || "").length <= 160 && <span className="text-green-500 ml-2">✓ Good length</span>}
+                              </p>
+                              {blogForm.formState.errors.metaDescription && (
+                                <p className="text-sm text-red-600 mt-1">{blogForm.formState.errors.metaDescription.message}</p>
+                              )}
+                            </div>
+
+                            <div className="bg-slate-50 rounded-lg p-4 border">
+                              <p className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wide">Google Search Preview</p>
+                              <p className="text-blue-600 text-sm font-medium truncate">
+                                {blogForm.watch("title") || "Post Title"}
+                              </p>
+                              <p className="text-green-600 text-xs">beagvsglobal.com/blog/...</p>
+                              <p className="text-slate-600 text-xs mt-1 line-clamp-2">
+                                {blogForm.watch("metaDescription") || blogForm.watch("excerpt") || "Meta description will appear here..."}
+                              </p>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="social" className="space-y-4 mt-4">
+                            <div className="bg-slate-50 border rounded-lg p-3 text-sm text-slate-600">
+                              <strong>Open Graph tags</strong> control how your post appears when shared on Facebook, WhatsApp, LinkedIn, and other social platforms.
+                            </div>
+
+                            <div>
+                              <Label>Tags (comma-separated)</Label>
+                              <Input
+                                {...blogForm.register("tags")}
+                                placeholder="e.g. customs, Nigeria, freight, import"
+                                data-testid="input-blog-tags"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">Separate multiple tags with commas. Tags help categorize content and improve discoverability.</p>
+                            </div>
+
+                            <div>
+                              <Label>OG Title (Social Share Title)</Label>
+                              <Input
+                                {...blogForm.register("ogTitle")}
+                                placeholder="Title when shared on social media (leave blank to use post title)"
+                                data-testid="input-blog-og-title"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">
+                                {(blogForm.watch("ogTitle") || "").length}/60 characters
+                                {(blogForm.watch("ogTitle") || "").length > 60 && <span className="text-red-500 ml-2">Too long!</span>}
+                              </p>
+                            </div>
+
+                            <div>
+                              <Label>OG Description (Social Share Description)</Label>
+                              <Textarea
+                                {...blogForm.register("ogDescription")}
+                                placeholder="Description when shared on social media (leave blank to use meta description)"
+                                rows={3}
+                                data-testid="input-blog-og-description"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">
+                                {(blogForm.watch("ogDescription") || "").length}/160 characters
+                              </p>
+                            </div>
+
+                            {(blogForm.watch("ogTitle") || blogForm.watch("title")) && (
+                              <div className="bg-white border rounded-lg overflow-hidden">
+                                <p className="text-xs font-medium text-slate-500 p-2 bg-slate-50 border-b uppercase tracking-wide">Social Share Preview</p>
+                                {blogForm.watch("coverImageUrl") && (
+                                  <div className="h-32 bg-slate-200 flex items-center justify-center text-slate-400 text-xs">
+                                    Cover image preview
+                                  </div>
+                                )}
+                                <div className="p-3">
+                                  <p className="text-xs text-slate-400 uppercase">beagvsglobal.com</p>
+                                  <p className="font-semibold text-sm text-slate-800 mt-1">
+                                    {blogForm.watch("ogTitle") || blogForm.watch("title")}
+                                  </p>
+                                  <p className="text-xs text-slate-500 mt-1">
+                                    {blogForm.watch("ogDescription") || blogForm.watch("metaDescription") || blogForm.watch("excerpt")}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </TabsContent>
+                        </Tabs>
+
+                        <div className="flex space-x-3 pt-2 border-t">
                           <Button 
                             type="button" 
                             variant="outline" 
