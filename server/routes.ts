@@ -155,28 +155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User login (for non-Replit auth flow)
-  app.post('/api/auth/login', async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      
-      const user = await storage.getUserByEmail(email);
-      if (!user || !user.passwordHash) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-
-      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-      if (!isValidPassword) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-
-      // In a real app, you'd create a session or JWT here
-      res.json({ user: { ...user, passwordHash: undefined } });
-    } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Login failed" });
-    }
-  });
+  // (duplicate login route removed)
 
   // Wallet routes
   app.get('/api/wallets', isAuthenticatedEnhanced, async (req: any, res) => {

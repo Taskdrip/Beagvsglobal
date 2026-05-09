@@ -30,16 +30,18 @@ export default function AdminLogin() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const user = await apiRequest("POST", "/api/auth/login", data);
+      const res = await apiRequest("POST", "/api/auth/login", data);
+      const user = await res.json();
+
       if (user.role !== "ADMIN") {
         toast({ title: "Access Denied", description: "This login is for admins only.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
+
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      // Check if must change password
-      const check = await apiRequest("GET", "/api/auth/must-change-password");
-      if (check.mustChangePassword) {
+
+      if (user.mustChangePassword) {
         window.location.href = "/admin/change-password";
       } else {
         window.location.href = "/admin";

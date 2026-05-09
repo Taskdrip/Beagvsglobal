@@ -37,17 +37,15 @@ export default function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/auth/login", data);
-      
+      const res = await apiRequest("POST", "/api/auth/login", data);
+      await res.json(); // consume response to establish session
+
       toast({
         title: "Welcome back!",
         description: "You have been successfully logged in.",
       });
 
-      // Invalidate auth queries to refresh user data
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      
-      // Redirect to dashboard
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setLocation("/dashboard");
     } catch (error: any) {
       toast({
