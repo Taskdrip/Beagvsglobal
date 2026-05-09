@@ -24,7 +24,7 @@ export default function AdminLogin() {
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: "admin@beagvsglobal.com", password: "Admin@2025!" },
   });
 
   const onSubmit = async (data: LoginFormData) => {
