@@ -10,9 +10,9 @@ interface CoinPrice {
   image: string;
 }
 
-const COINS = ["pi-network", "bitcoin", "ethereum", "tether", "binancecoin", "solana", "tron"];
+const COINS = ["pi-network", "bitcoin", "ethereum", "binancecoin", "solana", "tron"];
 
-const COIN_ORDER = ["pi-network", "bitcoin", "ethereum", "tether", "binancecoin", "solana", "tron"];
+const COIN_ORDER = ["pi-network", "bitcoin", "ethereum", "binancecoin", "solana", "tron"];
 
 export default function CryptoPriceTicker() {
   const [prices, setPrices] = useState<CoinPrice[]>([]);

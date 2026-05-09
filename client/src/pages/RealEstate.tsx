@@ -471,18 +471,18 @@ export default function RealEstate() {
 
         {/* CTA */}
         {!isAuthenticated && (
-          <Card className="mt-12 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border border-emerald-400/20 text-center">
-            <CardContent className="py-12">
+          <div className="mt-12 rounded-2xl border border-emerald-400/25 text-center overflow-hidden" style={{ background: 'linear-gradient(135deg, #0d2510 0%, #091525 60%, #0c2535 100%)' }}>
+            <div className="py-12 px-6">
               <Shield className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Buy or Sell Property with Crypto Escrow</h3>
-              <p className="text-white/60 mb-6 max-w-lg mx-auto">Every property transaction on Beagvs is secured by our multi-chain escrow system — no fraud, no risk.</p>
+              <p className="text-slate-400 mb-6 max-w-lg mx-auto">Every property transaction on Beagvs is secured by our multi-chain escrow system — no fraud, no risk.</p>
               <Link href="/signup">
                 <Button className="bg-gradient-to-r from-emerald-500 to-cyan-500 font-semibold h-11 px-8">
                   Create Free Account <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </Link>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
       </section>
 
