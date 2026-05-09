@@ -240,6 +240,16 @@ export const facialVerifications = pgTable("facial_verifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Platform settings (admin-configurable fees, rates, etc.)
+export const platformSettings = pgTable("platform_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key").notNull().unique(),
+  value: jsonb("value").notNull(),
+  description: text("description"),
+  updatedBy: varchar("updated_by").references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Shipment tracking enums
 export const shipmentStatusEnum = pgEnum('shipment_status', [
   'PENDING', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'RETURNED'
@@ -538,6 +548,11 @@ export const insertFacialVerificationSchema = createInsertSchema(facialVerificat
   createdAt: true,
 });
 
+export const insertPlatformSettingSchema = createInsertSchema(platformSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
 export const insertShipmentSchema = createInsertSchema(shipments).omit({
   id: true,
   createdAt: true,
@@ -585,3 +600,5 @@ export type ShipmentEvent = typeof shipmentEvents.$inferSelect;
 export type KycDocument = typeof kycDocuments.$inferSelect;
 export type InsertFacialVerification = z.infer<typeof insertFacialVerificationSchema>;
 export type FacialVerification = typeof facialVerifications.$inferSelect;
+export type InsertPlatformSetting = z.infer<typeof insertPlatformSettingSchema>;
+export type PlatformSetting = typeof platformSettings.$inferSelect;

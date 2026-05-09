@@ -27,7 +27,8 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import KycVerification from "@/pages/KycVerification";
 import ShippingTracker from "@/pages/ShippingTracker";
-import ShipmentManagement from "@/pages/ShipmentManagement";
+import ShippingHub from "@/pages/ShippingHub";
+import RealEstate from "@/pages/RealEstate";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -49,6 +50,8 @@ function Router() {
           <Route path="/checkout/:escrowId" component={Checkout} />
           <Route path="/tracking" component={ShippingTracker} />
           <Route path="/tracking/:trackingNumber" component={ShippingTracker} />
+          <Route path="/shipping" component={ShippingHub} />
+          <Route path="/real-estate" component={RealEstate} />
         </>
       ) : (
         <>
@@ -71,8 +74,9 @@ function Router() {
           <Route path="/kyc" component={KycVerification} />
           <Route path="/tracking" component={ShippingTracker} />
           <Route path="/tracking/:trackingNumber" component={ShippingTracker} />
-          <Route path="/shipments" component={ShipmentManagement} />
-          <Route path="/shipments/:id" component={ShipmentManagement} />
+          <Route path="/shipping" component={ShippingHub} />
+          <Route path="/shipments/:id" component={ShippingHub} />
+          <Route path="/real-estate" component={RealEstate} />
         </>
       )}
       <Route component={NotFound} />

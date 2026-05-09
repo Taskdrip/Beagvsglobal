@@ -33,7 +33,15 @@ import {
   Eye,
   Edit,
   Trash2,
-  Plus
+  Plus,
+  Package,
+  Truck,
+  Loader2,
+  RotateCcw,
+  MapPin,
+  Percent,
+  Sliders,
+  Save
 } from "lucide-react";
 
 const platformWalletSchema = z.object({
@@ -119,6 +127,16 @@ export default function Admin() {
   const { data: blogPosts } = useQuery({
     queryKey: ["/api/blog", { published: false }],
   });
+
+  const { data: platformSettings, refetch: refetchSettings } = useQuery({
+    queryKey: ["/api/platform-settings"],
+  });
+
+  const { data: allShipments } = useQuery({
+    queryKey: ["/api/admin/shipments"],
+  });
+
+  const [feeEdits, setFeeEdits] = useState<Record<string, any>>({});
 
   // Form setup
   const walletForm = useForm<PlatformWalletFormData>({
@@ -290,6 +308,40 @@ export default function Admin() {
     blogMutation.mutate(data);
   };
 
+  // Fee management mutations
+  const upsertSettingMutation = useMutation({
+    mutationFn: ({ key, value, description }: { key: string; value: any; description?: string }) =>
+      apiRequest("PUT", `/api/platform-settings/${key}`, { value, description }),
+    onSuccess: () => {
+      toast({ title: "Setting saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/platform-settings"] });
+      setFeeEdits({});
+    },
+    onError: (err: any) => toast({ title: "Failed to save", description: err.message, variant: "destructive" }),
+  });
+
+  const updateShipmentStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiRequest("PATCH", `/api/shipments/${id}`, { status }),
+    onSuccess: () => {
+      toast({ title: "Shipment status updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/shipments/all"] });
+    },
+    onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const DEFAULT_FEE_SETTINGS = [
+    { key: "fee_product",          label: "Product / Goods",        description: "Platform fee % on product escrows",          defaultPct: 10 },
+    { key: "fee_real_estate",      label: "Real Estate",            description: "Platform fee % on real estate escrows",      defaultPct: 5  },
+    { key: "fee_shipping_service", label: "Shipping Services",      description: "Platform fee % on shipping service escrows", defaultPct: 8  },
+    { key: "fee_service",          label: "General Services",       description: "Platform fee % on service escrows",          defaultPct: 10 },
+  ];
+
+  const getSettingValue = (key: string) => {
+    const s = (platformSettings as any[])?.find((x: any) => x.key === key);
+    return s?.value?.percentage ?? DEFAULT_FEE_SETTINGS.find(f => f.key === key)?.defaultPct ?? 10;
+  };
+
   const handleEditBlogPost = (post: any) => {
     setEditingBlogPost(post);
     blogForm.reset({
@@ -413,15 +465,21 @@ export default function Admin() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="escrows" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto p-1 bg-slate-100 rounded-lg">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto p-1 bg-slate-100 rounded-lg">
             <TabsTrigger value="escrows" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-escrows">
               Escrows
             </TabsTrigger>
             <TabsTrigger value="wallets" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-wallets">
-              Platform Wallets
+              Wallets
+            </TabsTrigger>
+            <TabsTrigger value="fees" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-fees">
+              Fees &amp; Rates
+            </TabsTrigger>
+            <TabsTrigger value="shipments" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-shipments">
+              Shipments
             </TabsTrigger>
             <TabsTrigger value="blog" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-blog">
-              Blog Management
+              Blog
             </TabsTrigger>
             <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-settings">
               Payment Methods
@@ -795,6 +853,233 @@ export default function Admin() {
                   <div className="text-center py-8">
                     <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-medium">No blog posts found</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Fees & Rates Tab ── */}
+          <TabsContent value="fees" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Percent className="w-5 h-5 text-blue-600" />
+                  Platform Fee Configuration
+                </CardTitle>
+                <p className="text-sm text-slate-500">Set the platform fee percentage charged per transaction category. Changes apply to new escrows only.</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {DEFAULT_FEE_SETTINGS.map(fee => {
+                  const currentVal = feeEdits[fee.key] !== undefined ? feeEdits[fee.key] : getSettingValue(fee.key);
+                  return (
+                    <div key={fee.key} className="flex items-center justify-between p-4 border rounded-xl bg-slate-50" data-testid={`fee-row-${fee.key}`}>
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-900">{fee.label}</p>
+                        <p className="text-sm text-slate-500">{fee.description}</p>
+                      </div>
+                      <div className="flex items-center gap-3 ml-6">
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.5"
+                            value={currentVal}
+                            onChange={e => setFeeEdits((prev: any) => ({ ...prev, [fee.key]: parseFloat(e.target.value) }))}
+                            className="w-24 pr-7 text-right"
+                            data-testid={`input-fee-${fee.key}`}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">%</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={upsertSettingMutation.isPending || feeEdits[fee.key] === undefined}
+                          onClick={() => upsertSettingMutation.mutate({
+                            key: fee.key,
+                            value: { percentage: currentVal },
+                            description: fee.description,
+                          })}
+                          data-testid={`button-save-fee-${fee.key}`}
+                        >
+                          {upsertSettingMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-purple-600" />
+                  Shipping Zone Rates (Base Rate per kg — Air Freight)
+                </CardTitle>
+                <p className="text-sm text-slate-500">Set base shipping rates per destination zone. Displayed to buyers in the shipping calculator.</p>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const zoneSetting = (platformSettings as any[])?.find((x: any) => x.key === "shipping_rates");
+                  const zones = zoneSetting?.value?.zones ?? [
+                    { name: "Zone 1 – West Africa", rate: 3.5 },
+                    { name: "Zone 2 – East Africa", rate: 4.2 },
+                    { name: "Zone 3 – Europe", rate: 6.8 },
+                    { name: "Zone 4 – North America", rate: 8.5 },
+                    { name: "Zone 5 – Asia Pacific", rate: 9.2 },
+                    { name: "Zone 6 – Rest of World", rate: 12.0 },
+                  ];
+                  const editedZones = (feeEdits["shipping_rates"] ?? zones) as any[];
+                  return (
+                    <div className="space-y-3">
+                      {editedZones.map((zone: any, idx: number) => (
+                        <div key={zone.name} className="flex items-center gap-4 p-3 border rounded-lg bg-slate-50">
+                          <p className="flex-1 text-sm font-medium text-slate-800">{zone.name}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-400 text-sm">$</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={zone.rate}
+                              onChange={e => {
+                                const updated = editedZones.map((z, i) =>
+                                  i === idx ? { ...z, rate: parseFloat(e.target.value) } : z
+                                );
+                                setFeeEdits((prev: any) => ({ ...prev, "shipping_rates": updated }));
+                              }}
+                              className="w-24 text-right"
+                              data-testid={`input-zone-rate-${idx}`}
+                            />
+                            <span className="text-slate-400 text-sm">/kg</span>
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        onClick={() => upsertSettingMutation.mutate({
+                          key: "shipping_rates",
+                          value: { zones: editedZones },
+                          description: "Shipping zone base rates per kg (air freight)",
+                        })}
+                        disabled={upsertSettingMutation.isPending || !feeEdits["shipping_rates"]}
+                        className="mt-2"
+                        data-testid="button-save-shipping-rates"
+                      >
+                        {upsertSettingMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                        Save Shipping Rates
+                      </Button>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>All Current Settings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(platformSettings as any[])?.length ? (
+                  <div className="space-y-2">
+                    {(platformSettings as any[]).map((s: any) => (
+                      <div key={s.key} className="flex items-center justify-between p-3 border rounded-lg text-sm" data-testid={`setting-row-${s.key}`}>
+                        <div>
+                          <span className="font-mono font-semibold text-slate-700">{s.key}</span>
+                          {s.description && <p className="text-slate-400 text-xs">{s.description}</p>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <code className="bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-600">
+                            {JSON.stringify(s.value)}
+                          </code>
+                          <span className="text-xs text-slate-400">
+                            {s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-center py-6">No settings configured yet. Save a fee above to get started.</p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Shipments Tab ── */}
+          <TabsContent value="shipments" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-cyan-600" />
+                    All Shipments ({(allShipments as any[])?.length ?? 0})
+                  </span>
+                  <Link href="/shipping">
+                    <Button size="sm" variant="outline">View Public Hub</Button>
+                  </Link>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!(allShipments as any[])?.length ? (
+                  <div className="text-center py-12">
+                    <Package className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-400">No shipments found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(allShipments as any[]).map((s: any) => {
+                      const STATUS_COLORS: Record<string, string> = {
+                        PENDING: "bg-yellow-100 text-yellow-800",
+                        PICKED_UP: "bg-blue-100 text-blue-800",
+                        IN_TRANSIT: "bg-cyan-100 text-cyan-800",
+                        OUT_FOR_DELIVERY: "bg-purple-100 text-purple-800",
+                        DELIVERED: "bg-green-100 text-green-800",
+                        FAILED: "bg-red-100 text-red-800",
+                        RETURNED: "bg-orange-100 text-orange-800",
+                      };
+                      return (
+                        <div key={s.id} className="p-4 border rounded-xl hover:shadow-sm transition-shadow" data-testid={`admin-shipment-${s.id}`}>
+                          <div className="flex items-start justify-between flex-wrap gap-3">
+                            <div>
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="font-mono font-bold text-slate-900 text-sm">{s.trackingNumber}</span>
+                                <Badge className={`text-xs ${STATUS_COLORS[s.status] || "bg-slate-100 text-slate-800"}`}>{s.status}</Badge>
+                              </div>
+                              <p className="text-sm text-slate-500">{s.carrier}{s.serviceType ? ` · ${s.serviceType}` : ""}</p>
+                              <div className="flex items-center gap-1 text-xs text-slate-400 mt-1">
+                                <MapPin className="w-3 h-3" />
+                                {s.origin && s.destination ? `${s.origin} → ${s.destination}` : s.origin || s.destination || "Route not specified"}
+                              </div>
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                Seller: {s.seller?.username ?? "—"} · Buyer: {s.buyer?.username ?? "—"}
+                                {s.weightKg ? ` · ${s.weightKg}kg` : ""}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Select
+                                defaultValue={s.status}
+                                onValueChange={val => updateShipmentStatusMutation.mutate({ id: s.id, status: val })}
+                              >
+                                <SelectTrigger className="w-44 text-xs h-8" data-testid={`select-shipment-status-${s.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {["PENDING","PICKED_UP","IN_TRANSIT","OUT_FOR_DELIVERY","DELIVERED","FAILED","RETURNED"].map(st => (
+                                    <SelectItem key={st} value={st} className="text-xs">{st.replace(/_/g," ")}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Link href={`/shipments/${s.id}`}>
+                                <Button size="sm" variant="outline" className="h-8 text-xs" data-testid={`button-view-shipment-${s.id}`}>
+                                  <Eye className="w-3.5 h-3.5 mr-1" /> View
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

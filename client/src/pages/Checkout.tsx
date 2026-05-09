@@ -3,11 +3,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Copy, CheckCircle, MessageCircle, Shield, AlertCircle } from "lucide-react";
+import { Clock, Copy, CheckCircle, MessageCircle, Shield, AlertCircle, Package, MapPin, Truck } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
 
 export default function Checkout() {
   const [, params] = useRoute("/checkout/:escrowId");
@@ -17,6 +19,16 @@ export default function Checkout() {
 
   const [timeRemaining, setTimeRemaining] = useState(1800);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [showShippingForm, setShowShippingForm] = useState(false);
+  const [shippingAddress, setShippingAddress] = useState({
+    recipientName: "",
+    recipientPhone: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    country: "",
+    postalCode: "",
+  });
 
   const { data: escrow, isLoading } = useQuery<any>({
     queryKey: ["/api/escrows", escrowId],
@@ -117,28 +129,179 @@ export default function Checkout() {
     );
   }
 
+  const isGoodsEscrow = escrow && ['PRODUCT', 'SHIPPING_SERVICE'].includes(escrow.listing?.type);
+
   if (paymentConfirmed) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-8 text-center">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-green-600 mb-2">Payment Confirmed!</h1>
-            <p className="text-gray-600 mb-6">
-              Your escrow transaction is now active. Chat is available between all parties.
-            </p>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-center space-x-2 text-green-700">
-                <MessageCircle className="w-5 h-5" />
-                <span className="font-medium">Secure Chat Activated</span>
-              </div>
-              <p className="text-sm text-green-600 mt-2">
-                You can now communicate securely with the seller and escrow admin.
+        <div className="w-full max-w-2xl space-y-5">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-green-600 mb-2">Payment Confirmed!</h1>
+              <p className="text-gray-600 mb-6">
+                Your escrow transaction is now active. Chat is available between all parties.
               </p>
-            </div>
-            <p className="text-sm text-gray-500">Redirecting to chat...</p>
-          </CardContent>
-        </Card>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-center space-x-2 text-green-700">
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="font-medium">Secure Chat Activated</span>
+                </div>
+                <p className="text-sm text-green-600 mt-2">
+                  You can now communicate securely with the seller and escrow admin.
+                </p>
+              </div>
+              <p className="text-sm text-gray-500">Redirecting to chat…</p>
+            </CardContent>
+          </Card>
+
+          {/* Shipping address form — for goods/product escrows */}
+          {isGoodsEscrow && (
+            <Card className="border-blue-200 bg-blue-50/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-blue-800 text-base">
+                  <Package className="w-5 h-5" />
+                  Provide Your Shipping Address
+                </CardTitle>
+                <p className="text-sm text-blue-600">
+                  Share your delivery address so the seller can prepare your shipment and generate a tracking number.
+                </p>
+              </CardHeader>
+              <CardContent>
+                {!showShippingForm ? (
+                  <Button
+                    onClick={() => setShowShippingForm(true)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="button-add-shipping-address"
+                  >
+                    <MapPin className="w-4 h-4 mr-2" /> Add Shipping Address
+                  </Button>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Recipient Name *</label>
+                        <Input
+                          value={shippingAddress.recipientName}
+                          onChange={e => setShippingAddress(p => ({ ...p, recipientName: e.target.value }))}
+                          placeholder="Full name"
+                          data-testid="input-recipient-name"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Phone Number</label>
+                        <Input
+                          value={shippingAddress.recipientPhone}
+                          onChange={e => setShippingAddress(p => ({ ...p, recipientPhone: e.target.value }))}
+                          placeholder="+1 555 000 0000"
+                          data-testid="input-recipient-phone"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Address Line 1 *</label>
+                        <Input
+                          value={shippingAddress.addressLine1}
+                          onChange={e => setShippingAddress(p => ({ ...p, addressLine1: e.target.value }))}
+                          placeholder="Street address, P.O. Box"
+                          data-testid="input-address-line1"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Address Line 2</label>
+                        <Input
+                          value={shippingAddress.addressLine2}
+                          onChange={e => setShippingAddress(p => ({ ...p, addressLine2: e.target.value }))}
+                          placeholder="Apartment, suite, unit, building (optional)"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">City *</label>
+                        <Input
+                          value={shippingAddress.city}
+                          onChange={e => setShippingAddress(p => ({ ...p, city: e.target.value }))}
+                          placeholder="City"
+                          data-testid="input-shipping-city"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Country *</label>
+                        <Input
+                          value={shippingAddress.country}
+                          onChange={e => setShippingAddress(p => ({ ...p, country: e.target.value }))}
+                          placeholder="Country"
+                          data-testid="input-shipping-country"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 block mb-1">Postal / ZIP Code</label>
+                        <Input
+                          value={shippingAddress.postalCode}
+                          onChange={e => setShippingAddress(p => ({ ...p, postalCode: e.target.value }))}
+                          placeholder="e.g. 10001"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowShippingForm(false)}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          if (!shippingAddress.recipientName || !shippingAddress.city || !shippingAddress.country) {
+                            toast({ title: "Please fill in required fields", variant: "destructive" });
+                            return;
+                          }
+                          try {
+                            await apiRequest("PATCH", `/api/escrows/${escrowId}`, {
+                              metadata: { shippingAddress }
+                            });
+                            toast({
+                              title: "Shipping address saved!",
+                              description: "The seller has been notified and can now prepare your shipment.",
+                            });
+                            setShowShippingForm(false);
+                          } catch (e: any) {
+                            toast({ title: "Failed to save address", description: e.message, variant: "destructive" });
+                          }
+                        }}
+                        disabled={!shippingAddress.recipientName || !shippingAddress.city || !shippingAddress.country}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        data-testid="button-save-shipping-address"
+                      >
+                        <Truck className="w-4 h-4 mr-2" /> Save Address & Notify Seller
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Track shipment link if escrow is already shipped */}
+          {escrow?.status === 'SHIPPED' && (
+            <Card className="border-cyan-200 bg-cyan-50/30">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Truck className="w-5 h-5 text-cyan-600" />
+                  <div>
+                    <p className="font-semibold text-cyan-800 text-sm">Shipment In Progress</p>
+                    <p className="text-xs text-cyan-600">Your package is on its way — track it in real time.</p>
+                  </div>
+                </div>
+                <Link href="/tracking">
+                  <Button size="sm" className="bg-cyan-600 hover:bg-cyan-700 text-white" data-testid="button-track-shipment">
+                    Track Now →
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     );
   }

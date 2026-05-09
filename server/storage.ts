@@ -11,6 +11,7 @@ import {
   blogPosts,
   platformWallets,
   paymentMethods,
+  platformSettings,
   shipments,
   shipmentEvents,
   type User,
@@ -41,6 +42,8 @@ import {
   type Shipment,
   type InsertShipmentEvent,
   type ShipmentEvent,
+  type InsertPlatformSetting,
+  type PlatformSetting,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, sql, count } from "drizzle-orm";
@@ -141,6 +144,12 @@ export interface IStorage {
   updateShipment(id: string, data: Partial<InsertShipment>): Promise<Shipment>;
   addShipmentEvent(event: InsertShipmentEvent): Promise<ShipmentEvent>;
   getAllShipments(): Promise<(Shipment & { seller: User; buyer: User })[]>;
+
+  // Platform settings operations
+  getPlatformSettings(): Promise<PlatformSetting[]>;
+  getPlatformSetting(key: string): Promise<PlatformSetting | undefined>;
+  upsertPlatformSetting(key: string, value: any, description?: string, updatedBy?: string): Promise<PlatformSetting>;
+  deletePlatformSetting(key: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1038,6 +1047,32 @@ export class DatabaseStorage implements IStorage {
       const [buyer] = await db.select().from(users).where(eq(users.id, s.buyerId));
       return { ...s, seller, buyer };
     }));
+  }
+
+  // Platform settings
+  async getPlatformSettings(): Promise<PlatformSetting[]> {
+    return db.select().from(platformSettings).orderBy(platformSettings.key);
+  }
+
+  async getPlatformSetting(key: string): Promise<PlatformSetting | undefined> {
+    const [s] = await db.select().from(platformSettings).where(eq(platformSettings.key, key));
+    return s;
+  }
+
+  async upsertPlatformSetting(key: string, value: any, description?: string, updatedBy?: string): Promise<PlatformSetting> {
+    const [s] = await db
+      .insert(platformSettings)
+      .values({ key, value, description, updatedBy, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: platformSettings.key,
+        set: { value, description, updatedBy, updatedAt: new Date() },
+      })
+      .returning();
+    return s;
+  }
+
+  async deletePlatformSetting(key: string): Promise<void> {
+    await db.delete(platformSettings).where(eq(platformSettings.key, key));
   }
 }
 

@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema } from "@shared/schema";
+import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema, insertPlatformSettingSchema } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1066,6 +1066,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error submitting KYC:", error);
       res.status(400).json({ message: error.message || "Failed to submit KYC verification" });
+    }
+  });
+
+  // ─── Platform Settings Routes (fee management etc.) ─────────────────────────
+
+  // Public: get all platform settings (for checkout fee calculation)
+  app.get('/api/platform-settings', async (req, res) => {
+    try {
+      const settings = await storage.getPlatformSettings();
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch platform settings" });
+    }
+  });
+
+  app.get('/api/platform-settings/:key', async (req, res) => {
+    try {
+      const setting = await storage.getPlatformSetting(req.params.key);
+      if (!setting) return res.status(404).json({ message: "Setting not found" });
+      res.json(setting);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch setting" });
+    }
+  });
+
+  // Admin: upsert a setting
+  app.put('/api/platform-settings/:key', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'ADMIN') return res.status(403).json({ message: "Admin only" });
+      const { value, description } = req.body;
+      const setting = await storage.upsertPlatformSetting(req.params.key, value, description, userId);
+      res.json(setting);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update setting" });
+    }
+  });
+
+  app.delete('/api/platform-settings/:key', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (user?.role !== 'ADMIN') return res.status(403).json({ message: "Admin only" });
+      await storage.deletePlatformSetting(req.params.key);
+      res.json({ message: "Setting deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete setting" });
     }
   });
 
