@@ -5,10 +5,11 @@ import {
   Globe,
   Twitter,
   Linkedin,
-  Github,
   MessageCircle,
   Mail,
-  MapPin
+  MapPin,
+  Phone,
+  Ship
 } from "lucide-react";
 
 export default function Footer() {
@@ -19,12 +20,36 @@ export default function Footer() {
           {/* Company Info */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <Globe className="w-8 h-8 text-crypto-blue" />
-              <span className="text-xl font-bold">Beagvs Global</span>
+              <Ship className="w-8 h-8 text-crypto-blue" />
+              <div>
+                <div className="text-lg font-bold leading-tight">Beagvs Marine Services</div>
+                <div className="text-xs text-slate-400">Nig Ltd</div>
+              </div>
             </div>
-            <p className="text-slate-300 leading-relaxed">
-              The world's first crypto-powered marketplace for real estate and global shipping services.
+            <p className="text-slate-300 leading-relaxed text-sm">
+              Licensed freight forwarder and customs agent. Providing cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and worldwide.
             </p>
+            <div className="space-y-2 text-sm text-slate-400">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                <span>Head Office: No 24, 1st Avenue Ottooba, Great Estate, Bagidan Ijede, Ikorodu, Lagos</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                <span>Branch: No 21, Nevis Street, off Mission Road, Benin City</span>
+              </div>
+            </div>
+            <div className="space-y-1 text-sm">
+              <a href="tel:+2348037232210" className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
+                <Phone className="w-4 h-4" /> +234 803 723 2210
+              </a>
+              <a href="tel:+2348155576539" className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
+                <Phone className="w-4 h-4" /> +234 815 557 6539
+              </a>
+              <a href="tel:+2348027529083" className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
+                <Phone className="w-4 h-4" /> +234 802 752 9083
+              </a>
+            </div>
             <div className="flex space-x-4">
               <Button 
                 variant="ghost" 
@@ -50,32 +75,45 @@ export default function Footer() {
               >
                 <MessageCircle className="w-5 h-5" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-2 text-slate-400 hover:text-crypto-blue"
-                data-testid="social-github"
-              >
-                <Github className="w-5 h-5" />
-              </Button>
             </div>
           </div>
           
           {/* Services */}
           <div className="space-y-4">
-            <h4 className="text-lg font-semibold mb-4">Services</h4>
-            <ul className="space-y-3 text-slate-300">
+            <h4 className="text-lg font-semibold mb-4">Our Services</h4>
+            <ul className="space-y-3 text-slate-300 text-sm">
               <li>
-                <Link href="/marketplace?type=REAL_ESTATE">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-real-estate">
-                    Real Estate Trading
+                <Link href="/marketplace?type=SHIPPING_SERVICE">
+                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-cargo">
+                    Cargo Services
                   </span>
                 </Link>
               </li>
               <li>
                 <Link href="/marketplace?type=SHIPPING_SERVICE">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-shipping">
-                    Global Shipping
+                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-consolidation">
+                    Cargo Consolidation
+                  </span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/marketplace?type=SHIPPING_SERVICE">
+                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-door-to-door">
+                    Door to Door Service
+                  </span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/marketplace?type=SHIPPING_SERVICE">
+                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-import-export">
+                    Import to Export
+                  </span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/marketplace?type=REAL_ESTATE">
+                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-real-estate">
+                    Real Estate Trading
                   </span>
                 </Link>
               </li>
@@ -86,55 +124,65 @@ export default function Footer() {
                   </span>
                 </Link>
               </li>
-              <li>
-                <Link href="/about">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-crypto-support">
-                    Multi-Crypto Support
-                  </span>
-                </Link>
-              </li>
             </ul>
           </div>
           
-          {/* Company */}
+          {/* Operations */}
           <div className="space-y-4">
-            <h4 className="text-lg font-semibold mb-4">Company</h4>
-            <ul className="space-y-3 text-slate-300">
-              <li>
-                <Link href="/about">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-about">
-                    About Us
-                  </span>
-                </Link>
+            <h4 className="text-lg font-semibold mb-4">Operations Base</h4>
+            <ul className="space-y-3 text-slate-300 text-sm">
+              <li className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                <span>Nahco Cargo Shed</span>
               </li>
-              <li>
-                <Link href="/blog">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-blog">
-                    Blog
-                  </span>
-                </Link>
+              <li className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                <span>Sahco Cargo Shed</span>
               </li>
-              <li>
-                <Link href="/careers">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-careers">
-                    Careers
-                  </span>
-                </Link>
+              <li className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                <span>Tin-Can Island Port</span>
               </li>
-              <li>
-                <Link href="/contact">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-contact">
-                    Contact
-                  </span>
-                </Link>
+              <li className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                <span>Apapa Port</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                <span>Port Harcourt Port</span>
               </li>
             </ul>
+            <div className="pt-2 space-y-2">
+              <h5 className="text-sm font-semibold text-slate-200">Company</h5>
+              <ul className="space-y-2 text-slate-300 text-sm">
+                <li>
+                  <Link href="/about">
+                    <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-about">About Us</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/blog">
+                    <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-blog">Blog</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/careers">
+                    <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-careers">Careers</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact">
+                    <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-contact">Contact</span>
+                  </Link>
+                </li>
+              </ul>
+            </div>
           </div>
           
           {/* Support */}
           <div className="space-y-4">
-            <h4 className="text-lg font-semibold mb-4">Support</h4>
-            <ul className="space-y-3 text-slate-300">
+            <h4 className="text-lg font-semibold mb-4">Support & Legal</h4>
+            <ul className="space-y-3 text-slate-300 text-sm">
               <li>
                 <Link href="/help">
                   <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-help">
@@ -156,14 +204,17 @@ export default function Footer() {
                   </span>
                 </Link>
               </li>
-              <li>
-                <Link href="/api-docs">
-                  <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-api">
-                    API Documentation
-                  </span>
-                </Link>
-              </li>
             </ul>
+
+            <div className="pt-4 bg-slate-700/50 rounded-lg p-4 space-y-2 text-sm">
+              <h5 className="font-semibold text-slate-200">Get a Quote</h5>
+              <p className="text-slate-400 text-xs">Contact us for cargo rates, consolidation pricing, and custom shipping solutions.</p>
+              <Link href="/contact">
+                <Button size="sm" className="w-full bg-crypto-blue hover:bg-crypto-teal text-white text-xs mt-2" data-testid="button-footer-get-quote">
+                  Contact Us Today
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
         
@@ -172,7 +223,7 @@ export default function Footer() {
           <div className="max-w-md mx-auto text-center">
             <h4 className="text-lg font-semibold mb-2">Stay Updated</h4>
             <p className="text-slate-300 mb-4 text-sm">
-              Get the latest news and updates from Beagvs Global
+              Get the latest news and shipping updates from Beagvs Marine Services
             </p>
             <div className="flex space-x-2">
               <Input 
@@ -195,11 +246,11 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
               <p className="text-slate-400 text-sm">
-                © 2024 Beagvs Global. All rights reserved.
+                © 2025 Beagvs Marine Services Nig Ltd. All rights reserved.
               </p>
               <div className="flex items-center space-x-2 text-sm text-slate-400">
                 <MapPin className="w-4 h-4" />
-                <span>Global Operations</span>
+                <span>Lagos · Benin City · Nigeria</span>
               </div>
             </div>
             

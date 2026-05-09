@@ -166,24 +166,6 @@ export default function Auth() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Replit Auth Button */}
-              <Button
-                onClick={handleReplitAuth}
-                className="w-full mb-6 button-primary"
-                data-testid="button-replit-auth"
-              >
-                Continue with Replit Auth
-              </Button>
-
-              <div className="relative mb-6">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-slate-200" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-slate-500">Or continue with email</span>
-                </div>
-              </div>
-
               {isSignUp ? (
                 <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4" data-testid="form-sign-up">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

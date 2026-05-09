@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
@@ -15,33 +14,20 @@ import {
   TrendingUp,
   Heart,
   Linkedin,
-  Twitter
+  Twitter,
+  Ship,
+  Package,
+  MapPin,
+  Phone,
+  CheckCircle,
+  Anchor,
+  Truck
 } from "lucide-react";
-
-const ABOUT_DEFAULTS = {
-  heroTitle: "The World's Premier\nCrypto & Fiat Marketplace",
-  heroSubtitle:
-    "We're revolutionizing global commerce with military-grade security, comprehensive escrow protection, and support for multiple cryptocurrencies and traditional payment methods across 180+ countries.",
-  missionTitle: "Our Mission",
-  missionContent:
-    "We're building the world's most comprehensive crypto and fiat marketplace where users can trade real estate, access global shipping services, and exchange goods with complete security. Our advanced escrow system supports Pi Network, USDT across multiple blockchain networks (TRON, TON, BNB, Solana, Avalanche), and traditional currencies (USD, EUR, GBP, CAD, NGN) with military-grade protection.",
-  stat1Value: "25,000+",
-  stat1Label: "Active Users",
-  stat2Value: "180+",
-  stat2Label: "Countries",
-  stat3Value: "99.8%",
-  stat3Label: "Success Rate",
-  stat4Value: "$50M+",
-  stat4Label: "Trade Volume",
-};
 
 export default function About() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-
-  const { data: savedContent } = useQuery<any>({ queryKey: ["/api/page-content/about"] });
-  const c = { ...ABOUT_DEFAULTS, ...(savedContent || {}) };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -50,17 +36,19 @@ export default function About() {
       {/* Hero Section */}
       <section className="crypto-gradient text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="flex items-center justify-center space-x-2 mb-6">
-            <Globe className="w-12 h-12" />
-            <span className="text-3xl font-bold">Beagvs Global</span>
+          <div className="flex items-center justify-center space-x-3 mb-6">
+            <Ship className="w-12 h-12" />
+            <div className="text-left">
+              <div className="text-3xl font-bold leading-tight">Beagvs Marine Services Nig Ltd</div>
+              <div className="text-blue-200 text-sm">Licensed Freight Forwarder & Customs Agent</div>
+            </div>
           </div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6" data-testid="text-about-title">
-            {c.heroTitle.split("\n").map((line: string, i: number) => (
-              <span key={i}>{line}{i === 0 && <br />}</span>
-            ))}
+            Your Trusted Partner in<br />
+            <span className="text-cyan-300">Global Cargo & Freight</span>
           </h1>
           <p className="text-xl text-blue-100 max-w-3xl mx-auto">
-            {c.heroSubtitle}
+            A licensed freight forwarder and customs agent providing comprehensive cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and beyond — now powered by secure cryptocurrency transactions.
           </p>
         </div>
       </section>
@@ -69,32 +57,81 @@ export default function About() {
       <section className="py-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <Target className="w-16 h-16 text-crypto-blue mx-auto mb-8" />
-          <h2 className="text-3xl font-bold text-slate-dark mb-6" data-testid="text-mission-title">{c.missionTitle}</h2>
+          <h2 className="text-3xl font-bold text-slate-dark mb-6" data-testid="text-mission-title">Our Mission</h2>
           <p className="text-xl text-slate-medium leading-relaxed" data-testid="text-mission-content">
-            {c.missionContent}
+            Beagvs Marine Services Nig Ltd is dedicated to providing seamless, reliable, and cost-effective freight forwarding and customs clearance services. We handle cargo with the utmost care — from consolidation at major Nigerian ports to final door-to-door delivery — while integrating modern cryptocurrency payment options for global trade security.
           </p>
         </div>
       </section>
 
-      {/* Founders Section */}
+      {/* Our Values */}
       <section className="py-20 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl lg:text-4xl font-bold text-slate-dark mb-4">Meet Our Founders</h2>
+            <h2 className="text-3xl font-bold text-slate-dark mb-4">Our Values & Services</h2>
             <p className="text-xl text-slate-medium max-w-3xl mx-auto">
-              Experienced leaders bringing decades of expertise in real estate, blockchain technology, and global commerce.
+              Comprehensive logistics solutions tailored for Nigerian and international trade
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="text-center border border-slate-100" data-testid="card-value-cargo">
+              <CardContent className="p-6">
+                <Package className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-dark mb-3">Cargo Services</h3>
+                <p className="text-slate-medium text-sm">
+                  Full range of air and sea cargo handling, from small parcels to full container loads.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="text-center border border-slate-100" data-testid="card-value-consolidation">
+              <CardContent className="p-6">
+                <Anchor className="w-12 h-12 text-cyan-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-dark mb-3">Cargo Consolidation</h3>
+                <p className="text-slate-medium text-sm">
+                  LCL consolidation services that reduce shipping costs by grouping smaller shipments together.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="text-center border border-slate-100" data-testid="card-value-door">
+              <CardContent className="p-6">
+                <Truck className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-dark mb-3">Door to Door</h3>
+                <p className="text-slate-medium text-sm">
+                  Complete door-to-door delivery service from origin to your final destination, hassle-free.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="text-center border border-slate-100" data-testid="card-value-import-export">
+              <CardContent className="p-6">
+                <Globe className="w-12 h-12 text-purple-500 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-dark mb-3">Import to Export</h3>
+                <p className="text-slate-medium text-sm">
+                  Full customs clearance, documentation, and compliance support for both import and export trade.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Founder Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl lg:text-4xl font-bold text-slate-dark mb-4">Meet Our Founder</h2>
+            <p className="text-xl text-slate-medium max-w-3xl mx-auto">
+              Decades of expertise in freight forwarding, customs clearance, and international trade.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Founder */}
+          <div className="max-w-2xl mx-auto">
             <Card className="shadow-lg border border-slate-100" data-testid="card-founder-ceo">
-              <CardContent className="p-8 text-center lg:text-left">
-                <div className="mb-6">
+              <CardContent className="p-8 text-center lg:text-left flex flex-col lg:flex-row gap-8 items-start">
+                <div className="shrink-0 mx-auto lg:mx-0">
                   <img 
                     src="https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" 
                     alt="Mr. Godspower Asemota - Founder & CEO" 
-                    className="w-48 h-48 rounded-2xl mx-auto lg:mx-0 object-cover shadow-lg"
+                    className="w-48 h-48 rounded-2xl object-cover shadow-lg"
                     data-testid="img-founder-ceo"
                   />
                 </div>
@@ -102,10 +139,7 @@ export default function About() {
                   <h3 className="text-2xl font-bold text-slate-dark mb-2">Mr. Godspower Asemota</h3>
                   <p className="text-crypto-blue font-semibold mb-4 text-lg">Founder & CEO</p>
                   <p className="text-slate-medium leading-relaxed mb-6" data-testid="text-founder-ceo-bio">
-                    Real estate entrepreneur with over two decades in the industry and freight forwarding. 
-                    Godspower brings extensive experience in international trade and property development 
-                    to revolutionize how we transact with cryptocurrency. His vision drives our mission 
-                    to make crypto-powered real estate accessible to everyone.
+                    A seasoned freight forwarding and customs clearance professional with over two decades of hands-on experience at Nigeria's busiest ports — including Apapa, Tin-Can Island, and Port Harcourt. Godspower founded Beagvs Marine Services Nig Ltd to bring reliable, transparent, and tech-forward logistics solutions to Nigerian businesses and individuals. His deep knowledge of NCS (Nigeria Customs Service) regulations and international trade law ensures every shipment clears smoothly.
                   </p>
                   <div className="flex justify-center lg:justify-start space-x-4">
                     <Button variant="ghost" size="sm" className="p-2" data-testid="button-ceo-linkedin">
@@ -118,39 +152,60 @@ export default function About() {
                 </div>
               </CardContent>
             </Card>
-            
-            {/* Co-Founder */}
-            <Card className="shadow-lg border border-slate-100" data-testid="card-founder-cto">
-              <CardContent className="p-8 text-center lg:text-left">
-                <div className="mb-6">
-                  <img 
-                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=400" 
-                    alt="Abraham Tahbat - Co-Founder & CTO" 
-                    className="w-48 h-48 rounded-2xl mx-auto lg:mx-0 object-cover shadow-lg"
-                    data-testid="img-founder-cto"
-                  />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-slate-dark mb-2">Abraham Tahbat</h3>
-                  <p className="text-crypto-blue font-semibold mb-4 text-lg">Co-Founder & CTO</p>
-                  <p className="text-slate-medium leading-relaxed mb-6" data-testid="text-founder-cto-bio">
-                    Lawyer and web developer with 12+ years in blockchain, tech-preneurship, and web3. 
-                    Abraham leads our technical vision and ensures our platform meets the highest standards 
-                    of security and compliance in the crypto space. His expertise in both law and technology 
-                    ensures Beagvs Global operates within regulatory frameworks while pushing innovation.
-                  </p>
-                  <div className="flex justify-center lg:justify-start space-x-4">
-                    <Button variant="ghost" size="sm" className="p-2" data-testid="button-cto-linkedin">
-                      <Linkedin className="w-5 h-5 text-slate-400 hover:text-crypto-blue" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="p-2" data-testid="button-cto-twitter">
-                      <Twitter className="w-5 h-5 text-slate-400 hover:text-crypto-blue" />
-                    </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Operations Base */}
+      <section className="py-20 bg-slate-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-slate-dark mb-4">Our Operations Base</h2>
+            <p className="text-xl text-slate-medium max-w-3xl mx-auto">
+              Strategically positioned at Nigeria's key cargo and port facilities
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {[
+              { name: "Nahco Cargo Shed", desc: "Air cargo handling and consolidation at one of Nigeria's premier cargo terminals." },
+              { name: "Sahco Cargo Shed", desc: "Full cargo services including handling, warehousing, and documentation at Sahco." },
+              { name: "Tin-Can Island Port", desc: "Sea freight clearance and operations at Lagos's major container terminal." },
+              { name: "Apapa Port", desc: "Customs clearance and cargo services at Nigeria's largest and busiest port." },
+              { name: "Port Harcourt Port", desc: "Southern Nigeria operations covering sea freight and export documentation." },
+            ].map((base) => (
+              <Card key={base.name} className="border border-slate-100">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <MapPin className="w-6 h-6 text-crypto-blue shrink-0 mt-1" />
+                    <div>
+                      <h3 className="font-bold text-slate-dark mb-2">{base.name}</h3>
+                      <p className="text-slate-medium text-sm">{base.desc}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            <Card className="border border-slate-100 bg-crypto-blue/5">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-6 h-6 text-crypto-blue shrink-0 mt-1" />
+                  <div>
+                    <h3 className="font-bold text-slate-dark mb-1">Head Office — Lagos</h3>
+                    <p className="text-slate-medium text-sm">No 24, 1st Avenue Ottooba, Great Estate, Bagidan Ijede, Ikorodu, Lagos</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* Branch Office */}
+          <Card className="max-w-md mx-auto border border-slate-100">
+            <CardContent className="p-6 text-center">
+              <MapPin className="w-8 h-8 text-crypto-blue mx-auto mb-3" />
+              <h3 className="font-bold text-slate-dark mb-1">Branch Office — Benin City</h3>
+              <p className="text-slate-medium text-sm">No 21, Nevis Street, off Mission Road, Benin City, Edo State</p>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
@@ -158,181 +213,99 @@ export default function About() {
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-dark mb-4">Our Core Values</h2>
+            <h2 className="text-3xl font-bold text-slate-dark mb-4">Why Choose Us</h2>
             <p className="text-xl text-slate-medium max-w-3xl mx-auto">
-              The principles that guide everything we do at Beagvs Global
+              The principles and advantages that set Beagvs Marine Services apart
             </p>
           </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="text-center border border-slate-100" data-testid="card-value-security">
               <CardContent className="p-8">
                 <Shield className="w-16 h-16 text-green-500 mx-auto mb-6" />
-                <h3 className="text-xl font-bold text-slate-dark mb-4">Security First</h3>
+                <h3 className="text-xl font-bold text-slate-dark mb-4">Licensed & Trusted</h3>
                 <p className="text-slate-medium">
-                  Every transaction is protected by our comprehensive escrow system with manual verification, 
-                  ensuring your funds and deals are always secure.
+                  Fully licensed freight forwarder and certified customs agent operating under Nigerian Customs Service regulations with years of proven track record.
                 </p>
               </CardContent>
             </Card>
-
             <Card className="text-center border border-slate-100" data-testid="card-value-innovation">
               <CardContent className="p-8">
-                <TrendingUp className="w-16 h-16 text-crypto-blue mx-auto mb-6" />
-                <h3 className="text-xl font-bold text-slate-dark mb-4">Innovation</h3>
+                <Coins className="w-16 h-16 text-crypto-blue mx-auto mb-6" />
+                <h3 className="text-xl font-bold text-slate-dark mb-4">Crypto-Powered</h3>
                 <p className="text-slate-medium">
-                  We continuously push the boundaries of what's possible in crypto commerce, 
-                  bringing cutting-edge solutions to traditional markets.
+                  Accept and make payments using Pi Network, USDT, and other major cryptocurrencies — enabling secure, borderless transactions for global trade.
                 </p>
               </CardContent>
             </Card>
-
             <Card className="text-center border border-slate-100" data-testid="card-value-community">
               <CardContent className="p-8">
-                <Users className="w-16 h-16 text-purple-500 mx-auto mb-6" />
-                <h3 className="text-xl font-bold text-slate-dark mb-4">Global Community</h3>
+                <CheckCircle className="w-16 h-16 text-purple-500 mx-auto mb-6" />
+                <h3 className="text-xl font-bold text-slate-dark mb-4">End-to-End Service</h3>
                 <p className="text-slate-medium">
-                  Building bridges between crypto enthusiasts worldwide, fostering trust and 
-                  enabling seamless international commerce.
+                  From first-mile pickup and documentation to customs clearance and last-mile delivery — we handle every step of your shipment's journey.
                 </p>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Platform Features */}
-      <section className="py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-dark mb-4">Why Choose Beagvs Global?</h2>
-            <p className="text-xl text-slate-medium max-w-3xl mx-auto">
-              We offer unique advantages that set us apart in the crypto marketplace space
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center">
-                  <Shield className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-dark text-lg mb-2">Escrow Protection</h3>
-                  <p className="text-slate-medium">
-                    Every transaction is secured with our comprehensive escrow system, protecting both buyers and sellers.
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-blue-100 text-crypto-blue rounded-lg flex items-center justify-center">
-                  <Coins className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-dark text-lg mb-2">Multi-Crypto Support</h3>
-                  <p className="text-slate-medium">
-                    Accept payments in Pi, USDT across multiple networks including TRON, TON, BNB, Solana, and Avalanche.
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center">
-                  <Globe className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-dark text-lg mb-2">Global Reach</h3>
-                  <p className="text-slate-medium">
-                    Connect with buyers and sellers worldwide, breaking down geographical barriers in commerce.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 w-12 h-12 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center">
-                  <Heart className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-dark text-lg mb-2">Social Features</h3>
-                  <p className="text-slate-medium">
-                    Build your reputation, follow trusted sellers, and communicate directly through our integrated messaging system.
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="relative">
-              <img 
-                src="https://images.unsplash.com/photo-1551434678-e076c223a692?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600" 
-                alt="Global crypto commerce" 
-                className="rounded-2xl shadow-2xl w-full h-auto"
-                data-testid="img-platform-features"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-2xl"></div>
-            </div>
           </div>
         </div>
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-slate-dark mb-4">Our Impact</h2>
-            <p className="text-xl text-slate-medium">
-              Building trust and enabling commerce across the globe
-            </p>
+            <p className="text-xl text-slate-medium">Building trust and enabling commerce across Nigeria and the world</p>
           </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="text-center" data-testid="stat-transactions">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">$1.2M+</div>
-              <p className="text-slate-medium">Total Transactions</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">5,000+</div>
+              <p className="text-slate-medium">Shipments Cleared</p>
             </div>
             <div className="text-center" data-testid="stat-users">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">15,000+</div>
-              <p className="text-slate-medium">Global Users</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">20+</div>
+              <p className="text-slate-medium">Years Experience</p>
             </div>
             <div className="text-center" data-testid="stat-countries">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">50+</div>
-              <p className="text-slate-medium">Countries Served</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">5</div>
+              <p className="text-slate-medium">Port Locations</p>
             </div>
             <div className="text-center" data-testid="stat-success-rate">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">99.8%</div>
-              <p className="text-slate-medium">Success Rate</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">99%</div>
+              <p className="text-slate-medium">On-Time Clearance</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Call to Action */}
-      <section className="py-20 bg-slate-50">
+      {/* Contact CTA */}
+      <section className="py-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="crypto-gradient rounded-2xl p-8 lg:p-12 text-white">
             <Award className="w-16 h-16 mx-auto mb-6" />
-            <h2 className="text-3xl font-bold mb-6">Ready to Join the Revolution?</h2>
-            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-              Start your journey in crypto-powered commerce today. Whether you're buying real estate, 
-              shipping globally, or trading services, Beagvs Global has you covered.
+            <h2 className="text-3xl font-bold mb-6">Ready to Ship?</h2>
+            <p className="text-xl text-blue-100 mb-4 max-w-2xl mx-auto">
+              Contact Beagvs Marine Services today for a free quote on cargo services, consolidation, or customs clearance.
             </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
+              <a href="tel:+2348037232210" className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
+                <Phone className="w-4 h-4" /> +234 803 723 2210
+              </a>
+              <a href="tel:+2348155576539" className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
+                <Phone className="w-4 h-4" /> +234 815 557 6539
+              </a>
+              <a href="tel:+2348027529083" className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
+                <Phone className="w-4 h-4" /> +234 802 752 9083
+              </a>
+            </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/auth/sign-up">
-                <Button 
-                  size="lg" 
-                  className="bg-white text-crypto-blue hover:bg-blue-50 font-semibold"
-                  data-testid="button-get-started"
-                >
-                  Get Started Today
+              <Link href="/contact">
+                <Button size="lg" className="bg-white text-crypto-blue hover:bg-blue-50 font-semibold" data-testid="button-contact-us">
+                  Send Us a Message
                 </Button>
               </Link>
               <Link href="/marketplace">
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="border-white text-white hover:bg-white hover:text-crypto-blue font-semibold"
-                  data-testid="button-explore-marketplace"
-                >
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-crypto-blue font-semibold" data-testid="button-explore-marketplace">
                   Explore Marketplace
                 </Button>
               </Link>

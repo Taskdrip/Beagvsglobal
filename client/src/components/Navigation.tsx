@@ -49,8 +49,6 @@ export default function Navigation({ dark = false }: NavigationProps) {
     }
   };
 
-  const handleSignIn = () => { window.location.href = "/api/login"; };
-
   const isDark = dark;
 
   const navBg = isDark
@@ -156,14 +154,15 @@ export default function Navigation({ dark = false }: NavigationProps) {
               </>
             ) : (
               <>
-                <Button
-                  variant="ghost"
-                  onClick={handleSignIn}
-                  className={isDark ? "text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 font-medium" : "text-slate-600 hover:text-blue-600 font-medium"}
-                  data-testid="button-sign-in"
-                >
-                  Sign In
-                </Button>
+                <Link href="/login">
+                  <Button
+                    variant="ghost"
+                    className={isDark ? "text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 font-medium" : "text-slate-600 hover:text-blue-600 font-medium"}
+                    data-testid="button-sign-in"
+                  >
+                    Sign In
+                  </Button>
+                </Link>
                 <Link href="/signup">
                   <Button
                     className={isDark ? "hero-btn-primary text-sm px-4 py-2" : "bg-crypto-blue hover:bg-crypto-teal text-white font-medium"}
@@ -269,14 +268,16 @@ export default function Navigation({ dark = false }: NavigationProps) {
                       </>
                     ) : (
                       <>
-                        <Button
-                          variant="ghost"
-                          className={`w-full justify-start text-sm ${isDark ? "text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10" : "text-slate-600 hover:text-blue-600"}`}
-                          onClick={() => { setMobileMenuOpen(false); handleSignIn(); }}
-                          data-testid="mobile-button-sign-in"
-                        >
-                          Sign In
-                        </Button>
+                        <Link href="/login">
+                          <Button
+                            variant="ghost"
+                            className={`w-full justify-start text-sm ${isDark ? "text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10" : "text-slate-600 hover:text-blue-600"}`}
+                            onClick={() => setMobileMenuOpen(false)}
+                            data-testid="mobile-button-sign-in"
+                          >
+                            Sign In
+                          </Button>
+                        </Link>
                         <Link href="/signup">
                           <Button
                             className={`w-full text-sm ${isDark ? "hero-btn-primary" : "bg-crypto-blue hover:bg-crypto-teal text-white"}`}

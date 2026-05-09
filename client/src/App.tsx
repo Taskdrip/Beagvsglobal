@@ -31,6 +31,10 @@ import KycVerification from "@/pages/KycVerification";
 import ShippingTracker from "@/pages/ShippingTracker";
 import ShippingHub from "@/pages/ShippingHub";
 import RealEstate from "@/pages/RealEstate";
+import Help from "@/pages/Help";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
+import Careers from "@/pages/Careers";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -58,6 +62,10 @@ function Router() {
           <Route path="/tracking/:trackingNumber" component={ShippingTracker} />
           <Route path="/shipping" component={ShippingHub} />
           <Route path="/real-estate" component={RealEstate} />
+          <Route path="/help" component={Help} />
+          <Route path="/privacy" component={Privacy} />
+          <Route path="/terms" component={Terms} />
+          <Route path="/careers" component={Careers} />
         </>
       ) : (
         <>
@@ -83,6 +91,10 @@ function Router() {
           <Route path="/shipping" component={ShippingHub} />
           <Route path="/shipments/:id" component={ShippingHub} />
           <Route path="/real-estate" component={RealEstate} />
+          <Route path="/help" component={Help} />
+          <Route path="/privacy" component={Privacy} />
+          <Route path="/terms" component={Terms} />
+          <Route path="/careers" component={Careers} />
         </>
       )}
       <Route component={NotFound} />
