@@ -274,8 +274,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/listings/:id', isAuthenticatedEnhanced, async (req, res) => {
+  app.patch('/api/listings/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      // Verify ownership
+      const existing = await storage.getListing(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Listing not found" });
+      if (existing.sellerId !== userId && req.user?.role !== 'ADMIN') {
+        return res.status(403).json({ message: "You are not authorized to edit this listing" });
+      }
       const listingData = insertListingSchema.partial().parse(req.body);
       const listing = await storage.updateListing(req.params.id, listingData);
       res.json(listing);
@@ -285,8 +292,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/listings/:id', isAuthenticatedEnhanced, async (req, res) => {
+  app.delete('/api/listings/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      // Verify ownership
+      const existing = await storage.getListing(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Listing not found" });
+      if (existing.sellerId !== userId && req.user?.role !== 'ADMIN') {
+        return res.status(403).json({ message: "You are not authorized to delete this listing" });
+      }
       await storage.deleteListing(req.params.id);
       res.status(204).send();
     } catch (error) {
@@ -842,17 +856,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/platform-wallets/currency/:currency/network/:network', async (req, res) => {
     try {
       const { currency, network } = req.params;
-      let walletType = '';
       
-      if (currency === 'PI') {
+      // Fiat/bank transfer currencies don't use platform crypto wallets
+      const fiatCurrencies = ['USD', 'EUR', 'GBP', 'CAD', 'NGN'];
+      if (fiatCurrencies.includes(currency.toUpperCase())) {
+        return res.status(200).json({ type: 'BANK_TRANSFER', currency, network, address: null });
+      }
+      
+      let walletType = '';
+      if (currency.toUpperCase() === 'PI') {
         walletType = 'PI';
-      } else if (currency === 'USDT') {
-        walletType = `USDT_${network}`;
+      } else if (currency.toUpperCase() === 'USDT') {
+        walletType = `USDT_${network.toUpperCase()}`;
+      }
+      
+      if (!walletType) {
+        return res.status(404).json({ message: "Unsupported currency/network combination" });
       }
       
       const wallet = await storage.getPlatformWalletByType(walletType);
       if (!wallet) {
-        return res.status(404).json({ message: "Platform wallet not found for this currency/network" });
+        return res.status(404).json({ message: "Platform wallet not configured for this currency/network" });
       }
       
       res.json(wallet);
