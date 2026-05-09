@@ -10,30 +10,38 @@ const ADMIN_DEFAULT_PASSWORD = "Admin@2025!";
 async function seedAdmin() {
   console.log("Seeding admin user...");
 
-  const existing = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL));
-  if (existing.length > 0) {
-    console.log("Admin user already exists. Skipping seed.");
-    return;
-  }
-
   const passwordHash = await bcrypt.hash(ADMIN_DEFAULT_PASSWORD, 12);
 
-  await db.insert(users).values({
-    email: ADMIN_EMAIL,
-    username: ADMIN_USERNAME,
-    firstName: "Super",
-    lastName: "Admin",
-    passwordHash,
-    role: "ADMIN",
-    accountType: "BOTH",
-    mustChangePassword: true,
-  });
+  const existing = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL));
+  if (existing.length > 0) {
+    // Always update to ensure admin is active and credentials are correct
+    await db.update(users).set({
+      passwordHash,
+      role: "ADMIN",
+      accountType: "BOTH",
+      mustChangePassword: false,
+      firstName: "Super",
+      lastName: "Admin",
+      username: ADMIN_USERNAME,
+    }).where(eq(users.email, ADMIN_EMAIL));
+    console.log("✓ Admin user updated and verified active!");
+  } else {
+    await db.insert(users).values({
+      email: ADMIN_EMAIL,
+      username: ADMIN_USERNAME,
+      firstName: "Super",
+      lastName: "Admin",
+      passwordHash,
+      role: "ADMIN",
+      accountType: "BOTH",
+      mustChangePassword: false,
+    });
+    console.log("✓ Admin user created successfully!");
+  }
 
-  console.log("✓ Admin user seeded successfully!");
   console.log("  Email:    " + ADMIN_EMAIL);
-  console.log("  Username: " + ADMIN_USERNAME);
   console.log("  Password: " + ADMIN_DEFAULT_PASSWORD);
-  console.log("  NOTE: Admin must change password on first login.");
+  console.log("  Status:   Always active (no forced password change)");
 }
 
 seedAdmin()

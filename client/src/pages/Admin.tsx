@@ -68,6 +68,141 @@ const blogPostSchema = z.object({
 type PlatformWalletFormData = z.infer<typeof platformWalletSchema>;
 type BlogPostFormData = z.infer<typeof blogPostSchema>;
 
+function AdminSecurityTab({ adminUser }: { adminUser: any }) {
+  const { toast } = useToast();
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [isChanging, setIsChanging] = useState(false);
+  const [pwData, setPwData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwData.newPassword !== pwData.confirmPassword) {
+      toast({ title: "Passwords don't match", variant: "destructive" });
+      return;
+    }
+    if (pwData.newPassword.length < 8) {
+      toast({ title: "Password must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+    setIsChanging(true);
+    try {
+      const res = await fetch("/api/admin/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: pwData.currentPassword, newPassword: pwData.newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: "Password changed successfully!" });
+      setPwData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (err: any) {
+      toast({ title: "Failed to change password", description: err.message, variant: "destructive" });
+    } finally {
+      setIsChanging(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-amber-600" />
+            Admin Password
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+            <div>
+              <label className="text-sm font-medium text-slate-700">Current Password</label>
+              <div className="relative mt-1">
+                <input
+                  type={showCurrent ? "text" : "password"}
+                  className="w-full border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={pwData.currentPassword}
+                  onChange={e => setPwData(d => ({ ...d, currentPassword: e.target.value }))}
+                  required
+                  data-testid="input-admin-current-password"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowCurrent(!showCurrent)}>
+                  {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700">New Password</label>
+              <div className="relative mt-1">
+                <input
+                  type={showNew ? "text" : "password"}
+                  className="w-full border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={pwData.newPassword}
+                  onChange={e => setPwData(d => ({ ...d, newPassword: e.target.value }))}
+                  required
+                  minLength={8}
+                  data-testid="input-admin-new-password"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowNew(!showNew)}>
+                  {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700">Confirm New Password</label>
+              <div className="relative mt-1">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  className="w-full border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={pwData.confirmPassword}
+                  onChange={e => setPwData(d => ({ ...d, confirmPassword: e.target.value }))}
+                  required
+                  data-testid="input-admin-confirm-password"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowConfirm(!showConfirm)}>
+                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <Button type="submit" disabled={isChanging} className="bg-amber-600 hover:bg-amber-700" data-testid="button-change-admin-password">
+              {isChanging ? "Updating..." : "Update Password"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-green-600" />
+            Admin Account Info
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-slate-500">Email</span>
+              <span className="font-medium">{adminUser?.email}</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-slate-500">Username</span>
+              <span className="font-medium">{adminUser?.username}</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-slate-500">Role</span>
+              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">ADMIN</span>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-slate-500">Default Credentials</span>
+              <code className="text-xs bg-slate-100 px-2 py-1 rounded">admin@beagvsglobal.com / Admin@2025!</code>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
@@ -548,6 +683,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="database" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-database">
               Database
+            </TabsTrigger>
+            <TabsTrigger value="security" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-security">
+              Security
             </TabsTrigger>
           </TabsList>
 
@@ -1535,6 +1673,10 @@ export default function Admin() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="security" className="space-y-6">
+            <AdminSecurityTab adminUser={user} />
           </TabsContent>
         </Tabs>
 

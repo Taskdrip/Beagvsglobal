@@ -7,6 +7,7 @@ import { Link, useLocation } from "wouter";
 import {
   Globe, Menu, User, LogOut, Bell, Settings, Package, Zap
 } from "lucide-react";
+import CryptoPriceTicker from "@/components/CryptoPriceTicker";
 
 interface NavigationProps {
   dark?: boolean;
@@ -62,7 +63,9 @@ export default function Navigation({ dark = false }: NavigationProps) {
   const linkActive = isDark ? "text-cyan-300" : "text-blue-600";
 
   return (
-    <nav className={`${navBg} sticky top-0 z-50 transition-all duration-200`}>
+    <div className="sticky top-0 z-50">
+      <CryptoPriceTicker />
+    <nav className={`${navBg} transition-all duration-200`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -303,5 +306,6 @@ export default function Navigation({ dark = false }: NavigationProps) {
         </div>
       </div>
     </nav>
+    </div>
   );
 }

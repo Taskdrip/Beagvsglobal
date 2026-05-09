@@ -57,6 +57,9 @@ export const users = pgTable("users", {
   accountType: accountTypeEnum("account_type").default('BUYER'),
   // Admin fields
   mustChangePassword: boolean("must_change_password").default(false),
+  // 2FA fields
+  twoFactorSecret: varchar("two_factor_secret"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
   // KYC fields
   kycStatus: kycStatusEnum("kyc_status").default('NOT_STARTED'),
   kycSubmittedAt: timestamp("kyc_submitted_at"),

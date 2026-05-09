@@ -6,6 +6,8 @@ import bcrypt from "bcrypt";
 import { z } from "zod";
 import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema, insertPlatformSettingSchema } from "@shared/schema";
 import { ObjectStorageService } from "./objectStorage";
+import speakeasy from "speakeasy";
+import QRCode from "qrcode";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -92,6 +94,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ message: "Logged out successfully" });
     });
+  });
+
+  // Change password route
+  app.post('/api/auth/change-password', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const { currentPassword, newPassword } = req.body;
+      const user = await storage.getUser(userId);
+      if (!user || !user.passwordHash) return res.status(401).json({ message: "User not found" });
+      const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+      const newHash = await bcrypt.hash(newPassword, 10);
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(users).set({ passwordHash: newHash, mustChangePassword: false }).where(eq(users.id, userId));
+      res.json({ message: "Password changed successfully" });
+    } catch (error: any) {
+      console.error("Change password error:", error);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
+  // Admin change password (from admin panel)
+  app.post('/api/admin/change-password', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const user = await storage.getUser(userId);
+      if (!user || user.role !== 'ADMIN') return res.status(403).json({ message: "Admin only" });
+      const { currentPassword, newPassword } = req.body;
+      if (!user.passwordHash) return res.status(400).json({ message: "No password set" });
+      const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+      const newHash = await bcrypt.hash(newPassword, 10);
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(users).set({ passwordHash: newHash, mustChangePassword: false }).where(eq(users.id, userId));
+      res.json({ message: "Password changed successfully" });
+    } catch (error: any) {
+      console.error("Admin change password error:", error);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
+  // 2FA Routes
+  app.post('/api/auth/2fa/setup', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const secret = speakeasy.generateSecret({
+        name: `Beagvs Marine (${user.email || user.username})`,
+        length: 20,
+      });
+
+      // Save the temp secret (not enabled yet until verified)
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(users).set({ twoFactorSecret: secret.base32 }).where(eq(users.id, userId));
+
+      const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
+      res.json({ secret: secret.base32, qrCode });
+    } catch (error: any) {
+      console.error("2FA setup error:", error);
+      res.status(500).json({ message: "Failed to setup 2FA" });
+    }
+  });
+
+  app.post('/api/auth/2fa/enable', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const { token } = req.body;
+      const user = await storage.getUser(userId);
+      if (!user || !user.twoFactorSecret) return res.status(400).json({ message: "2FA not set up" });
+
+      const verified = speakeasy.totp.verify({
+        secret: user.twoFactorSecret,
+        encoding: 'base32',
+        token,
+        window: 2,
+      });
+      if (!verified) return res.status(400).json({ message: "Invalid verification code" });
+
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, userId));
+      res.json({ message: "2FA enabled successfully" });
+    } catch (error: any) {
+      console.error("2FA enable error:", error);
+      res.status(500).json({ message: "Failed to enable 2FA" });
+    }
+  });
+
+  app.post('/api/auth/2fa/disable', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const { token, password } = req.body;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Require password confirmation to disable 2FA
+      if (user.passwordHash) {
+        const valid = await bcrypt.compare(password, user.passwordHash);
+        if (!valid) return res.status(401).json({ message: "Incorrect password" });
+      }
+
+      if (user.twoFactorEnabled && user.twoFactorSecret) {
+        const verified = speakeasy.totp.verify({
+          secret: user.twoFactorSecret,
+          encoding: 'base32',
+          token,
+          window: 2,
+        });
+        if (!verified) return res.status(400).json({ message: "Invalid 2FA code" });
+      }
+
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(users).set({ twoFactorEnabled: false, twoFactorSecret: null }).where(eq(users.id, userId));
+      res.json({ message: "2FA disabled successfully" });
+    } catch (error: any) {
+      console.error("2FA disable error:", error);
+      res.status(500).json({ message: "Failed to disable 2FA" });
+    }
+  });
+
+  app.get('/api/auth/2fa/status', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) return res.status(401).json({ message: "Unauthorized" });
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json({ enabled: !!user.twoFactorEnabled, hasSecret: !!user.twoFactorSecret });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get 2FA status" });
+    }
   });
 
   // Enhanced auth middleware that handles both Replit auth and custom auth
