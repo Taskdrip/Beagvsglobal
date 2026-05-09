@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import EscrowProgress from "@/components/EscrowProgress";
+import PagesContentTab from "@/components/PagesContentTab";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -541,6 +542,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="settings" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-settings">
               Payment Methods
+            </TabsTrigger>
+            <TabsTrigger value="pages" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-pages">
+              Pages
             </TabsTrigger>
             <TabsTrigger value="database" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-database">
               Database
@@ -1458,6 +1462,11 @@ export default function Admin() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ── Pages Content Management Tab ── */}
+          <TabsContent value="pages" className="space-y-6">
+            <PagesContentTab queryClient={queryClient} toast={toast} apiRequest={apiRequest} />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">

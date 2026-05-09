@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,10 +34,25 @@ const contactSchema = z.object({
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
+const CONTACT_DEFAULTS = {
+  heroTitle: "Get In Touch",
+  heroSubtitle:
+    "Have questions about our crypto marketplace? Need help with a transaction? We'd love to hear from you and help with any inquiries.",
+  email: "support@beagvs.global",
+  phone: "+1 (555) 123-4567",
+  address: "Serving customers worldwide",
+  hoursTitle: "Business Hours",
+  hours: "Monday - Friday: 9:00 AM - 6:00 PM UTC\nSaturday: 10:00 AM - 4:00 PM UTC\nSunday: Closed",
+  responseTime: "Typical response within 24 hours",
+};
+
 export default function Contact() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const { data: savedContent } = useQuery<any>({ queryKey: ["/api/page-content/contact"] });
+  const c = { ...CONTACT_DEFAULTS, ...(savedContent || {}) };
 
   const { toast } = useToast();
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -90,11 +105,10 @@ export default function Contact() {
             <span className="text-2xl font-bold text-slate-dark">Beagvs Global</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-dark mb-4" data-testid="text-contact-title">
-            Get In Touch
+            {c.heroTitle}
           </h1>
           <p className="text-xl text-slate-medium max-w-3xl mx-auto">
-            Have questions about our crypto marketplace? Need help with a transaction? 
-            We'd love to hear from you and help with any inquiries.
+            {c.heroSubtitle}
           </p>
         </div>
         
@@ -236,8 +250,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <h4 className="font-semibold text-slate-dark">Email</h4>
-                    <p className="text-slate-medium">support@beagvs.global</p>
-                    <p className="text-slate-medium">founder@beagvs.global</p>
+                    <p className="text-slate-medium">{c.email}</p>
                   </div>
                 </div>
                 
@@ -246,14 +259,14 @@ export default function Contact() {
                     <MessageCircle className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-slate-dark">WhatsApp</h4>
+                    <h4 className="font-semibold text-slate-dark">Phone / WhatsApp</h4>
                     <a 
-                      href="https://wa.me/15551234567"
+                      href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-green-600 hover:text-green-700"
                     >
-                      +1 (555) 123-4567
+                      {c.phone}
                     </a>
                   </div>
                 </div>
@@ -263,10 +276,11 @@ export default function Contact() {
                     <Clock className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-slate-dark">Business Hours</h4>
-                    <p className="text-slate-medium">Monday - Friday: 9:00 AM - 6:00 PM UTC</p>
-                    <p className="text-slate-medium">Saturday: 10:00 AM - 4:00 PM UTC</p>
-                    <p className="text-slate-medium">Sunday: Closed</p>
+                    <h4 className="font-semibold text-slate-dark">{c.hoursTitle}</h4>
+                    {c.hours.split("\n").map((line: string, i: number) => (
+                      <p key={i} className="text-slate-medium">{line}</p>
+                    ))}
+                    {c.responseTime && <p className="text-xs text-slate-400 mt-1">{c.responseTime}</p>}
                   </div>
                 </div>
 
@@ -276,7 +290,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <h4 className="font-semibold text-slate-dark">Global Presence</h4>
-                    <p className="text-slate-medium">Serving customers worldwide</p>
+                    <p className="text-slate-medium">{c.address}</p>
                     <p className="text-slate-medium">Decentralized operations</p>
                   </div>
                 </div>

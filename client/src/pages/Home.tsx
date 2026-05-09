@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Link } from "wouter";
+import CryptoIcon from "@/components/CryptoIcon";
 import { 
   Plus,
   TrendingUp,
@@ -157,7 +158,9 @@ export default function Home() {
                         <p className="text-sm text-slate-medium">{listing.type.replace('_', ' ')}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-slate-dark">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</p>
+                        <div className="flex items-center gap-1 font-semibold text-slate-dark">
+                          {parseFloat(listing.priceCrypto).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
+                        </div>
                         <p className="text-sm text-slate-medium">{listing.isActive ? 'Active' : 'Inactive'}</p>
                       </div>
                     </div>
@@ -197,7 +200,9 @@ export default function Home() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-slate-dark">{escrow.amount} {escrow.currency}</p>
+                        <div className="flex items-center gap-1 font-semibold text-slate-dark">
+                          {escrow.amount} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                        </div>
                         <span className={`text-xs px-2 py-1 rounded-full ${
                           escrow.status === 'RELEASED' ? 'bg-green-100 text-green-800' :
                           escrow.status === 'FUNDED' ? 'bg-blue-100 text-blue-800' :

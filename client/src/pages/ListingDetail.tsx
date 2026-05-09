@@ -11,6 +11,7 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import StarRating from "@/components/StarRating";
 import EscrowProgress from "@/components/EscrowProgress";
+import CryptoIcon from "@/components/CryptoIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -423,11 +424,7 @@ export default function ListingDetail() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center space-x-2 mb-1">
-                      <span className={`px-2 py-1 rounded text-sm font-medium ${
-                        listing.currency === 'PI' ? 'bg-purple-100 text-purple-800' : 'bg-teal-100 text-teal-800'
-                      }`}>
-                        {listing.currency === 'PI' ? 'π PI' : 'USDT'}
-                      </span>
+                      <CryptoIcon currency={listing.currency} size="md" />
                       <span className="text-xs text-slate-medium">{listing.network}</span>
                     </div>
                     <CardTitle className="text-3xl font-bold text-slate-dark" data-testid="text-listing-price">
@@ -464,18 +461,24 @@ export default function ListingDetail() {
                           </div>
                           
                           <div className="space-y-3">
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span className="text-slate-medium">Item Price:</span>
-                              <span className="font-semibold">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</span>
+                              <div className="flex items-center gap-1 font-semibold">
+                                {parseFloat(listing.priceCrypto).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
+                              </div>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span className="text-slate-medium">Platform Fee (10%):</span>
-                              <span className="font-semibold">{(parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} {listing.currency}</span>
+                              <div className="flex items-center gap-1 font-semibold">
+                                {(parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
+                              </div>
                             </div>
                             <Separator />
-                            <div className="flex justify-between text-lg">
+                            <div className="flex justify-between items-center text-lg">
                               <span className="font-semibold">Total:</span>
-                              <span className="font-bold">{(parseFloat(listing.priceCrypto) + parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} {listing.currency}</span>
+                              <div className="flex items-center gap-1 font-bold">
+                                {(parseFloat(listing.priceCrypto) + parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
+                              </div>
                             </div>
                           </div>
 
@@ -485,11 +488,7 @@ export default function ListingDetail() {
                               
                               <div className="mb-3">
                                 <div className="flex items-center justify-center space-x-2 mb-2">
-                                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                    listing.currency === 'PI' ? 'bg-purple-100 text-purple-800' : 'bg-teal-100 text-teal-800'
-                                  }`}>
-                                    {listing.currency === 'PI' ? 'π PI Network' : `USDT - ${listing.network}`}
-                                  </span>
+                                  <CryptoIcon currency={listing.currency} size="md" />
                                 </div>
                                 <p className="text-sm text-yellow-700 text-center">Send payment to this wallet address:</p>
                               </div>

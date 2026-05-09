@@ -10,6 +10,7 @@ import { Clock, Copy, CheckCircle, MessageCircle, Shield, AlertCircle, Package, 
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
+import CryptoIcon from "@/components/CryptoIcon";
 
 export default function Checkout() {
   const [, params] = useRoute("/checkout/:escrowId");
@@ -354,24 +355,24 @@ export default function Checkout() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 mb-6">
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-600">Item Price:</span>
-                <span className="font-semibold">
-                  {parseFloat(escrow.amount || "0").toLocaleString()} {escrow.currency}
-                </span>
+                <div className="flex items-center gap-1 font-semibold">
+                  {parseFloat(escrow.amount || "0").toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                </div>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-600">Platform Fee (10%):</span>
-                <span className="font-semibold">
-                  {(parseFloat(escrow.amount || "0") * 0.1).toLocaleString()} {escrow.currency}
-                </span>
+                <div className="flex items-center gap-1 font-semibold">
+                  {(parseFloat(escrow.amount || "0") * 0.1).toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                </div>
               </div>
               <Separator />
-              <div className="flex justify-between text-lg">
+              <div className="flex justify-between items-center text-lg">
                 <span className="font-semibold">Total Amount:</span>
-                <span className="font-bold">
-                  {totalAmount.toLocaleString()} {escrow.currency}
-                </span>
+                <div className="flex items-center gap-1 font-bold">
+                  {totalAmount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                </div>
               </div>
             </div>
 
@@ -461,13 +462,14 @@ export default function Checkout() {
                             : "bg-teal-100 text-teal-800"
                         }`}
                       >
-                        {escrow.currency === "PI" ? "π PI Network" : `USDT — ${escrow.network}`}
+                        <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                        {escrow.currency === "PI" ? " PI Network" : ` USDT — ${escrow.network}`}
                       </span>
                     </div>
                     <p className="text-sm text-yellow-700 text-center">
                       Send exactly{" "}
-                      <strong>
-                        {totalAmount.toFixed(8)} {escrow.currency}
+                      <strong className="inline-flex items-center gap-1">
+                        {totalAmount.toFixed(8)} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
                       </strong>{" "}
                       to this wallet address:
                     </p>
@@ -520,8 +522,8 @@ export default function Checkout() {
               </p>
               <p className="text-xs text-blue-600">
                 By confirming, you acknowledge that you have sent{" "}
-                <strong>
-                  {totalAmount.toLocaleString()} {escrow.currency}
+                <strong className="inline-flex items-center gap-1">
+                  {totalAmount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
                 </strong>{" "}
                 to the provided {isFiatCurrency ? "bank account" : "wallet address"}. Chat will be activated for secure communication.
               </p>

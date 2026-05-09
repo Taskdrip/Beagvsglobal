@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
@@ -17,10 +18,30 @@ import {
   Twitter
 } from "lucide-react";
 
+const ABOUT_DEFAULTS = {
+  heroTitle: "The World's Premier\nCrypto & Fiat Marketplace",
+  heroSubtitle:
+    "We're revolutionizing global commerce with military-grade security, comprehensive escrow protection, and support for multiple cryptocurrencies and traditional payment methods across 180+ countries.",
+  missionTitle: "Our Mission",
+  missionContent:
+    "We're building the world's most comprehensive crypto and fiat marketplace where users can trade real estate, access global shipping services, and exchange goods with complete security. Our advanced escrow system supports Pi Network, USDT across multiple blockchain networks (TRON, TON, BNB, Solana, Avalanche), and traditional currencies (USD, EUR, GBP, CAD, NGN) with military-grade protection.",
+  stat1Value: "25,000+",
+  stat1Label: "Active Users",
+  stat2Value: "180+",
+  stat2Label: "Countries",
+  stat3Value: "99.8%",
+  stat3Label: "Success Rate",
+  stat4Value: "$50M+",
+  stat4Label: "Trade Volume",
+};
+
 export default function About() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const { data: savedContent } = useQuery<any>({ queryKey: ["/api/page-content/about"] });
+  const c = { ...ABOUT_DEFAULTS, ...(savedContent || {}) };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -34,12 +55,12 @@ export default function About() {
             <span className="text-3xl font-bold">Beagvs Global</span>
           </div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6" data-testid="text-about-title">
-            The World's Premier<br />
-            <span className="text-blue-200">Crypto & Fiat Marketplace</span>
+            {c.heroTitle.split("\n").map((line: string, i: number) => (
+              <span key={i}>{line}{i === 0 && <br />}</span>
+            ))}
           </h1>
           <p className="text-xl text-blue-100 max-w-3xl mx-auto">
-            We're revolutionizing global commerce with military-grade security, comprehensive escrow protection, 
-            and support for multiple cryptocurrencies and traditional payment methods across 180+ countries.
+            {c.heroSubtitle}
           </p>
         </div>
       </section>
@@ -48,12 +69,9 @@ export default function About() {
       <section className="py-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <Target className="w-16 h-16 text-crypto-blue mx-auto mb-8" />
-          <h2 className="text-3xl font-bold text-slate-dark mb-6" data-testid="text-mission-title">Our Mission</h2>
+          <h2 className="text-3xl font-bold text-slate-dark mb-6" data-testid="text-mission-title">{c.missionTitle}</h2>
           <p className="text-xl text-slate-medium leading-relaxed" data-testid="text-mission-content">
-            We're building the world's most comprehensive crypto and fiat marketplace where users can trade real estate, 
-            access global shipping services, and exchange goods with complete security. Our advanced escrow system supports 
-            Pi Network, USDT across multiple blockchain networks (TRON, TON, BNB, Solana, Avalanche), and traditional currencies 
-            (USD, EUR, GBP, CAD, NGN) with military-grade protection.
+            {c.missionContent}
           </p>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
@@ -376,8 +377,31 @@ function FloatingToken({ symbol, delay, x, size = "md" }: { symbol: string; dela
   );
 }
 
+const LANDING_DEFAULTS = {
+  heroTitle: "Revolutionizing",
+  heroTitleAccent: "Global Commerce",
+  heroSubtitle:
+    "Trade real estate, ship globally, and exchange premium products with secure crypto & fiat escrow protection across 180+ countries.",
+  heroCta: "Start Trading Now",
+  heroSecondaryCta: "Explore Marketplace",
+  stat1Value: "$50M+",
+  stat1Label: "Total Volume",
+  stat2Value: "25K+",
+  stat2Label: "Verified Users",
+  stat3Value: "180+",
+  stat3Label: "Countries",
+  stat4Value: "99.8%",
+  stat4Label: "Success Rate",
+  featuresTitle: "Everything You Need to Trade Globally",
+  featuresSubtitle:
+    "Our comprehensive platform combines real estate, shipping, and marketplace services with military-grade crypto escrow protection.",
+};
+
 export default function Landing() {
   useEffect(() => { window.scrollTo(0, 0); }, []);
+
+  const { data: savedContent } = useQuery<any>({ queryKey: ["/api/page-content/landing"] });
+  const c = { ...LANDING_DEFAULTS, ...(savedContent || {}) };
 
   return (
     <div className="min-h-screen bg-[#050d1a]">
@@ -793,18 +817,32 @@ export default function Landing() {
             </span>
           </h2>
           <p className="text-slate-300 text-lg mb-8 max-w-2xl mx-auto">
-            Join 25,000+ verified traders across 180 countries. Create your free account and start trading with crypto escrow protection today.
+            Join {c.stat2Value} verified traders across {c.stat3Value} countries. Create your free account and start trading with crypto escrow protection today.
           </p>
+          {/* Dynamic stat pills */}
+          <div className="flex flex-wrap justify-center gap-6 mb-10">
+            {[
+              { value: c.stat1Value, label: c.stat1Label },
+              { value: c.stat2Value, label: c.stat2Label },
+              { value: c.stat3Value, label: c.stat3Label },
+              { value: c.stat4Value, label: c.stat4Label },
+            ].map((s) => (
+              <div key={s.label} className="text-center">
+                <div className="text-2xl font-extrabold text-white">{s.value}</div>
+                <div className="text-xs text-slate-400 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/signup">
               <Button size="lg" className="hero-btn-primary text-base px-8 py-5 font-semibold" data-testid="button-final-cta">
-                Get Started Free
+                {c.heroCta}
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </Link>
             <Link href="/marketplace">
               <Button size="lg" variant="outline" className="border-slate-600 text-slate-200 bg-white/5 hover:bg-white/10 text-base px-8 py-5 font-semibold">
-                Browse Marketplace
+                {c.heroSecondaryCta}
               </Button>
             </Link>
           </div>

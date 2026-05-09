@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import StarRating from "@/components/StarRating";
+import CryptoIcon from "@/components/CryptoIcon";
 import { Link } from "wouter";
 import { 
   Search,
@@ -217,11 +218,7 @@ export default function Marketplace() {
 
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        listing.currency === 'PI' ? 'bg-purple-100 text-purple-800' : 'bg-teal-100 text-teal-800'
-                      }`}>
-                        {listing.currency === 'PI' ? 'π PI' : 'USDT'}
-                      </span>
+                      <CryptoIcon currency={listing.currency} size="sm" />
                       <span className="font-bold text-slate-dark text-lg">{parseFloat(listing.priceCrypto).toLocaleString()}</span>
                     </div>
                     {listing.seller?.whatsapp && (

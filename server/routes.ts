@@ -1356,6 +1356,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── Page Content Management ──────────────────────────────────────────────────
+
+  // Public: get page content (with defaults)
+  app.get('/api/page-content/:page', async (req, res) => {
+    try {
+      const { page } = req.params;
+      const key = `page_content_${page}`;
+      const setting = await storage.getPlatformSetting(key);
+      res.json(setting?.value ?? null);
+    } catch (error: any) {
+      console.error("Error fetching page content:", error);
+      res.status(500).json({ message: "Failed to fetch page content" });
+    }
+  });
+
+  // Admin: update page content
+  app.put('/api/admin/page-content/:page', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { page } = req.params;
+      const key = `page_content_${page}`;
+      const userId = req.user.claims.sub;
+      const setting = await storage.upsertPlatformSetting(
+        key,
+        req.body,
+        `Content for ${page} page`,
+        userId
+      );
+      res.json(setting.value);
+    } catch (error: any) {
+      console.error("Error updating page content:", error);
+      res.status(500).json({ message: "Failed to update page content" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

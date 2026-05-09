@@ -9,6 +9,7 @@ import Footer from "@/components/Footer";
 import WalletManager from "@/components/WalletManager";
 import EscrowProgress from "@/components/EscrowProgress";
 import { KycStatus } from "@/components/KycStatus";
+import CryptoIcon from "@/components/CryptoIcon";
 import { Link } from "wouter";
 import { 
   Plus,
@@ -215,7 +216,9 @@ export default function Dashboard() {
                             <p className="text-sm text-slate-medium">{listing.type.replace('_', ' ')}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-slate-dark">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</p>
+                            <div className="flex items-center gap-1 font-semibold text-slate-dark">
+                            {parseFloat(listing.priceCrypto).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
+                          </div>
                             <span className={`text-xs px-2 py-1 rounded-full ${
                               listing.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                             }`}>
@@ -267,7 +270,9 @@ export default function Dashboard() {
                             <p className="text-sm text-slate-medium">
                               {escrow.buyerId === user?.id ? `Buying from ${escrow.seller?.username}` : `Selling to ${escrow.buyer?.username}`}
                             </p>
-                            <p className="font-semibold text-slate-dark">{escrow.amount} {escrow.currency}</p>
+                            <div className="flex items-center gap-1 font-semibold text-slate-dark">
+                              {escrow.amount} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                            </div>
                           </div>
                           <EscrowProgress status={escrow.status} className="mt-2" />
                         </div>
@@ -318,7 +323,9 @@ export default function Dashboard() {
                           <p className="text-xs text-slate-400">Created {new Date(listing.createdAt).toLocaleDateString()}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-slate-dark text-lg">{parseFloat(listing.priceCrypto).toLocaleString()} {listing.currency}</p>
+                          <div className="flex items-center gap-1 font-semibold text-slate-dark text-lg">
+                            {parseFloat(listing.priceCrypto).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
+                          </div>
                           <p className="text-sm text-slate-medium">{listing.network}</p>
                         </div>
                         <div className="flex flex-col space-y-2">
@@ -371,7 +378,9 @@ export default function Dashboard() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                           <div>
                             <p className="text-sm text-slate-medium">Amount</p>
-                            <p className="font-semibold">{escrow.amount} {escrow.currency}</p>
+                            <div className="flex items-center gap-1 font-semibold">
+                              {escrow.amount} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                            </div>
                           </div>
                           <div>
                             <p className="text-sm text-slate-medium">Network</p>
@@ -388,11 +397,15 @@ export default function Dashboard() {
                             <div className="grid grid-cols-2 gap-4 text-sm">
                               <div>
                                 <p className="text-green-700">Platform Fee (10%)</p>
-                                <p className="font-semibold text-green-800">{escrow.platformFeeAmount} {escrow.currency}</p>
+                                <div className="flex items-center gap-1 font-semibold text-green-800">
+                                  {escrow.platformFeeAmount} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                                </div>
                               </div>
                               <div>
                                 <p className="text-green-700">Net Amount</p>
-                                <p className="font-semibold text-green-800">{escrow.sellerNetAmount} {escrow.currency}</p>
+                                <div className="flex items-center gap-1 font-semibold text-green-800">
+                                  {escrow.sellerNetAmount} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" />
+                                </div>
                               </div>
                             </div>
                           </div>
