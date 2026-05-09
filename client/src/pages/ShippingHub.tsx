@@ -757,11 +757,11 @@ export default function ShippingHub() {
                     </Button>
                   </>
                 ) : (
-                  <Link href="/login">
+                  <a href="/api/login">
                     <Button className="h-12 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 font-semibold">
                       Sign In to Book
                     </Button>
-                  </Link>
+                  </a>
                 )}
               </div>
             </div>
@@ -879,11 +879,11 @@ export default function ShippingHub() {
                   <Shield className="w-12 h-12 text-cyan-400 mx-auto mb-4" />
                   <h3 className="text-xl font-bold text-white mb-2">Sign in to Book Shipments</h3>
                   <p className="text-white/60 mb-6">Create an account to book cargo, manage shipments, and track deliveries with escrow protection.</p>
-                  <Link href="/login">
+                  <a href="/api/login">
                     <Button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 font-semibold h-11 px-8">
                       Get Started <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
-                  </Link>
+                  </a>
                 </CardContent>
               </Card>
             )}

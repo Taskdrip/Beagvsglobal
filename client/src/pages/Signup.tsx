@@ -265,11 +265,11 @@ export default function Signup() {
                 </div>
               </div>
               
-              <Link href="/login">
+              <a href="/api/login">
                 <Button variant="outline" className="w-full" data-testid="link-login">
                   Sign In Instead
                 </Button>
-              </Link>
+              </a>
             </div>
           </CardContent>
         </Card>

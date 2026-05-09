@@ -49,7 +49,7 @@ export default function Navigation({ dark = false }: NavigationProps) {
     }
   };
 
-  const handleSignIn = () => { window.location.href = "/login"; };
+  const handleSignIn = () => { window.location.href = "/api/login"; };
 
   const isDark = dark;
 
