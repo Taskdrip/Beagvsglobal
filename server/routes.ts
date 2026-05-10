@@ -8,6 +8,8 @@ import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReview
 import { ObjectStorageService } from "./objectStorage";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
+import fs from "fs";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -1158,28 +1160,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/kyc/facial-upload-url', isAuthenticatedEnhanced, async (req: any, res) => {
+  app.post('/api/kyc/upload-facial', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getFacialVerificationUploadURL(userId);
-      res.json({ uploadURL });
+      const { imageData } = req.body;
+
+      if (!imageData) {
+        return res.status(400).json({ message: "Image data is required" });
+      }
+
+      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      const kycDir = path.join(process.cwd(), 'public', 'uploads', 'kyc');
+      fs.mkdirSync(kycDir, { recursive: true });
+
+      const filename = `facial-${userId}-${Date.now()}.jpg`;
+      const filepath = path.join(kycDir, filename);
+      fs.writeFileSync(filepath, buffer);
+
+      res.json({ url: `/uploads/kyc/${filename}` });
     } catch (error) {
-      console.error("Error generating facial upload URL:", error);
-      res.status(500).json({ message: "Failed to generate upload URL" });
+      console.error("Error uploading facial photo:", error);
+      res.status(500).json({ message: "Failed to upload photo" });
     }
   });
 
-  app.post('/api/kyc/document-upload-url', isAuthenticatedEnhanced, async (req: any, res) => {
+  app.post('/api/kyc/upload-document', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { documentType } = req.body;
-      const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getKycDocumentUploadURL(userId, documentType);
-      res.json({ uploadURL });
+      const { imageData, documentType, mimeType = 'image/jpeg' } = req.body;
+
+      if (!imageData) {
+        return res.status(400).json({ message: "Document data is required" });
+      }
+
+      const base64Data = imageData.replace(/^data:[^;]+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      const kycDir = path.join(process.cwd(), 'public', 'uploads', 'kyc');
+      fs.mkdirSync(kycDir, { recursive: true });
+
+      const ext = mimeType.includes('pdf') ? 'pdf' : 'jpg';
+      const filename = `doc-${userId}-${documentType || 'id'}-${Date.now()}.${ext}`;
+      const filepath = path.join(kycDir, filename);
+      fs.writeFileSync(filepath, buffer);
+
+      res.json({ url: `/uploads/kyc/${filename}` });
     } catch (error) {
-      console.error("Error generating document upload URL:", error);
-      res.status(500).json({ message: "Failed to generate upload URL" });
+      console.error("Error uploading document:", error);
+      res.status(500).json({ message: "Failed to upload document" });
     }
   });
 
