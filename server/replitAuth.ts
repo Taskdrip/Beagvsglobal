@@ -7,6 +7,7 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+import { pool } from "./db";
 
 const IS_REPLIT = !!process.env.REPLIT_DOMAINS;
 
@@ -23,8 +24,9 @@ const getOidcConfig = memoize(
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
   const pgStore = connectPg(session);
+  // Use the shared SSL-aware pool so Railway's PostgreSQL works correctly
   const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
+    pool,
     createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: "sessions",
