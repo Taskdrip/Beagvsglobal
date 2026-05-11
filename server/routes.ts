@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import type { Server as HttpServer } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import bcrypt from "bcrypt";
@@ -11,7 +12,7 @@ import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, existingServer?: HttpServer): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
@@ -1584,7 +1585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  const httpServer = createServer(app);
+  const httpServer = existingServer ?? createServer(app);
 
   return httpServer;
 }

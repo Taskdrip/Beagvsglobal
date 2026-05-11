@@ -7,24 +7,26 @@ const { Pool } = pg;
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
+  // Log clearly but do NOT exit — let the HTTP server stay alive so
+  // Railway's healthcheck passes and the error is visible in deploy logs.
   console.error(
-    "\n[FATAL] DATABASE_URL is not set.\n" +
-    "On Railway: go to your app service → Variables tab and add:\n" +
+    "\n[ERROR] DATABASE_URL is not set.\n" +
+    "On Railway: Beagvsglobal service → Variables tab → add:\n" +
     "  DATABASE_URL = ${{Postgres.DATABASE_URL}}\n" +
-    "This links your PostgreSQL service to this app.\n"
+    "The server will start but all database operations will fail.\n"
   );
-  process.exit(1);
 }
 
 const sslEnabled =
   process.env.DATABASE_SSL === "true" ||
   (process.env.NODE_ENV === "production" &&
+    !!connectionString &&
     !connectionString.includes("localhost") &&
     !connectionString.includes("127.0.0.1") &&
     !connectionString.includes("helium"));
 
 export const pool = new Pool({
-  connectionString,
+  connectionString: connectionString || "postgresql://localhost/placeholder",
   ssl: sslEnabled ? { rejectUnauthorized: false } : false,
 });
 

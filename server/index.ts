@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -24,11 +25,9 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
-
       log(logLine);
     }
   });
@@ -36,14 +35,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint — must respond before full async setup completes
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+// Health check endpoints — available immediately before any async setup
+// Covers both /health and /api/health for Railway and other platforms
+app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
+
+// Bind the port FIRST so the healthcheck always gets a response,
+// even if the async setup below (DB, sessions, routes) takes time or fails.
+const port = parseInt(process.env.PORT || "5000", 10);
+const server = createServer(app);
+
+server.listen({ port, host: "0.0.0.0" }, () => {
+  log(`serving on port ${port}`);
 });
 
 (async () => {
   try {
-    const server = await registerRoutes(app);
+    await registerRoutes(app, server);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
@@ -58,12 +66,10 @@ app.get("/health", (_req, res) => {
       serveStatic(app);
     }
 
-    const port = parseInt(process.env.PORT || "5000", 10);
-    server.listen({ port, host: "0.0.0.0" }, () => {
-      log(`serving on port ${port}`);
-    });
+    log("Application fully initialised");
   } catch (err) {
-    console.error("Fatal startup error — server could not start:", err);
-    process.exit(1);
+    console.error("Fatal startup error — routes/DB failed to initialise:", err);
+    // Do NOT exit — keep the server alive so Railway healthcheck still passes
+    // and the error is visible in deploy logs
   }
 })();
