@@ -4,20 +4,27 @@ import * as schema from "@shared/schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error(
+    "\n[FATAL] DATABASE_URL is not set.\n" +
+    "On Railway: go to your app service → Variables tab and add:\n" +
+    "  DATABASE_URL = ${{Postgres.DATABASE_URL}}\n" +
+    "This links your PostgreSQL service to this app.\n"
   );
+  process.exit(1);
 }
 
 const sslEnabled =
   process.env.DATABASE_SSL === "true" ||
   (process.env.NODE_ENV === "production" &&
-    !process.env.DATABASE_URL.includes("localhost") &&
-    !process.env.DATABASE_URL.includes("127.0.0.1"));
+    !connectionString.includes("localhost") &&
+    !connectionString.includes("127.0.0.1") &&
+    !connectionString.includes("helium"));
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: sslEnabled ? { rejectUnauthorized: false } : false,
 });
 
