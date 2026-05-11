@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "yZs7qp4nQEIeiEhcqRxuM"
+uri = "file://schema.txt"
+type = "text"
+title = "Beagvs Global — PostgreSQL Schema (paste into Railway)"
