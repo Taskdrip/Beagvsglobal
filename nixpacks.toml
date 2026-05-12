@@ -2,4 +2,4 @@
 nixPkgs = ["nodejs_20"]
 
 [start]
-cmd = "npm run db:push && node dist/index.js"
+cmd = "npm run db:migrate && node dist/index.js"
