@@ -1592,6 +1592,17 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  app.post('/api/admin/seed-blog', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const { seedBlogPosts } = await import("./seed-blog");
+      const result = await seedBlogPosts();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Blog seed error:", error);
+      res.status(500).json({ message: error.message || "Failed to seed blog posts" });
+    }
+  });
+
   // Admin: get all listings
   app.get('/api/admin/listings', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
     try {
@@ -1666,7 +1677,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
       // Get conversation history for context
       const history = await storage.getAiSupportMessages(id);
-      const { openai, SYSTEM_PROMPT } = await import("./openai");
+      const { openai, AI_MODEL, SYSTEM_PROMPT } = await import("./openai");
 
       // Stream AI response
       res.setHeader('Content-Type', 'text/event-stream');
@@ -1682,10 +1693,10 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       ];
 
       const stream = await openai.chat.completions.create({
-        model: 'gpt-5-mini',
+        model: AI_MODEL,
         messages: chatMessages,
         stream: true,
-        max_completion_tokens: 512,
+        max_tokens: 512,
       });
 
       let fullResponse = '';

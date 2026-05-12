@@ -1,9 +1,12 @@
 import OpenAI from "openai";
 
-export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// Support both Replit AI Integrations (dev) and standard OpenAI key (Railway/prod)
+const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined;
+
+export const openai = new OpenAI({ apiKey, baseURL });
+
+export const AI_MODEL = "gpt-4o-mini";
 
 export const SYSTEM_PROMPT = `You are a helpful support assistant for Beagvs Global, a crypto-powered marketplace for real estate, global shipping, and products.
 

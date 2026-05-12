@@ -49,6 +49,15 @@ server.listen({ port, host: "0.0.0.0" }, () => {
   log(`serving on port ${port}`);
 });
 
+async function runAutoSeed() {
+  try {
+    const { seedAdmin } = await import("./seed-startup");
+    await seedAdmin();
+  } catch (err) {
+    console.error("Auto-seed failed (non-fatal):", err);
+  }
+}
+
 (async () => {
   try {
     await registerRoutes(app, server);
@@ -67,6 +76,9 @@ server.listen({ port, host: "0.0.0.0" }, () => {
     }
 
     log("Application fully initialised");
+
+    // Run auto-seed after everything is ready (non-blocking)
+    runAutoSeed().catch(() => {});
   } catch (err) {
     console.error("Fatal startup error — routes/DB failed to initialise:", err);
     // Do NOT exit — keep the server alive so Railway healthcheck still passes

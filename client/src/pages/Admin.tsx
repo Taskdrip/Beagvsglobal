@@ -593,21 +593,85 @@ function AdminSupportChatTab() {
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevSessionsRef = useRef<any[]>([]);
+  const prevMsgCountRef = useRef<number>(0);
+  const notifPermissionRef = useRef<boolean>(false);
+
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        notifPermissionRef.current = true;
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(p => {
+          notifPermissionRef.current = p === "granted";
+        });
+      }
+    }
+  }, []);
+
+  function sendBrowserNotif(title: string, body: string) {
+    if (notifPermissionRef.current && document.hidden) {
+      try {
+        const n = new Notification(title, { body, icon: "/favicon.ico", tag: "beagvs-support" });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch {}
+    }
+  }
 
   const { data: sessions = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/admin/ai-support/sessions'],
-    refetchInterval: 8000,
+    refetchInterval: 6000,
   });
+
+  // Detect new/escalated sessions and fire popup
+  useEffect(() => {
+    if (!sessions || sessions.length === 0) { prevSessionsRef.current = sessions; return; }
+    const prev = prevSessionsRef.current;
+    const prevIds = new Set(prev.map((s: any) => s.id));
+    for (const s of sessions) {
+      if (!prevIds.has(s.id)) {
+        const name = s.guestName || (s.user ? `${s.user.firstName || ''} ${s.user.lastName || ''}`.trim() : 'Guest');
+        toast({ title: "💬 New Support Chat", description: `${name} started a chat session` });
+        sendBrowserNotif("New Support Chat — Beagvs Global", `${name} started a support session`);
+      } else {
+        const prevS = prev.find((p: any) => p.id === s.id);
+        if (prevS && prevS.status !== 'escalated' && s.status === 'escalated') {
+          const name = s.guestName || (s.user ? `${s.user.firstName || ''} ${s.user.lastName || ''}`.trim() : 'Guest');
+          toast({ title: "🔴 Escalation Alert", description: `${name} needs a live representative!`, variant: "destructive" });
+          sendBrowserNotif("⚠️ Escalation — Beagvs Support", `${name} has been escalated to live support!`);
+        }
+        if (prevS && s.messageCount > prevS.messageCount && s.id !== selectedSessionId) {
+          const name = s.guestName || (s.user ? `${s.user.firstName || ''} ${s.user.lastName || ''}`.trim() : 'Guest');
+          sendBrowserNotif("New Message — Beagvs Support", `${name} sent a message`);
+        }
+      }
+    }
+    prevSessionsRef.current = sessions;
+  }, [sessions]);
 
   const { data: sessionData } = useQuery<{ session: any; messages: any[] }>({
     queryKey: ['/api/ai-support/sessions', selectedSessionId, 'messages'],
     enabled: !!selectedSessionId,
-    refetchInterval: 5000,
+    refetchInterval: 4000,
     select: (d: any) => d,
   });
 
   const messages = sessionData?.messages ?? [];
   const activeSession = sessionData?.session;
+
+  // Notify on new messages in open sessions
+  useEffect(() => {
+    const count = messages.length;
+    if (prevMsgCountRef.current > 0 && count > prevMsgCountRef.current) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.role === 'user') {
+        const name = lastMsg.senderName || 'User';
+        sendBrowserNotif("New Message — Beagvs Support", `${name}: ${lastMsg.content.slice(0, 80)}`);
+      }
+    }
+    prevMsgCountRef.current = count;
+  }, [messages.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
