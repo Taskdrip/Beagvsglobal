@@ -32,6 +32,7 @@ import {
   XCircle,
   AlertTriangle,
   Eye,
+  EyeOff,
   Edit,
   Trash2,
   Plus,
@@ -206,6 +207,374 @@ function AdminSecurityTab({ adminUser }: { adminUser: any }) {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; queryClient: any; apiRequest: any }) {
+  const [editingListing, setEditingListing] = useState<any>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [facilitiesInput, setFacilitiesInput] = useState("");
+  const [amenitiesInput, setAmenitiesInput] = useState("");
+  const [imagesInput, setImagesInput] = useState("");
+
+  const { data: allListings, refetch: refetchListings, isLoading } = useQuery({
+    queryKey: ["/api/admin/listings"],
+  });
+
+  const updateListingMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      await apiRequest("PATCH", `/api/admin/listings/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Listing updated successfully" });
+      setShowEditDialog(false);
+      setEditingListing(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/listings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/listings"] });
+    },
+    onError: (err: any) => toast({ title: "Failed to update", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteListingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/listings/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Listing deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/listings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/listings"] });
+    },
+    onError: (err: any) => toast({ title: "Failed to delete", description: err.message, variant: "destructive" }),
+  });
+
+  const handleSeedProperties = async () => {
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/admin/seed-properties", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: `Seeded ${data.created} properties (${data.skipped} skipped)` });
+        refetchListings();
+      } else {
+        toast({ title: "Seed failed", description: data.message, variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Seed failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const openEditDialog = (listing: any) => {
+    setEditingListing({ ...listing });
+    const meta = listing.metadata || {};
+    setFacilitiesInput((meta.facilities || []).join("\n"));
+    setAmenitiesInput((meta.amenities || []).join("\n"));
+    setImagesInput((listing.images || []).join("\n"));
+    setShowEditDialog(true);
+  };
+
+  const handleSaveListing = () => {
+    if (!editingListing) return;
+    const facilities = facilitiesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    const amenities = amenitiesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    const images = imagesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    const updatedMeta = {
+      ...(editingListing.metadata || {}),
+      facilities,
+      amenities,
+      bedrooms: editingListing.metadata?.bedrooms,
+      bathrooms: editingListing.metadata?.bathrooms,
+      areaSqft: editingListing.metadata?.areaSqft,
+      propertyType: editingListing.metadata?.propertyType,
+      category: editingListing.metadata?.category,
+      propertyTitle: editingListing.metadata?.propertyTitle,
+      thankYouMessage: editingListing.metadata?.thankYouMessage,
+      whatsapp: "+2348037232210",
+    };
+    updateListingMutation.mutate({
+      id: editingListing.id,
+      data: {
+        title: editingListing.title,
+        description: editingListing.description,
+        priceCrypto: editingListing.priceCrypto,
+        currency: editingListing.currency,
+        location: editingListing.location,
+        images,
+        metadata: updatedMeta,
+        isActive: editingListing.isActive,
+      },
+    });
+  };
+
+  const listings = (allListings as any[]) || [];
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between flex-wrap gap-3">
+            <span className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-emerald-600" />
+              Property Listings ({listings.length})
+            </span>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSeedProperties}
+                disabled={seeding}
+                data-testid="button-seed-properties"
+              >
+                {seeding ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Seeding…</> : <><Plus className="w-4 h-4 mr-1" /> Seed Nigerian Properties</>}
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8 text-slate-400">Loading listings…</div>
+          ) : listings.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 mb-4">No listings yet. Seed the 8 Nigerian properties to get started.</p>
+              <Button onClick={handleSeedProperties} disabled={seeding}>
+                {seeding ? "Seeding…" : "Seed Properties"}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {listings.map((listing: any) => (
+                <div key={listing.id} className="border rounded-lg p-4 hover:bg-slate-50 transition-colors" data-testid={`admin-listing-${listing.id}`}>
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`w-2 h-2 rounded-full ${listing.isActive ? "bg-green-500" : "bg-slate-400"}`} />
+                        <h4 className="font-medium text-slate-900 text-sm truncate">{listing.title}</h4>
+                        <Badge variant="outline" className="text-xs">{listing.type}</Badge>
+                        <Badge variant="outline" className="text-xs">{listing.currency}</Badge>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-1">{listing.location}</p>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {listing.currency} {parseFloat(listing.priceCrypto).toLocaleString()}
+                      </p>
+                      {listing.metadata?.facilities?.length > 0 && (
+                        <p className="text-xs text-slate-400 mt-1">{listing.metadata.facilities.length} facilities · {listing.metadata.amenities?.length || 0} amenities</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openEditDialog(listing)} data-testid={`button-edit-listing-${listing.id}`}>
+                        <Edit className="w-3.5 h-3.5 mr-1" /> Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => { if (confirm(`Delete "${listing.title}"?`)) deleteListingMutation.mutate(listing.id); }}
+                        data-testid={`button-delete-listing-${listing.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Listing</DialogTitle>
+          </DialogHeader>
+          {editingListing && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Title</Label>
+                <Input
+                  value={editingListing.title}
+                  onChange={e => setEditingListing((l: any) => ({ ...l, title: e.target.value }))}
+                  className="mt-1"
+                  data-testid="input-listing-title"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-sm font-medium">Price</Label>
+                  <Input
+                    type="number"
+                    value={editingListing.priceCrypto}
+                    onChange={e => setEditingListing((l: any) => ({ ...l, priceCrypto: e.target.value }))}
+                    className="mt-1"
+                    data-testid="input-listing-price"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Currency</Label>
+                  <Select value={editingListing.currency} onValueChange={v => setEditingListing((l: any) => ({ ...l, currency: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NGN">NGN (Naira)</SelectItem>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="USDT">USDT</SelectItem>
+                      <SelectItem value="PI">PI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Location</Label>
+                <Input
+                  value={editingListing.location || ""}
+                  onChange={e => setEditingListing((l: any) => ({ ...l, location: e.target.value }))}
+                  className="mt-1"
+                  data-testid="input-listing-location"
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Description</Label>
+                <Textarea
+                  rows={4}
+                  value={editingListing.description}
+                  onChange={e => setEditingListing((l: any) => ({ ...l, description: e.target.value }))}
+                  className="mt-1"
+                  data-testid="textarea-listing-description"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-sm font-medium">Bedrooms</Label>
+                  <Input
+                    type="number"
+                    value={editingListing.metadata?.bedrooms || ""}
+                    onChange={e => setEditingListing((l: any) => ({ ...l, metadata: { ...l.metadata, bedrooms: parseInt(e.target.value) || undefined } }))}
+                    className="mt-1"
+                    placeholder="e.g. 4"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Bathrooms</Label>
+                  <Input
+                    type="number"
+                    value={editingListing.metadata?.bathrooms || ""}
+                    onChange={e => setEditingListing((l: any) => ({ ...l, metadata: { ...l.metadata, bathrooms: parseInt(e.target.value) || undefined } }))}
+                    className="mt-1"
+                    placeholder="e.g. 3"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Area (sqft)</Label>
+                  <Input
+                    type="number"
+                    value={editingListing.metadata?.areaSqft || ""}
+                    onChange={e => setEditingListing((l: any) => ({ ...l, metadata: { ...l.metadata, areaSqft: parseInt(e.target.value) || undefined } }))}
+                    className="mt-1"
+                    placeholder="e.g. 3000"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Property Title Document</Label>
+                <Input
+                  value={editingListing.metadata?.propertyTitle || ""}
+                  onChange={e => setEditingListing((l: any) => ({ ...l, metadata: { ...l.metadata, propertyTitle: e.target.value } }))}
+                  className="mt-1"
+                  placeholder="e.g. Certificate of Occupancy (C of O)"
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Facilities <span className="text-slate-400 font-normal">(one per line)</span></Label>
+                <Textarea
+                  rows={4}
+                  value={facilitiesInput}
+                  onChange={e => setFacilitiesInput(e.target.value)}
+                  className="mt-1 font-mono text-sm"
+                  placeholder={"Gated Estate\nCCTV Security\nBorehole Water\n24hr Electricity"}
+                  data-testid="textarea-facilities"
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Amenities <span className="text-slate-400 font-normal">(one per line)</span></Label>
+                <Textarea
+                  rows={3}
+                  value={amenitiesInput}
+                  onChange={e => setAmenitiesInput(e.target.value)}
+                  className="mt-1 font-mono text-sm"
+                  placeholder={"Fitted Kitchen\nPOP Ceiling\nTiled Floors"}
+                  data-testid="textarea-amenities"
+                />
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Image URLs <span className="text-slate-400 font-normal">(one per line)</span></Label>
+                <Textarea
+                  rows={4}
+                  value={imagesInput}
+                  onChange={e => setImagesInput(e.target.value)}
+                  className="mt-1 font-mono text-sm"
+                  placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
+                  data-testid="textarea-images"
+                />
+                {imagesInput && (
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {imagesInput.split("\n").filter(u => u.trim()).slice(0, 4).map((url, i) => (
+                      <img key={i} src={url.trim()} alt="" className="w-16 h-16 object-cover rounded border" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Thank You Message <span className="text-slate-400 font-normal">(shown after enquiry)</span></Label>
+                <Textarea
+                  rows={2}
+                  value={editingListing.metadata?.thankYouMessage || ""}
+                  onChange={e => setEditingListing((l: any) => ({ ...l, metadata: { ...l.metadata, thankYouMessage: e.target.value } }))}
+                  className="mt-1"
+                  placeholder="Thank you for your interest! Our agent will contact you within 24 hours."
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={editingListing.isActive}
+                  onChange={e => setEditingListing((l: any) => ({ ...l, isActive: e.target.checked }))}
+                  className="rounded"
+                />
+                <Label htmlFor="isActive" className="text-sm font-medium">Active (visible to buyers)</Label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => setShowEditDialog(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={handleSaveListing}
+                  disabled={updateListingMutation.isPending}
+                  data-testid="button-save-listing"
+                >
+                  {updateListingMutation.isPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving…</> : <><Save className="w-4 h-4 mr-1" /> Save Changes</>}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -701,6 +1070,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="pages" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-pages">
               Pages
+            </TabsTrigger>
+            <TabsTrigger value="listings" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-listings">
+              Listings
             </TabsTrigger>
             <TabsTrigger value="database" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-database">
               Database
@@ -1746,6 +2118,11 @@ export default function Admin() {
           {/* ── Pages Content Management Tab ── */}
           <TabsContent value="pages" className="space-y-6">
             <PagesContentTab queryClient={queryClient} toast={toast} apiRequest={apiRequest} />
+          </TabsContent>
+
+          {/* ── Listings Management Tab ── */}
+          <TabsContent value="listings" className="space-y-6">
+            <AdminListingsTab toast={toast} queryClient={queryClient} apiRequest={apiRequest} />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">

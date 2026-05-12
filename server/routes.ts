@@ -1580,6 +1580,51 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // Admin: seed Nigerian real estate properties
+  app.post('/api/admin/seed-properties', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const { seedProperties } = await import("./seed-properties");
+      const result = await seedProperties();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Seed error:", error);
+      res.status(500).json({ message: error.message || "Failed to seed properties" });
+    }
+  });
+
+  // Admin: get all listings
+  app.get('/api/admin/listings', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const allListings = await storage.getListings({});
+      res.json(allListings);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch listings" });
+    }
+  });
+
+  // Admin: update listing (including metadata, images, facilities)
+  app.patch('/api/admin/listings/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getListing(id);
+      if (!existing) return res.status(404).json({ message: "Listing not found" });
+      const listing = await storage.updateListing(id, req.body);
+      res.json(listing);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update listing" });
+    }
+  });
+
+  // Admin: delete listing
+  app.delete('/api/admin/listings/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      await storage.deleteListing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete listing" });
+    }
+  });
+
   // Health check — used by Railway to verify the app is alive
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

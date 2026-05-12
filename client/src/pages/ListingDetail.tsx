@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "wouter";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -29,11 +33,23 @@ import {
   Heart,
   Share2,
   Flag,
-  ArrowLeft
+  ArrowLeft,
+  CheckCircle,
+  Bed,
+  Bath,
+  Square,
+  FileText,
+  Phone
 } from "lucide-react";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+
+const WHATSAPP_NUMBER = "2348037232210";
+
+function getWhatsAppUrl(listing: any) {
+  const message = encodeURIComponent(
+    `Hi! I'm interested in your property:\n*${listing.title}*\nLocation: ${listing.location || "N/A"}\nPrice: ${listing.currency} ${parseFloat(listing.priceCrypto || "0").toLocaleString()}\n\nPlease send me more details.`
+  );
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
+}
 
 const reviewSchema = z.object({
   rating: z.number().min(1, "Please select a rating").max(5),
@@ -384,6 +400,66 @@ export default function ListingDetail() {
                     {listing.description}
                   </p>
                 </div>
+
+                {/* Property Specs (Real Estate) */}
+                {listing.type === "REAL_ESTATE" && listing.metadata && (
+                  <div className="mt-6 pt-6 border-t border-slate-200">
+                    <h4 className="font-semibold text-slate-dark mb-4">Property Details</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-5">
+                      {listing.metadata.bedrooms && (
+                        <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
+                          <Bed className="w-4 h-4 text-blue-500" />
+                          <span className="font-medium">{listing.metadata.bedrooms} Bedrooms</span>
+                        </div>
+                      )}
+                      {listing.metadata.bathrooms && (
+                        <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
+                          <Bath className="w-4 h-4 text-blue-500" />
+                          <span className="font-medium">{listing.metadata.bathrooms} Bathrooms</span>
+                        </div>
+                      )}
+                      {listing.metadata.areaSqft && (
+                        <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
+                          <Square className="w-4 h-4 text-blue-500" />
+                          <span className="font-medium">{Number(listing.metadata.areaSqft).toLocaleString()} sqft</span>
+                        </div>
+                      )}
+                      {listing.metadata.propertyTitle && (
+                        <div className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
+                          <FileText className="w-4 h-4 text-green-600" />
+                          <span className="font-medium text-xs">{listing.metadata.propertyTitle}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Facilities */}
+                    {listing.metadata.facilities?.length > 0 && (
+                      <div className="mb-5">
+                        <h5 className="font-semibold text-slate-700 mb-3">Facilities</h5>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {listing.metadata.facilities.map((f: string) => (
+                            <div key={f} className="flex items-center gap-2 text-sm text-slate-600">
+                              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                              {f}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Amenities */}
+                    {listing.metadata.amenities?.length > 0 && (
+                      <div>
+                        <h5 className="font-semibold text-slate-700 mb-3">Amenities</h5>
+                        <div className="flex flex-wrap gap-2">
+                          {listing.metadata.amenities.map((a: string) => (
+                            <Badge key={a} variant="secondary" className="text-xs">{a}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <div className="mt-6 pt-6 border-t border-slate-200">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -412,6 +488,25 @@ export default function ListingDetail() {
                     </div>
                   </div>
                 </div>
+
+                {/* WhatsApp CTA Banner */}
+                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-semibold text-green-800 text-sm">Enquire on WhatsApp</p>
+                    <p className="text-xs text-green-700">Chat directly with our agent — fast response guaranteed</p>
+                  </div>
+                  <a
+                    href={getWhatsAppUrl(listing)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="button-whatsapp-detail"
+                  >
+                    <Button className="bg-green-500 hover:bg-green-600 text-white gap-2 whitespace-nowrap">
+                      <MessageCircle className="w-4 h-4" />
+                      WhatsApp Us
+                    </Button>
+                  </a>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -436,6 +531,19 @@ export default function ListingDetail() {
               <CardContent className="space-y-4">
                 {!isOwner ? (
                   <>
+                    {/* WhatsApp Enquiry Button */}
+                    <a
+                      href={getWhatsAppUrl(listing)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="button-whatsapp-sidebar"
+                    >
+                      <Button className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold gap-2" size="lg">
+                        <MessageCircle className="w-4 h-4" />
+                        Enquire on WhatsApp
+                      </Button>
+                    </a>
+
                     <Dialog open={showEscrowDialog} onOpenChange={setShowEscrowDialog}>
                       <DialogTrigger asChild>
                         <Button 

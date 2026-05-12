@@ -229,6 +229,7 @@ export class DatabaseStorage implements IStorage {
         isActive: listings.isActive,
         createdAt: listings.createdAt,
         updatedAt: listings.updatedAt,
+        metadata: listings.metadata,
         seller: users,
         reviewCount: sql<number>`COALESCE(COUNT(${reviews.id}), 0)`,
         avgRating: sql<number>`COALESCE(AVG(${reviews.rating}), 0)`,

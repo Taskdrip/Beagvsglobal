@@ -14,8 +14,18 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Search, MapPin, Home, Building, Warehouse, Trees, Star,
   Bed, Bath, Square, Shield, TrendingUp, Globe, ChevronRight,
-  Filter, Heart, Eye, DollarSign, Calculator, Phone, ChevronDown
+  Filter, Heart, Eye, DollarSign, Calculator, Phone, ChevronDown,
+  MessageCircle, CheckCircle
 } from "lucide-react";
+
+const WHATSAPP_NUMBER = "2348037232210";
+
+function getWhatsAppUrl(listing: any) {
+  const message = encodeURIComponent(
+    `Hi! I'm interested in: ${listing.title}\nLocation: ${listing.location || "N/A"}\nPrice: ${listing.currency} ${parseFloat(listing.priceCrypto).toLocaleString()}\n\nPlease send me more details.`
+  );
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
+}
 
 const PROPERTY_TYPES = [
   { id: "all",        label: "All Properties",  icon: Globe },
@@ -218,6 +228,11 @@ function PropertyCard({ listing }: { listing: any }) {
               <Eye className="w-3.5 h-3.5 mr-1" /> View Property
             </Button>
           </Link>
+          <a href={getWhatsAppUrl(listing)} target="_blank" rel="noopener noreferrer" data-testid={`button-whatsapp-${listing.id}`}>
+            <Button size="sm" className="bg-green-500/20 text-green-300 border border-green-400/30 hover:bg-green-500/30 text-xs h-9 px-3">
+              <MessageCircle className="w-3.5 h-3.5" />
+            </Button>
+          </a>
         </div>
       </CardContent>
     </Card>
