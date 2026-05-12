@@ -562,28 +562,21 @@ export class DatabaseStorage implements IStorage {
         senderId: messages.senderId,
         recipientId: messages.recipientId,
         content: messages.content,
+        messageType: messages.messageType,
         readAt: messages.readAt,
         createdAt: messages.createdAt,
-        sender: users,
-        recipient: users,
+        sender: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          profileImageUrl: users.profileImageUrl,
+          username: users.username,
+        },
       })
       .from(messages)
       .leftJoin(users, eq(messages.senderId, users.id))
-      .leftJoin(users, eq(messages.recipientId, users.id))
       .where(eq(messages.threadId, threadId))
       .orderBy(messages.createdAt);
-  }
-
-  async createMessage(message: InsertMessage): Promise<Message> {
-    const [newMessage] = await db.insert(messages).values(message).returning();
-    return newMessage;
-  }
-
-  async markMessageAsRead(id: string): Promise<void> {
-    await db
-      .update(messages)
-      .set({ readAt: new Date() })
-      .where(eq(messages.id, id));
   }
 
   async getUserThreads(userId: string) {
@@ -1053,14 +1046,6 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return user;
-  }
-
-  async createNotification(notification: InsertNotification): Promise<Notification> {
-    const [newNotification] = await db
-      .insert(notifications)
-      .values(notification)
-      .returning();
-    return newNotification;
   }
 
   // Shipment operations
