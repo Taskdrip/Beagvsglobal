@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,6 +53,13 @@ import {
   ChevronUp,
   Tag,
   Globe,
+  MessageCircle,
+  Bot,
+  Send,
+  User as UserIcon,
+  PhoneCall,
+  Clock,
+  CheckCheck,
 } from "lucide-react";
 
 const platformWalletSchema = z.object({
@@ -579,6 +586,196 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
   );
 }
 
+function AdminSupportChatTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { data: sessions = [], isLoading } = useQuery<any[]>({
+    queryKey: ['/api/admin/ai-support/sessions'],
+    refetchInterval: 8000,
+  });
+
+  const { data: sessionData } = useQuery<{ session: any; messages: any[] }>({
+    queryKey: ['/api/ai-support/sessions', selectedSessionId, 'messages'],
+    enabled: !!selectedSessionId,
+    refetchInterval: 5000,
+    select: (d: any) => d,
+  });
+
+  const messages = sessionData?.messages ?? [];
+  const activeSession = sessionData?.session;
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  async function sendReply() {
+    if (!replyText.trim() || !selectedSessionId) return;
+    setSending(true);
+    try {
+      await apiRequest('POST', `/api/admin/ai-support/sessions/${selectedSessionId}/messages`, { content: replyText });
+      setReplyText("");
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-support/sessions', selectedSessionId, 'messages'] });
+    } catch {
+      toast({ title: "Failed to send reply", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function closeSession(sessionId: string) {
+    try {
+      await apiRequest('PATCH', `/api/admin/ai-support/sessions/${sessionId}`, { status: 'closed' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/ai-support/sessions'] });
+      if (selectedSessionId === sessionId) setSelectedSessionId(null);
+      toast({ title: "Session closed" });
+    } catch {
+      toast({ title: "Failed to close session", variant: "destructive" });
+    }
+  }
+
+  const statusColor: Record<string, string> = {
+    open: 'bg-green-100 text-green-700',
+    escalated: 'bg-yellow-100 text-yellow-700',
+    closed: 'bg-gray-100 text-gray-500',
+  };
+
+  return (
+    <div className="flex gap-4 h-[680px]">
+      {/* Session list */}
+      <Card className="w-80 flex flex-col overflow-hidden flex-shrink-0">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MessageCircle className="w-4 h-4" />
+            Support Sessions
+            {sessions.filter((s: any) => s.status === 'escalated').length > 0 && (
+              <Badge className="bg-yellow-500 text-white ml-auto">
+                {sessions.filter((s: any) => s.status === 'escalated').length} escalated
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-y-auto p-2 space-y-2">
+          {isLoading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
+          {!isLoading && sessions.length === 0 && (
+            <div className="text-center py-8 text-gray-400 text-sm">No support sessions yet</div>
+          )}
+          {sessions.map((s: any) => (
+            <button
+              key={s.id}
+              onClick={() => setSelectedSessionId(s.id)}
+              data-testid={`button-session-${s.id}`}
+              className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                selectedSessionId === s.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium text-sm text-gray-900 truncate">
+                  {s.user ? `${s.user.firstName || ''} ${s.user.lastName || ''}`.trim() || s.user.email : s.guestName || 'Guest'}
+                </span>
+                <Badge className={`text-xs flex-shrink-0 ml-2 ${statusColor[s.status] || statusColor.open}`}>
+                  {s.status}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Clock className="w-3 h-3" />
+                {new Date(s.createdAt).toLocaleDateString()}
+                <span className="ml-auto">{s.messageCount} msgs</span>
+              </div>
+            </button>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Chat panel */}
+      <Card className="flex-1 flex flex-col overflow-hidden">
+        {!selectedSessionId ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
+            <MessageCircle className="w-12 h-12 opacity-30" />
+            <p className="text-sm">Select a session to view the conversation</p>
+          </div>
+        ) : (
+          <>
+            <CardHeader className="pb-3 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-blue-500" />
+                    {activeSession?.guestName || 'Support Session'}
+                    {activeSession && (
+                      <Badge className={`text-xs ${statusColor[activeSession.status] || statusColor.open}`}>
+                        {activeSession.status}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-xs text-gray-500 mt-0.5">Session ID: {selectedSessionId.slice(0, 8)}…</p>
+                </div>
+                {activeSession?.status !== 'closed' && (
+                  <Button size="sm" variant="outline" onClick={() => closeSession(selectedSessionId)}
+                    className="text-xs" data-testid="button-close-session">
+                    <CheckCheck className="w-3 h-3 mr-1" /> Close
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.map((msg: any) => (
+                <div key={msg.id} className={`flex gap-2 items-end ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    msg.role === 'user' ? 'bg-blue-500' : msg.role === 'admin' ? 'bg-green-600' : 'bg-gray-400'
+                  }`}>
+                    {msg.role === 'user' ? <UserIcon className="w-4 h-4 text-white" /> :
+                     msg.role === 'admin' ? <PhoneCall className="w-4 h-4 text-white" /> :
+                     <Bot className="w-4 h-4 text-white" />}
+                  </div>
+                  <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                    msg.role === 'user' ? 'bg-blue-500 text-white rounded-br-sm' :
+                    msg.role === 'admin' ? 'bg-green-50 border border-green-200 text-gray-800 rounded-bl-sm' :
+                    'bg-gray-100 text-gray-800 rounded-bl-sm'
+                  }`}>
+                    {msg.role !== 'user' && (
+                      <p className={`text-xs mb-1 font-medium ${msg.role === 'admin' ? 'text-green-600' : 'text-gray-500'}`}>
+                        {msg.senderName || (msg.role === 'assistant' ? 'Beagvs AI' : 'Admin')}
+                      </p>
+                    )}
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-xs opacity-60 mt-1 text-right">
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </CardContent>
+
+            {activeSession?.status !== 'closed' && (
+              <div className="border-t p-3 flex gap-2">
+                <Input
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
+                  placeholder="Type your reply as support rep…"
+                  className="flex-1"
+                  disabled={sending}
+                  data-testid="input-admin-reply"
+                />
+                <Button onClick={sendReply} disabled={!replyText.trim() || sending} data-testid="button-send-admin-reply">
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
@@ -1076,6 +1273,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="database" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-database">
               Database
+            </TabsTrigger>
+            <TabsTrigger value="ai-support" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-ai-support">
+              Support Chat
             </TabsTrigger>
             <TabsTrigger value="security" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-security">
               Security
@@ -2191,6 +2391,10 @@ export default function Admin() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="ai-support" className="space-y-4">
+            <AdminSupportChatTab />
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">

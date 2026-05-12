@@ -1625,6 +1625,140 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // ─── AI Support Chat ──────────────────────────────────────────────────────
+
+  // Create a new AI support session
+  app.post('/api/ai-support/sessions', async (req: any, res) => {
+    try {
+      const userId = req.session?.userId || req.user?.claims?.sub || undefined;
+      const { guestName, guestEmail } = req.body;
+      const session = await storage.createAiSupportSession({ userId, guestName, guestEmail });
+      res.status(201).json(session);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create support session" });
+    }
+  });
+
+  // Get messages for a session
+  app.get('/api/ai-support/sessions/:id/messages', async (req, res) => {
+    try {
+      const session = await storage.getAiSupportSession(req.params.id);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const msgs = await storage.getAiSupportMessages(req.params.id);
+      res.json({ session, messages: msgs });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // Send user message → get AI reply (streaming SSE)
+  app.post('/api/ai-support/sessions/:id/messages', async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { content, guestName } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Message is required" });
+
+      const session = await storage.getAiSupportSession(id);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Save user message
+      await storage.createAiSupportMessage({ sessionId: id, role: 'user', content: content.trim(), senderName: guestName || 'User' });
+
+      // Get conversation history for context
+      const history = await storage.getAiSupportMessages(id);
+      const { openai, SYSTEM_PROMPT } = await import("./openai");
+
+      // Stream AI response
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      const chatMessages = [
+        { role: 'system' as const, content: SYSTEM_PROMPT },
+        ...history.filter(m => m.role !== 'admin').map(m => ({
+          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: m.content,
+        })),
+      ];
+
+      const stream = await openai.chat.completions.create({
+        model: 'gpt-5-mini',
+        messages: chatMessages,
+        stream: true,
+        max_completion_tokens: 512,
+      });
+
+      let fullResponse = '';
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content || '';
+        if (delta) {
+          fullResponse += delta;
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+        }
+      }
+
+      // Check if AI wants to escalate
+      const shouldEscalate = fullResponse.includes('[ESCALATE_TO_ADMIN]');
+      const cleanResponse = fullResponse.replace('[ESCALATE_TO_ADMIN]', '').trim();
+
+      await storage.createAiSupportMessage({ sessionId: id, role: 'assistant', content: cleanResponse, senderName: 'Beagvs AI' });
+
+      if (shouldEscalate && session.status === 'open') {
+        await storage.updateAiSupportSession(id, { status: 'escalated', escalatedAt: new Date() });
+        res.write(`data: ${JSON.stringify({ escalated: true })}\n\n`);
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true, escalated: shouldEscalate })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      console.error("AI support error:", error);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: "AI unavailable", done: true })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ message: "Failed to process message" });
+      }
+    }
+  });
+
+  // Admin: send message to a session
+  app.post('/api/admin/ai-support/sessions/:id/messages', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { content } = req.body;
+      const admin = await storage.getUser(req.session?.userId || req.user?.claims?.sub);
+      const adminName = admin ? `${admin.firstName || ''} ${admin.lastName || ''}`.trim() || 'Support Rep' : 'Support Rep';
+      const msg = await storage.createAiSupportMessage({ sessionId: id, role: 'admin', content, senderName: adminName });
+      res.json(msg);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to send admin message" });
+    }
+  });
+
+  // Admin: get all AI support sessions
+  app.get('/api/admin/ai-support/sessions', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const sessions = await storage.getAllAiSupportSessions();
+      res.json(sessions);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch support sessions" });
+    }
+  });
+
+  // Admin: update session status (close/reopen)
+  app.patch('/api/admin/ai-support/sessions/:id', isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const session = await storage.updateAiSupportSession(req.params.id, {
+        status,
+        ...(status === 'closed' ? { closedAt: new Date() } : {}),
+      });
+      res.json(session);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update session" });
+    }
+  });
+
   // Health check — used by Railway to verify the app is alive
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

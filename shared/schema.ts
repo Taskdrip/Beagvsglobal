@@ -575,6 +575,35 @@ export const insertShipmentEventSchema = createInsertSchema(shipmentEvents).omit
   createdAt: true,
 });
 
+// AI Support Chat
+export const aiSupportSessions = pgTable("ai_support_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'set null' }),
+  guestName: varchar("guest_name"),
+  guestEmail: varchar("guest_email"),
+  status: varchar("status").default('open'), // open | escalated | closed
+  escalatedAt: timestamp("escalated_at"),
+  closedAt: timestamp("closed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const aiSupportMessages = pgTable("ai_support_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => aiSupportSessions.id, { onDelete: 'cascade' }),
+  role: varchar("role").notNull(), // user | assistant | admin
+  content: text("content").notNull(),
+  senderName: varchar("sender_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAiSupportSessionSchema = createInsertSchema(aiSupportSessions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAiSupportMessageSchema = createInsertSchema(aiSupportMessages).omit({ id: true, createdAt: true });
+export type AiSupportSession = typeof aiSupportSessions.$inferSelect;
+export type InsertAiSupportSession = z.infer<typeof insertAiSupportSessionSchema>;
+export type AiSupportMessage = typeof aiSupportMessages.$inferSelect;
+export type InsertAiSupportMessage = z.infer<typeof insertAiSupportMessageSchema>;
+
 // Exported types
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;

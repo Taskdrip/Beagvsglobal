@@ -14,6 +14,8 @@ import {
   platformSettings,
   shipments,
   shipmentEvents,
+  aiSupportSessions,
+  aiSupportMessages,
   type User,
   type UpsertUser,
   type InsertWallet,
@@ -44,6 +46,8 @@ import {
   type ShipmentEvent,
   type InsertPlatformSetting,
   type PlatformSetting,
+  type AiSupportSession,
+  type AiSupportMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, sql, count } from "drizzle-orm";
@@ -1154,6 +1158,42 @@ export class DatabaseStorage implements IStorage {
 
   async deletePlatformSetting(key: string): Promise<void> {
     await db.delete(platformSettings).where(eq(platformSettings.key, key));
+  }
+
+  // AI Support Chat operations
+  async createAiSupportSession(data: { userId?: string; guestName?: string; guestEmail?: string }): Promise<AiSupportSession> {
+    const [session] = await db.insert(aiSupportSessions).values({ ...data, status: 'open' }).returning();
+    return session;
+  }
+
+  async getAiSupportSession(id: string): Promise<AiSupportSession | undefined> {
+    const [session] = await db.select().from(aiSupportSessions).where(eq(aiSupportSessions.id, id));
+    return session;
+  }
+
+  async updateAiSupportSession(id: string, data: Partial<AiSupportSession>): Promise<AiSupportSession> {
+    const [session] = await db.update(aiSupportSessions).set({ ...data, updatedAt: new Date() }).where(eq(aiSupportSessions.id, id)).returning();
+    return session;
+  }
+
+  async getAllAiSupportSessions(): Promise<(AiSupportSession & { user?: User; messageCount: number })[]> {
+    const sessions = await db.select().from(aiSupportSessions).orderBy(desc(aiSupportSessions.createdAt));
+    const result = await Promise.all(sessions.map(async (s) => {
+      const user = s.userId ? await this.getUser(s.userId) : undefined;
+      const [{ count: messageCount }] = await db.select({ count: count() }).from(aiSupportMessages).where(eq(aiSupportMessages.sessionId, s.id));
+      return { ...s, user, messageCount: Number(messageCount) };
+    }));
+    return result;
+  }
+
+  async getAiSupportMessages(sessionId: string): Promise<AiSupportMessage[]> {
+    return db.select().from(aiSupportMessages).where(eq(aiSupportMessages.sessionId, sessionId)).orderBy(aiSupportMessages.createdAt);
+  }
+
+  async createAiSupportMessage(data: { sessionId: string; role: string; content: string; senderName?: string }): Promise<AiSupportMessage> {
+    const [msg] = await db.insert(aiSupportMessages).values(data).returning();
+    await db.update(aiSupportSessions).set({ updatedAt: new Date() }).where(eq(aiSupportSessions.id, data.sessionId));
+    return msg;
   }
 }
 
