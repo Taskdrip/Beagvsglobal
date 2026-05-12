@@ -60,6 +60,17 @@ async function runAutoSeed() {
 
 (async () => {
   try {
+    // Run DB migrations first (uses drizzle-orm — no drizzle-kit needed at runtime)
+    const { runMigrations } = await import("./migrate");
+    await runMigrations();
+  } catch (err) {
+    console.error(
+      "Migration failed — server will continue but DB may be missing tables:",
+      err
+    );
+  }
+
+  try {
     await registerRoutes(app, server);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
