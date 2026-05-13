@@ -35,9 +35,9 @@ export async function seedAdmin() {
 }
 
 async function seedProperties(adminId: string) {
-  const existing = await db.select().from(listings).where(eq(listings.sellerId, adminId)).limit(1);
+  const existing = await db.select().from(listings).limit(1);
   if (existing.length > 0) {
-    console.log("[startup-seed] Properties already seeded, skipping.");
+    console.log("[startup-seed] Properties already exist in DB, skipping seed.");
     return;
   }
 

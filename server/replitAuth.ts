@@ -6,6 +6,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+import { randomBytes } from "crypto";
 import { storage } from "./storage";
 import { pool } from "./db";
 
@@ -32,12 +33,14 @@ export function getSession() {
     tableName: "sessions",
   });
 
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) {
-    throw new Error(
-      "SESSION_SECRET environment variable must be set (any long random string)."
+  const secret = process.env.SESSION_SECRET ?? (() => {
+    const fallback = randomBytes(64).toString("hex");
+    console.warn(
+      "[auth] WARNING: SESSION_SECRET is not set. Using an ephemeral secret — " +
+      "sessions will not survive restarts. Set SESSION_SECRET in your environment variables."
     );
-  }
+    return fallback;
+  })();
 
   return session({
     secret,

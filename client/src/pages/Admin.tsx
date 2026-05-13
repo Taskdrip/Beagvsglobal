@@ -60,6 +60,8 @@ import {
   PhoneCall,
   Clock,
   CheckCheck,
+  Upload,
+  ImagePlus,
 } from "lucide-react";
 
 const platformWalletSchema = z.object({
@@ -221,10 +223,22 @@ function AdminSecurityTab({ adminUser }: { adminUser: any }) {
 function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; queryClient: any; apiRequest: any }) {
   const [editingListing, setEditingListing] = useState<any>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [facilitiesInput, setFacilitiesInput] = useState("");
   const [amenitiesInput, setAmenitiesInput] = useState("");
   const [imagesInput, setImagesInput] = useState("");
+  const [newListing, setNewListing] = useState<any>({
+    title: "", description: "", priceCrypto: "", currency: "NGN",
+    location: "", type: "REAL_ESTATE", network: "BANK_TRANSFER",
+    metadata: { propertyType: "apartment", category: "sale" }, isActive: true,
+  });
+  const [newFacilitiesInput, setNewFacilitiesInput] = useState("");
+  const [newAmenitiesInput, setNewAmenitiesInput] = useState("");
+  const [newImagesInput, setNewImagesInput] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const createFileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: allListings, refetch: refetchListings, isLoading } = useQuery({
     queryKey: ["/api/admin/listings"],
@@ -244,6 +258,45 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
     onError: (err: any) => toast({ title: "Failed to update", description: err.message, variant: "destructive" }),
   });
 
+  const createListingMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/admin/listings", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Listing created successfully" });
+      setShowCreateDialog(false);
+      setNewListing({ title: "", description: "", priceCrypto: "", currency: "NGN", location: "", type: "REAL_ESTATE", network: "BANK_TRANSFER", metadata: { propertyType: "apartment", category: "sale" }, isActive: true });
+      setNewFacilitiesInput(""); setNewAmenitiesInput(""); setNewImagesInput("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/listings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/listings"] });
+    },
+    onError: (err: any) => toast({ title: "Failed to create listing", description: err.message, variant: "destructive" }),
+  });
+
+  const uploadImageFile = async (file: File, onSuccess: (url: string) => void) => {
+    setUploadingImage(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+        const res = await apiRequest("POST", "/api/admin/upload-image", { base64, filename: file.name });
+        const data = await res.json();
+        if (data.url) {
+          onSuccess(data.url);
+          toast({ title: "Image uploaded successfully" });
+        } else {
+          toast({ title: "Upload failed", description: data.message, variant: "destructive" });
+        }
+        setUploadingImage(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      setUploadingImage(false);
+    }
+  };
+
   const deleteListingMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/admin/listings/${id}`);
@@ -255,6 +308,17 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
     },
     onError: (err: any) => toast({ title: "Failed to delete", description: err.message, variant: "destructive" }),
   });
+
+  const handleCreateListing = () => {
+    const facilities = newFacilitiesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    const amenities = newAmenitiesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    const images = newImagesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    createListingMutation.mutate({
+      ...newListing,
+      images,
+      metadata: { ...(newListing.metadata || {}), facilities, amenities, whatsapp: "+2348037232210" },
+    });
+  };
 
   const handleSeedProperties = async () => {
     setSeeding(true);
@@ -329,13 +393,20 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
             </span>
             <div className="flex gap-2 flex-wrap">
               <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => setShowCreateDialog(true)}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add New Listing
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={handleSeedProperties}
                 disabled={seeding}
                 data-testid="button-seed-properties"
               >
-                {seeding ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Seeding…</> : <><Plus className="w-4 h-4 mr-1" /> Seed Nigerian Properties</>}
+                {seeding ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Seeding…</> : <><Database className="w-4 h-4 mr-1" /> Seed Nigerian Properties</>}
               </Button>
             </div>
           </CardTitle>
@@ -392,6 +463,136 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
           )}
         </CardContent>
       </Card>
+
+      {/* Create Listing Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ImagePlus className="w-5 h-5 text-emerald-600" /> Add New Property Listing</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Title *</Label>
+              <Input value={newListing.title} onChange={e => setNewListing((l: any) => ({ ...l, title: e.target.value }))} className="mt-1" placeholder="e.g. 4-Bedroom Duplex – Lekki Phase 1" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm font-medium">Price</Label>
+                <Input type="number" value={newListing.priceCrypto} onChange={e => setNewListing((l: any) => ({ ...l, priceCrypto: e.target.value }))} className="mt-1" placeholder="e.g. 90000000" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Currency</Label>
+                <Select value={newListing.currency} onValueChange={v => setNewListing((l: any) => ({ ...l, currency: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NGN">NGN (Naira)</SelectItem>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="USDT">USDT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Location</Label>
+              <Input value={newListing.location} onChange={e => setNewListing((l: any) => ({ ...l, location: e.target.value }))} className="mt-1" placeholder="e.g. Lekki Phase 1, Lagos, Nigeria" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Description</Label>
+              <Textarea rows={4} value={newListing.description} onChange={e => setNewListing((l: any) => ({ ...l, description: e.target.value }))} className="mt-1" placeholder="Describe the property..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm font-medium">Property Type</Label>
+                <Select value={newListing.metadata?.propertyType || "apartment"} onValueChange={v => setNewListing((l: any) => ({ ...l, metadata: { ...l.metadata, propertyType: v } }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="apartment">Apartment</SelectItem>
+                    <SelectItem value="house">House/Duplex</SelectItem>
+                    <SelectItem value="commercial">Commercial</SelectItem>
+                    <SelectItem value="land">Land</SelectItem>
+                    <SelectItem value="warehouse">Warehouse</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Category</Label>
+                <Select value={newListing.metadata?.category || "sale"} onValueChange={v => setNewListing((l: any) => ({ ...l, metadata: { ...l.metadata, category: v } }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sale">For Sale</SelectItem>
+                    <SelectItem value="rent">For Rent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-sm font-medium">Bedrooms</Label>
+                <Input type="number" value={newListing.metadata?.bedrooms || ""} onChange={e => setNewListing((l: any) => ({ ...l, metadata: { ...l.metadata, bedrooms: parseInt(e.target.value) || undefined } }))} className="mt-1" placeholder="e.g. 4" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Bathrooms</Label>
+                <Input type="number" value={newListing.metadata?.bathrooms || ""} onChange={e => setNewListing((l: any) => ({ ...l, metadata: { ...l.metadata, bathrooms: parseInt(e.target.value) || undefined } }))} className="mt-1" placeholder="e.g. 3" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Area (sqft)</Label>
+                <Input type="number" value={newListing.metadata?.areaSqft || ""} onChange={e => setNewListing((l: any) => ({ ...l, metadata: { ...l.metadata, areaSqft: parseInt(e.target.value) || undefined } }))} className="mt-1" placeholder="e.g. 3000" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Title Document</Label>
+              <Input value={newListing.metadata?.propertyTitle || ""} onChange={e => setNewListing((l: any) => ({ ...l, metadata: { ...l.metadata, propertyTitle: e.target.value } }))} className="mt-1" placeholder="e.g. Certificate of Occupancy (C of O)" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Facilities <span className="text-slate-400 font-normal">(one per line)</span></Label>
+              <Textarea rows={3} value={newFacilitiesInput} onChange={e => setNewFacilitiesInput(e.target.value)} className="mt-1 font-mono text-sm" placeholder={"Gated Estate\nCCTV Security\nBorehole Water"} />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Amenities <span className="text-slate-400 font-normal">(one per line)</span></Label>
+              <Textarea rows={3} value={newAmenitiesInput} onChange={e => setNewAmenitiesInput(e.target.value)} className="mt-1 font-mono text-sm" placeholder={"Fitted Kitchen\nPOP Ceiling\nTiled Floors"} />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Image URLs <span className="text-slate-400 font-normal">(one per line)</span></Label>
+              <Textarea rows={3} value={newImagesInput} onChange={e => setNewImagesInput(e.target.value)} className="mt-1 font-mono text-sm" placeholder="https://example.com/image1.jpg" />
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  ref={createFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadImageFile(file, (url) => setNewImagesInput(prev => prev ? `${prev}\n${url}` : url));
+                    e.target.value = "";
+                  }}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={() => createFileInputRef.current?.click()} disabled={uploadingImage}>
+                  {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
+                  Upload from Device
+                </Button>
+                <span className="text-xs text-slate-400">or paste URLs above</span>
+              </div>
+              {newImagesInput && (
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  {newImagesInput.split("\n").filter(u => u.trim()).slice(0, 4).map((url, i) => (
+                    <img key={i} src={url.trim()} alt="" className="w-16 h-16 object-cover rounded border" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="newIsActive" checked={newListing.isActive} onChange={e => setNewListing((l: any) => ({ ...l, isActive: e.target.checked }))} className="rounded" />
+              <Label htmlFor="newIsActive" className="text-sm font-medium">Active (visible to buyers)</Label>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCreateListing} disabled={createListingMutation.isPending || !newListing.title}>
+                {createListingMutation.isPending ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Creating…</> : <><Plus className="w-4 h-4 mr-1" /> Create Listing</>}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
@@ -526,14 +727,40 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
 
               <div>
                 <Label className="text-sm font-medium">Image URLs <span className="text-slate-400 font-normal">(one per line)</span></Label>
-                <Textarea
-                  rows={4}
-                  value={imagesInput}
-                  onChange={e => setImagesInput(e.target.value)}
-                  className="mt-1 font-mono text-sm"
-                  placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
-                  data-testid="textarea-images"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Textarea
+                    rows={4}
+                    value={imagesInput}
+                    onChange={e => setImagesInput(e.target.value)}
+                    className="font-mono text-sm flex-1"
+                    placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
+                    data-testid="textarea-images"
+                  />
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    ref={editFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadImageFile(file, (url) => setImagesInput(prev => prev ? `${prev}\n${url}` : url));
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => editFileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
+                    Upload from Device
+                  </Button>
+                  <span className="text-xs text-slate-400">or paste URLs above</span>
+                </div>
                 {imagesInput && (
                   <div className="flex gap-2 mt-2 flex-wrap">
                     {imagesInput.split("\n").filter(u => u.trim()).slice(0, 4).map((url, i) => (

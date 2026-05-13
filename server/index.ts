@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
+import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -34,6 +35,9 @@ app.use((req, res, next) => {
 
   next();
 });
+
+// Serve uploaded images statically in both dev and prod
+app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
 // Health check endpoints — available immediately before any async setup
 // Covers both /health and /api/health for Railway and other platforms

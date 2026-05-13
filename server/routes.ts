@@ -1603,6 +1603,52 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // Admin: create new listing
+  app.post('/api/admin/listings', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.session?.userId || req.user?.claims?.sub;
+      const { title, description, priceCrypto, currency, network, type, location, images, metadata, isActive } = req.body;
+      if (!title) return res.status(400).json({ message: "Title is required" });
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") + "-" + Date.now();
+      const listing = await storage.createListing({
+        title,
+        description: description || "",
+        priceCrypto: priceCrypto || "0",
+        currency: currency || "NGN",
+        network: network || "BANK_TRANSFER",
+        type: type || "REAL_ESTATE",
+        location: location || "",
+        images: images || [],
+        metadata: { ...(metadata || {}), whatsapp: "+2348037232210" },
+        sellerId: userId,
+        slug,
+        isActive: isActive !== false,
+      });
+      res.status(201).json(listing);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to create listing" });
+    }
+  });
+
+  // Admin: upload image (base64) — stores in public/uploads/ and returns URL
+  app.post('/api/admin/upload-image', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { base64, filename } = req.body;
+      if (!base64 || !filename) return res.status(400).json({ message: "Missing base64 or filename" });
+      const uploadsDir = path.join(process.cwd(), "public", "uploads");
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const ext = (filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const filePath = path.join(uploadsDir, name);
+      const dataStr = base64.includes(",") ? base64.split(",")[1] : base64;
+      fs.writeFileSync(filePath, Buffer.from(dataStr, "base64"));
+      res.json({ url: `/uploads/${name}` });
+    } catch (error: any) {
+      console.error("Image upload error:", error);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
   // Admin: get all listings
   app.get('/api/admin/listings', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
     try {
