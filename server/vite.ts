@@ -36,9 +36,10 @@ export async function setupVite(app: Express, server: Server) {
     configFile: false,
     customLogger: {
       ...viteLogger,
+      // Never call process.exit — a Vite error should not crash the whole server
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
+        console.error("[vite] Error in dev server (non-fatal):", msg);
       },
     },
     server: serverOptions,
@@ -73,13 +74,25 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // __dirname here is the dist/ folder (where dist/index.js lives after build)
+  // __dirname resolves to dist/ when running from dist/index.js
   const distPath = path.resolve(__dirname, "public");
 
   if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+    // Log clearly but do NOT throw — keep the server alive so health check passes.
+    // This can happen if the build step was skipped. Requests will get 404 for
+    // static assets but the API and health check will still work.
+    console.error(
+      `[static] WARNING: Build directory not found at ${distPath}. ` +
+      `Run "npm run build" to generate client assets. API routes still work.`
     );
+    // Serve a minimal fallback so users see something instead of a blank page
+    app.use("*", (_req, res) => {
+      res.status(503).send(
+        `<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:80px">` +
+        `<h2>App is starting…</h2><p>Please refresh in a moment.</p></body></html>`
+      );
+    });
+    return;
   }
 
   app.use(express.static(distPath));

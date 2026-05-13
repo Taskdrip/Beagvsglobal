@@ -88,7 +88,14 @@ async function runAutoSeed() {
       console.error("Express error:", err);
     });
 
-    if (app.get("env") === "development") {
+    // Explicitly check NODE_ENV — never rely on Express's app.get("env") default
+    // because Railway does NOT set NODE_ENV automatically, which caused the server
+    // to start Vite dev mode in production and crash via process.exit(1).
+    const isProduction = process.env.NODE_ENV === "production"
+      || !!process.env.RAILWAY_ENVIRONMENT
+      || !!process.env.RAILWAY_SERVICE_ID;
+
+    if (!isProduction) {
       await setupVite(app, server);
     } else {
       serveStatic(app);
