@@ -65,8 +65,12 @@ async function runAutoSeed() {
 (async () => {
   try {
     // Run DB migrations first (uses drizzle-orm — no drizzle-kit needed at runtime)
-    const { runMigrations } = await import("./migrate");
+    const { runMigrations, runSafetySQL } = await import("./migrate");
     await runMigrations();
+    // Always run the safety patch — idempotently adds any columns that may be
+    // missing on existing Railway DBs where an older migration was already
+    // recorded as applied (e.g. listings.metadata, code 42703 crash fix).
+    await runSafetySQL();
   } catch (err) {
     console.error(
       "Migration failed — server will continue but DB may be missing tables:",
