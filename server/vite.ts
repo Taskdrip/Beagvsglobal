@@ -2,16 +2,12 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
 
 // Compatible with both Node.js 18 and Node.js 20+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const viteLogger = createLogger();
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -24,12 +20,17 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+// ⚠️  ALL vite imports are dynamic and live INSIDE this function.
+// This is intentional: in production this function is never called, so vite
+// (a devDependency that Railway prunes after build) is never imported.
+// Top-level static imports of vite would crash the process before health-check
+// routes even register, causing "Application failed to respond" on Railway.
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: { server },
-    allowedHosts: true as const,
-  };
+  // Dynamic imports — resolved only in development where devDeps are present
+  const { createServer: createViteServer, createLogger } = await import("vite");
+  const { default: viteConfig } = await import("../vite.config");
+
+  const viteLogger = createLogger();
 
   const vite = await createViteServer({
     ...viteConfig,
@@ -42,7 +43,11 @@ export async function setupVite(app: Express, server: Server) {
         console.error("[vite] Error in dev server (non-fatal):", msg);
       },
     },
-    server: serverOptions,
+    server: {
+      middlewareMode: true,
+      hmr: { server },
+      allowedHosts: true as const,
+    },
     appType: "custom",
   });
 
@@ -58,7 +63,7 @@ export async function setupVite(app: Express, server: Server) {
         "index.html",
       );
 
-      // always reload the index.html file from disk incase it changes
+      // always reload the index.html file from disk in case it changes
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
         `src="/src/main.tsx"`,
@@ -74,22 +79,20 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // __dirname resolves to dist/ when running from dist/index.js
+  // __dirname resolves to dist/ when running from dist/index.js after build
   const distPath = path.resolve(__dirname, "public");
 
   if (!fs.existsSync(distPath)) {
     // Log clearly but do NOT throw — keep the server alive so health check passes.
-    // This can happen if the build step was skipped. Requests will get 404 for
-    // static assets but the API and health check will still work.
+    // This can happen if the build step was skipped. API routes still work.
     console.error(
       `[static] WARNING: Build directory not found at ${distPath}. ` +
-      `Run "npm run build" to generate client assets. API routes still work.`
+        `Run "npm run build" to generate client assets. API routes still work.`,
     );
-    // Serve a minimal fallback so users see something instead of a blank page
     app.use("*", (_req, res) => {
       res.status(503).send(
         `<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:80px">` +
-        `<h2>App is starting…</h2><p>Please refresh in a moment.</p></body></html>`
+          `<h2>App is starting…</h2><p>Please refresh in a moment.</p></body></html>`,
       );
     });
     return;
@@ -97,7 +100,7 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
+  // fall through to index.html for client-side routing
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
