@@ -6,7 +6,6 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
-import MemoryStore from "memorystore";
 import { randomBytes } from "crypto";
 import { storage } from "./storage";
 import { pool } from "./db";
@@ -29,10 +28,14 @@ export function getSession() {
   // ⚠️  Use PostgreSQL session store only when DATABASE_URL is available.
   // If DATABASE_URL is missing, connect-pg-simple immediately queries the pool
   // to create the sessions table. When the DB is unreachable this emits an
-  // unhandled error event that crashes the entire process — AFTER the Railway
+  // unhandled error that crashes the entire process — AFTER the Railway
   // health check has already passed, producing "Application failed to respond".
-  // memorystore is a safe in-memory fallback; sessions won't survive restarts
-  // but the app stays alive until DATABASE_URL is properly configured.
+  //
+  // We use express-session's built-in MemoryStore as a safe fallback.
+  // It requires NO extra imports (it ships with express-session), so it
+  // can never cause a module-load failure.
+  // Sessions won't persist across restarts in fallback mode, but the app
+  // stays alive until DATABASE_URL is properly configured in Railway Variables.
   let store: session.Store;
 
   if (process.env.DATABASE_URL) {
@@ -43,15 +46,15 @@ export function getSession() {
       ttl: sessionTtl,
       tableName: "sessions",
     });
-    // Prevent store-level errors from becoming unhandled exceptions
+    // Prevent store errors from becoming unhandled exceptions
     (pgStore as any).on?.("error", (err: Error) => {
       console.error("[session-store] PG store error (non-fatal):", err.message);
     });
     store = pgStore;
     console.log("[session-store] Using PostgreSQL session store.");
   } else {
-    const MemStore = MemoryStore(session);
-    store = new MemStore({ checkPeriod: sessionTtl });
+    // express-session's built-in MemoryStore — no extra import needed
+    store = new session.MemoryStore();
     console.warn(
       "[session-store] DATABASE_URL not set — using in-memory session store. " +
       "Sessions will not persist across restarts. " +

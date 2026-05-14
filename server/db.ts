@@ -23,35 +23,21 @@ const sslEnabled =
     !connectionString.includes("127.0.0.1") &&
     !connectionString.includes("helium"));
 
-// Only create a real pool when we have a valid connection string.
-// Using a bad fallback URL (e.g. "localhost/placeholder") causes pg to emit
-// unhandled 'error' events on idle reconnect attempts that crash the process.
-const _pool = connectionString
-  ? new Pool({
-      connectionString,
-      ssl: sslEnabled ? { rejectUnauthorized: false } : false,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    })
-  : null;
+export const pool = new Pool({
+  connectionString: connectionString || "postgresql://invalid-host/placeholder",
+  ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+  // Short timeouts so a bad connection fails fast and stops retrying
+  connectionTimeoutMillis: 3000,
+  idleTimeoutMillis: 10000,
+  // Limit pool size to reduce noise from connection errors
+  max: connectionString ? 10 : 1,
+});
 
 // ⚠️  CRITICAL: without this handler, any pool-level error (e.g. ECONNREFUSED
 // on an idle client's keepalive) becomes an uncaught exception that kills the
 // entire Node.js process and triggers Railway's "Crashed" status.
-if (_pool) {
-  _pool.on("error", (err: Error) => {
-    console.error("[db] Pool idle-client error (non-fatal):", err.message);
-  });
-}
-
-// Provide a safe shim so all imports of `pool` get a usable object —
-// queries will fail clearly rather than crashing on a null reference.
-export const pool: pg.Pool = _pool ?? ({
-  query: () => Promise.reject(new Error("[db] DATABASE_URL is not configured — set it in Railway Variables")),
-  connect: () => Promise.reject(new Error("[db] DATABASE_URL is not configured — set it in Railway Variables")),
-  end: () => Promise.resolve(),
-  on: () => {},
-  off: () => {},
-} as unknown as pg.Pool);
+pool.on("error", (err: Error) => {
+  console.error("[db] Pool idle-client error (non-fatal):", err.message);
+});
 
 export const db = drizzle({ client: pool, schema });
