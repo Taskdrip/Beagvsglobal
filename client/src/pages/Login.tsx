@@ -38,7 +38,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       const res = await apiRequest("POST", "/api/auth/login", data);
-      await res.json(); // consume response to establish session
+      const user = await res.json();
 
       toast({
         title: "Welcome back!",
@@ -46,7 +46,11 @@ export default function Login() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setLocation("/dashboard");
+      if (user.role === "ADMIN") {
+        setLocation("/admin");
+      } else {
+        setLocation("/dashboard");
+      }
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -142,6 +146,14 @@ export default function Login() {
                   Create New Account
                 </Button>
               </Link>
+
+              <div className="pt-2 border-t border-gray-100">
+                <Link href="/admin/login">
+                  <span className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer transition-colors" data-testid="link-admin-login">
+                    Admin Portal →
+                  </span>
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>

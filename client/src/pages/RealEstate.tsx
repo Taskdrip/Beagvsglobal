@@ -248,7 +248,7 @@ export default function RealEstate() {
   const [category, setCategory] = useState("all");
   const [currency, setCurrency] = useState("all");
   const [location, setLocation] = useState("");
-  const [priceRange, setPriceRange] = useState([0, 1000000]);
+  const [priceRange, setPriceRange] = useState([0, 20000000000]);
   const [showFilters, setShowFilters] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
 
@@ -409,7 +409,7 @@ export default function RealEstate() {
                   Price Range: {priceRange[0].toLocaleString()} – {priceRange[1].toLocaleString()}
                 </label>
                 <Slider
-                  min={0} max={2000000} step={5000}
+                  min={0} max={20000000000} step={1000000}
                   value={priceRange}
                   onValueChange={setPriceRange}
                   className="mt-3"
