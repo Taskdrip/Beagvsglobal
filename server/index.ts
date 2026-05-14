@@ -4,6 +4,29 @@ import path from "path";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// ─── CRASH GUARDS ────────────────────────────────────────────────────────────
+// Node.js 20 exits with code 1 on unhandled promise rejections (e.g. a pg-pool
+// DNS failure inside seedAdmin that escapes the try/catch chain). That kills the
+// process AFTER server.listen() already succeeded, so Railway sees "Connection
+// refused" on the health check and marks the deployment failed.
+//
+// These handlers prevent any stray rejection/exception from taking down the
+// server. Errors are logged so they remain visible in the deploy logs.
+process.on("unhandledRejection", (reason: unknown) => {
+  console.error(
+    "[WARN] Unhandled promise rejection (server keeps running):",
+    reason
+  );
+});
+process.on("uncaughtException", (err: Error) => {
+  console.error(
+    "[WARN] Uncaught exception (server keeps running):",
+    err.message,
+    err.stack
+  );
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -54,6 +77,15 @@ server.listen({ port, host: "0.0.0.0" }, () => {
 });
 
 async function runAutoSeed() {
+  // Skip entirely when DATABASE_URL is absent — any DB call would produce an
+  // ECONNREFUSED rejection.  pg-pool's internal `.catch((err) => { throw err })`
+  // re-throws the rejection on a new microtask tick, which escapes our outer
+  // try/catch and (in Node.js 20) exits the process with code 1 — killing the
+  // server AFTER the Railway health check already passed.
+  if (!process.env.DATABASE_URL) {
+    console.log("[startup-seed] DATABASE_URL not set — skipping auto-seed.");
+    return;
+  }
   try {
     const { seedAdmin } = await import("./seed-startup");
     await seedAdmin();

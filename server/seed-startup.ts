@@ -6,11 +6,6 @@ import bcrypt from "bcrypt";
 const ADMIN_EMAIL = "admin@beagvsglobal.com";
 const WHATSAPP = "+2348037232210";
 
-// Auto-run when executed directly as a script
-if (import.meta.url === `file://${process.argv[1]}`) {
-  seedAdmin().then(() => { console.log("[startup-seed] Done."); process.exit(0); }).catch(e => { console.error(e); process.exit(1); });
-}
-
 export async function seedAdmin() {
   const passwordHash = await bcrypt.hash("Admin@2025!", 12);
   const existing = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).limit(1);

@@ -24,7 +24,7 @@ const sslEnabled =
     !connectionString.includes("helium"));
 
 export const pool = new Pool({
-  connectionString: connectionString || "postgresql://invalid-host/placeholder",
+  connectionString: connectionString || "postgresql://127.0.0.1:5432/placeholder",
   ssl: sslEnabled ? { rejectUnauthorized: false } : false,
   // Short timeouts so a bad connection fails fast and stops retrying
   connectionTimeoutMillis: 3000,
