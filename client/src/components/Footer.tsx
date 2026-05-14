@@ -215,6 +215,24 @@ export default function Footer() {
                 </Button>
               </Link>
             </div>
+
+            {/* WhatsApp CTA */}
+            <div className="pt-4 bg-green-900/30 border border-green-700/40 rounded-lg p-4 space-y-2 text-sm">
+              <h5 className="font-semibold text-green-300 flex items-center gap-2">
+                <MessageCircle className="w-4 h-4" /> Chat on WhatsApp
+              </h5>
+              <p className="text-slate-400 text-xs">Property enquiries, shipping quotes, and general support — chat with us instantly.</p>
+              <a
+                href="https://wa.me/2348037232210?text=Hello%20Beagvs%20Global%2C%20I%20would%20like%20to%20make%20an%20enquiry."
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="button-footer-whatsapp"
+              >
+                <Button size="sm" className="w-full bg-green-600 hover:bg-green-500 text-white text-xs mt-2">
+                  +234 803 723 2210
+                </Button>
+              </a>
+            </div>
           </div>
         </div>
         

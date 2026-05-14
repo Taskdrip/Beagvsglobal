@@ -15,7 +15,7 @@ import {
   Search, MapPin, Home, Building, Warehouse, Trees, Star,
   Bed, Bath, Square, Shield, TrendingUp, Globe, ChevronRight,
   Filter, Heart, Eye, DollarSign, Calculator, Phone, ChevronDown,
-  MessageCircle, CheckCircle
+  MessageCircle, CheckCircle, FileText, Flame
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "2348037232210";
@@ -28,13 +28,13 @@ function getWhatsAppUrl(listing: any) {
 }
 
 const PROPERTY_TYPES = [
-  { id: "all",        label: "All Properties",  icon: Globe },
-  { id: "apartment",  label: "Apartments",       icon: Building },
-  { id: "house",      label: "Houses",           icon: Home },
-  { id: "villa",      label: "Villas",           icon: Home },
-  { id: "commercial", label: "Commercial",       icon: Warehouse },
-  { id: "land",       label: "Land / Plot",      icon: Trees },
-  { id: "warehouse",  label: "Warehouse",        icon: Warehouse },
+  { id: "all",        label: "All Properties",    icon: Globe },
+  { id: "apartment",  label: "Apartments",         icon: Building },
+  { id: "house",      label: "Houses & Duplexes",  icon: Home },
+  { id: "villa",      label: "Villas",             icon: Home },
+  { id: "commercial", label: "Commercial",         icon: Warehouse },
+  { id: "land",       label: "Land / Plot",        icon: Trees },
+  { id: "warehouse",  label: "Warehouse",          icon: Warehouse },
 ];
 
 const LISTING_CATEGORIES = [
@@ -142,8 +142,15 @@ function PropertyCard({ listing }: { listing: any }) {
             {listing.currency} {parseFloat(listing.priceCrypto).toLocaleString()}
           </Badge>
           {meta.category && (
-            <Badge className="bg-[#050d1a]/80 backdrop-blur text-white/70 border-white/15 text-xs capitalize">
-              {meta.category}
+            <Badge className={`bg-[#050d1a]/80 backdrop-blur border text-xs capitalize ${
+              meta.category === "rent" ? "text-amber-300 border-amber-400/30" : "text-emerald-300 border-emerald-400/30"
+            }`}>
+              {meta.category === "rent" ? "For Rent" : meta.category === "sale" ? "For Sale" : meta.category}
+            </Badge>
+          )}
+          {listing.title?.toLowerCase().includes("sale! sale") && (
+            <Badge className="bg-red-500/80 backdrop-blur text-white border-red-400/50 text-xs flex items-center gap-0.5">
+              <Flame className="w-3 h-3" /> HOT
             </Badge>
           )}
         </div>
@@ -164,8 +171,15 @@ function PropertyCard({ listing }: { listing: any }) {
       </div>
 
       <CardContent className="p-4">
+        {/* Land Title Badge */}
+        {meta.propertyTitle && (
+          <div className="flex items-center gap-1 mb-2">
+            <FileText className="w-3 h-3 text-amber-400 shrink-0" />
+            <span className="text-amber-400 text-xs font-medium">{meta.propertyTitle}</span>
+          </div>
+        )}
         <Link href={`/listing/${listing.slug}`}>
-          <h3 className="text-white font-semibold text-base mb-1 group-hover:text-cyan-300 transition-colors line-clamp-1 cursor-pointer">
+          <h3 className="text-white font-semibold text-base mb-1 group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-snug">
             {listing.title}
           </h3>
         </Link>
