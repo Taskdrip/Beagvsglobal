@@ -6,6 +6,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+import MemoryStore from "memorystore";
 import { randomBytes } from "crypto";
 import { storage } from "./storage";
 import { pool } from "./db";
@@ -24,14 +25,39 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
-  const pgStore = connectPg(session);
-  // Use the shared SSL-aware pool so Railway's PostgreSQL works correctly
-  const sessionStore = new pgStore({
-    pool,
-    createTableIfMissing: true,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
+
+  // ⚠️  Use PostgreSQL session store only when DATABASE_URL is available.
+  // If DATABASE_URL is missing, connect-pg-simple immediately queries the pool
+  // to create the sessions table. When the DB is unreachable this emits an
+  // unhandled error event that crashes the entire process — AFTER the Railway
+  // health check has already passed, producing "Application failed to respond".
+  // memorystore is a safe in-memory fallback; sessions won't survive restarts
+  // but the app stays alive until DATABASE_URL is properly configured.
+  let store: session.Store;
+
+  if (process.env.DATABASE_URL) {
+    const PgStore = connectPg(session);
+    const pgStore = new PgStore({
+      pool,
+      createTableIfMissing: true,
+      ttl: sessionTtl,
+      tableName: "sessions",
+    });
+    // Prevent store-level errors from becoming unhandled exceptions
+    (pgStore as any).on?.("error", (err: Error) => {
+      console.error("[session-store] PG store error (non-fatal):", err.message);
+    });
+    store = pgStore;
+    console.log("[session-store] Using PostgreSQL session store.");
+  } else {
+    const MemStore = MemoryStore(session);
+    store = new MemStore({ checkPeriod: sessionTtl });
+    console.warn(
+      "[session-store] DATABASE_URL not set — using in-memory session store. " +
+      "Sessions will not persist across restarts. " +
+      "Set DATABASE_URL in Railway Variables to enable persistent sessions."
+    );
+  }
 
   const secret = process.env.SESSION_SECRET ?? (() => {
     const fallback = randomBytes(64).toString("hex");
@@ -44,7 +70,7 @@ export function getSession() {
 
   return session({
     secret,
-    store: sessionStore,
+    store,
     resave: false,
     saveUninitialized: false,
     cookie: {
