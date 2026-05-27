@@ -70,7 +70,7 @@ export default function ListingDetail() {
 
   const { data: listing, isLoading, isError } = useQuery({
     queryKey: ["/api/listings/slug", slug],
-    queryFn: getQueryFn({ on401: "returnNull" }),
+    queryFn: getQueryFn({ on401: "returnNull", on404: "returnNull" }),
     enabled: !!slug,
     retry: 1,
   });

@@ -26,8 +26,9 @@ export async function apiRequest(
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
+  on404?: "returnNull" | "throw";
 }) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
+  ({ on401: unauthorizedBehavior, on404 = "throw" }) =>
   async ({ queryKey }) => {
     let url = queryKey[0] as string;
     
@@ -57,6 +58,10 @@ export const getQueryFn: <T>(options: {
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      return null;
+    }
+
+    if (on404 === "returnNull" && res.status === 404) {
       return null;
     }
 
