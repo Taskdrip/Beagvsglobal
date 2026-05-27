@@ -1770,11 +1770,11 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   app.patch('/api/admin/listings/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const existing = await storage.getListing(id);
-      if (!existing) return res.status(404).json({ message: "Listing not found" });
       const listing = await storage.updateListing(id, req.body);
+      if (!listing) return res.status(404).json({ message: "Listing not found" });
       res.json(listing);
     } catch (error: any) {
+      console.error("Update listing error:", error);
       res.status(400).json({ message: error.message || "Failed to update listing" });
     }
   });

@@ -277,25 +277,29 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
   const uploadImageFile = async (file: File, onSuccess: (url: string) => void) => {
     setUploadingImage(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
-        const res = await apiRequest("POST", "/api/admin/upload-image", { base64, filename: file.name });
-        const data = await res.json();
-        if (data.url) {
-          onSuccess(data.url);
-          toast({ title: "Image uploaded successfully" });
-        } else {
-          toast({ title: "Upload failed", description: data.message, variant: "destructive" });
-        }
-        setUploadingImage(false);
-      };
-      reader.readAsDataURL(file);
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+      const res = await apiRequest("POST", "/api/admin/upload-image", { base64, filename: file.name });
+      const data = await res.json();
+      if (data.url) {
+        onSuccess(data.url);
+        toast({ title: "Image uploaded successfully" });
+      } else {
+        toast({ title: "Upload failed", description: data.message || "Unknown error", variant: "destructive" });
+      }
     } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      toast({ title: "Upload failed", description: err.message || "Unknown error", variant: "destructive" });
+    } finally {
       setUploadingImage(false);
     }
   };
+
+  const removeImageFromInput = (input: string, urlToRemove: string): string =>
+    input.split("\n").filter(u => u.trim() !== urlToRemove.trim()).join("\n");
 
   const deleteListingMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -552,33 +556,54 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
               <Textarea rows={3} value={newAmenitiesInput} onChange={e => setNewAmenitiesInput(e.target.value)} className="mt-1 font-mono text-sm" placeholder={"Fitted Kitchen\nPOP Ceiling\nTiled Floors"} />
             </div>
             <div>
-              <Label className="text-sm font-medium">Image URLs <span className="text-slate-400 font-normal">(one per line)</span></Label>
-              <Textarea rows={3} value={newImagesInput} onChange={e => setNewImagesInput(e.target.value)} className="mt-1 font-mono text-sm" placeholder="https://example.com/image1.jpg" />
-              <div className="flex items-center gap-2 mt-2">
-                <input
-                  ref={createFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) uploadImageFile(file, (url) => setNewImagesInput(prev => prev ? `${prev}\n${url}` : url));
-                    e.target.value = "";
-                  }}
-                />
-                <Button type="button" variant="outline" size="sm" onClick={() => createFileInputRef.current?.click()} disabled={uploadingImage}>
-                  {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
-                  Upload from Device
-                </Button>
-                <span className="text-xs text-slate-400">or paste URLs above</span>
-              </div>
-              {newImagesInput && (
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {newImagesInput.split("\n").filter(u => u.trim()).slice(0, 4).map((url, i) => (
-                    <img key={i} src={url.trim()} alt="" className="w-16 h-16 object-cover rounded border" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  ))}
+              <Label className="text-sm font-medium">Images</Label>
+              <div className="mt-2 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    ref={createFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadImageFile(file, (url) => setNewImagesInput(prev => prev ? `${prev}\n${url}` : url));
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => createFileInputRef.current?.click()} disabled={uploadingImage} className="flex-shrink-0">
+                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
+                    {uploadingImage ? "Uploading…" : "Upload Photo"}
+                  </Button>
+                  <Input
+                    placeholder="Or paste image URL and press Enter"
+                    className="text-sm"
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const url = (e.target as HTMLInputElement).value.trim();
+                        if (url) { setNewImagesInput(prev => prev ? `${prev}\n${url}` : url); (e.target as HTMLInputElement).value = ""; }
+                      }
+                    }}
+                  />
                 </div>
-              )}
+                {newImagesInput.split("\n").filter(u => u.trim()).length > 0 ? (
+                  <div className="flex gap-2 flex-wrap">
+                    {newImagesInput.split("\n").filter(u => u.trim()).map((url, i) => (
+                      <div key={i} className="relative group">
+                        <img src={url.trim()} alt="" className="w-20 h-20 object-cover rounded border border-slate-200" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        <button
+                          type="button"
+                          onClick={() => setNewImagesInput(removeImageFromInput(newImagesInput, url))}
+                          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                          title="Remove image"
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">No images added yet. Upload a photo or paste a URL above.</p>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="newIsActive" checked={newListing.isActive} onChange={e => setNewListing((l: any) => ({ ...l, isActive: e.target.checked }))} className="rounded" />
@@ -726,48 +751,63 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
               </div>
 
               <div>
-                <Label className="text-sm font-medium">Image URLs <span className="text-slate-400 font-normal">(one per line)</span></Label>
-                <div className="flex gap-2 mt-1">
-                  <Textarea
-                    rows={4}
-                    value={imagesInput}
-                    onChange={e => setImagesInput(e.target.value)}
-                    className="font-mono text-sm flex-1"
-                    placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
-                    data-testid="textarea-images"
-                  />
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <input
-                    ref={editFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) uploadImageFile(file, (url) => setImagesInput(prev => prev ? `${prev}\n${url}` : url));
-                      e.target.value = "";
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => editFileInputRef.current?.click()}
-                    disabled={uploadingImage}
-                  >
-                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
-                    Upload from Device
-                  </Button>
-                  <span className="text-xs text-slate-400">or paste URLs above</span>
-                </div>
-                {imagesInput && (
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {imagesInput.split("\n").filter(u => u.trim()).slice(0, 4).map((url, i) => (
-                      <img key={i} src={url.trim()} alt="" className="w-16 h-16 object-cover rounded border" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    ))}
+                <Label className="text-sm font-medium">Images</Label>
+                <div className="mt-2 space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      ref={editFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadImageFile(file, (url) => setImagesInput(prev => prev ? `${prev}\n${url}` : url));
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => editFileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                      className="flex-shrink-0"
+                    >
+                      {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
+                      {uploadingImage ? "Uploading…" : "Upload Photo"}
+                    </Button>
+                    <Input
+                      placeholder="Or paste image URL and press Enter"
+                      className="text-sm"
+                      data-testid="input-add-image-url"
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const url = (e.target as HTMLInputElement).value.trim();
+                          if (url) { setImagesInput(prev => prev ? `${prev}\n${url}` : url); (e.target as HTMLInputElement).value = ""; }
+                        }
+                      }}
+                    />
                   </div>
-                )}
+                  {imagesInput.split("\n").filter(u => u.trim()).length > 0 ? (
+                    <div className="flex gap-2 flex-wrap">
+                      {imagesInput.split("\n").filter(u => u.trim()).map((url, i) => (
+                        <div key={i} className="relative group">
+                          <img src={url.trim()} alt="" className="w-20 h-20 object-cover rounded border border-slate-200" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          <button
+                            type="button"
+                            onClick={() => setImagesInput(removeImageFromInput(imagesInput, url))}
+                            className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                            title="Remove image"
+                            data-testid={`button-remove-image-${i}`}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">No images yet. Upload a photo or paste a URL above.</p>
+                  )}
+                </div>
               </div>
 
               <div>
