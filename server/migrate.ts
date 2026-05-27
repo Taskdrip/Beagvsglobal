@@ -53,6 +53,7 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "images" text[] DEFAULT '{}'`,
     `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "location" varchar`,
     `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true`,
+    `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "video_url" varchar`,
 
     // ── users ──────────────────────────────────────────────────────────────
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "must_change_password" boolean DEFAULT false`,

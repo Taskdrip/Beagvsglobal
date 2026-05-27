@@ -310,6 +310,7 @@ CREATE TABLE IF NOT EXISTS "shipment_events" (
 
 -- ── Idempotent column additions ───────────────────────────────────────────
 ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "metadata" jsonb;
+ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "video_url" varchar;
 
 -- ── Idempotent column type upgrades ──────────────────────────────────────
 DO $$ BEGIN ALTER TABLE "escrows" ALTER COLUMN "amount" SET DATA TYPE numeric(22, 4); EXCEPTION WHEN others THEN NULL; END $$;
