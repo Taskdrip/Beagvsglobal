@@ -1286,6 +1286,113 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // ─── Image Upload (any authenticated user) ─────────────────────────────────
+
+  app.post('/api/upload-image', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { base64, filename } = req.body;
+      if (!base64 || !filename) return res.status(400).json({ message: "Missing base64 or filename" });
+      const uploadsDir = path.join(process.cwd(), "public", "uploads");
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const ext = (filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const filePath = path.join(uploadsDir, name);
+      const dataStr = base64.includes(",") ? base64.split(",")[1] : base64;
+      fs.writeFileSync(filePath, Buffer.from(dataStr, "base64"));
+      res.json({ url: `/uploads/${name}` });
+    } catch (error: any) {
+      console.error("Image upload error:", error);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  // ─── Public Shipping Booking ────────────────────────────────────────────────
+
+  // Public: book a shipment — creates user account if email is new
+  app.post('/api/shipping/book', async (req: any, res) => {
+    try {
+      const {
+        fullName, email, phone, origin, originCountry,
+        destination, destinationCountry, cargoType, weightKg,
+        serviceType, additionalNotes, estimatedDelivery,
+      } = req.body;
+
+      if (!fullName || !email || !phone || !origin || !destination) {
+        return res.status(400).json({ message: "Missing required fields: fullName, email, phone, origin, destination" });
+      }
+
+      // Find or create user
+      let user = await storage.getUserByEmail(email);
+      let isNewUser = false;
+      let tempPassword: string | null = null;
+
+      if (!user) {
+        isNewUser = true;
+        tempPassword = Math.random().toString(36).slice(2, 10).toUpperCase();
+        const firstName = fullName.split(" ")[0];
+        const lastName = fullName.split(" ").slice(1).join(" ") || "";
+        const baseUsername = email.split("@")[0].replace(/[^a-z0-9]/gi, "").toLowerCase();
+        const username = baseUsername + Math.floor(Math.random() * 9000 + 1000);
+        const passwordHash = await bcrypt.hash(tempPassword, 10);
+        user = await storage.createUser({
+          email, firstName, lastName, username,
+          passwordHash, accountType: "BUYER", role: "USER",
+        });
+      }
+
+      // Find admin (seller for the booking)
+      const { db } = await import("./db");
+      const { users: usersTable } = await import("@shared/schema");
+      const { eq: eqOp } = await import("drizzle-orm");
+      const [adminUser] = await db.select().from(usersTable).where(eqOp(usersTable.role, "ADMIN")).limit(1);
+      if (!adminUser) return res.status(500).json({ message: "No admin found to handle booking" });
+
+      // Generate tracking number
+      const trackingNum = "BGV-" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+
+      // Create shipment
+      const shipment = await storage.createShipment({
+        trackingNumber: trackingNum,
+        carrier: "Beagvs Global",
+        sellerId: adminUser.id,
+        buyerId: user.id,
+        serviceType: serviceType || "Standard",
+        origin,
+        originCountry: originCountry || "",
+        destination,
+        destinationCountry: destinationCountry || "",
+        recipientName: fullName,
+        recipientPhone: phone,
+        weightKg: weightKg ? parseFloat(weightKg) : undefined,
+        estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) as any : undefined,
+        specialInstructions: additionalNotes || undefined,
+        status: "PENDING",
+      } as any);
+
+      // Add initial event
+      await storage.addShipmentEvent({
+        shipmentId: shipment.id,
+        status: "PENDING",
+        description: `Booking received from ${fullName}. Cargo: ${cargoType || "General"}. Origin: ${origin} → ${destination}.`,
+        location: origin,
+        country: originCountry || undefined,
+      });
+
+      res.status(201).json({
+        trackingNumber: trackingNum,
+        shipmentId: shipment.id,
+        isNewUser,
+        tempPassword: isNewUser ? tempPassword : undefined,
+        message: isNewUser
+          ? `Booking confirmed! A new account was created with your email. Your temporary password is: ${tempPassword}. Please change it after login.`
+          : "Booking confirmed! Track your shipment with the tracking number provided.",
+      });
+    } catch (error: any) {
+      console.error("Shipping booking error:", error);
+      res.status(500).json({ message: error.message || "Failed to create booking" });
+    }
+  });
+
   // ─── Shipment / Tracking Routes ─────────────────────────────────────────────
 
   // Public: look up any shipment by tracking number (no auth required)

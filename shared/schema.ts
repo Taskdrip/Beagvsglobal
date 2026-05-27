@@ -91,6 +91,7 @@ export const listings = pgTable("listings", {
   currency: currencyEnum("currency").notNull(),
   network: networkEnum("network").notNull(),
   images: text("images").array().default([]),
+  videoUrl: varchar("video_url"),
   location: varchar("location"),
   metadata: jsonb("metadata"),
   isActive: boolean("is_active").default(true),

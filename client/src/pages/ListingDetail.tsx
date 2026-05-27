@@ -381,6 +381,36 @@ export default function ListingDetail() {
               </CardContent>
             </Card>
 
+            {/* Featured Video */}
+            {listing.videoUrl && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-slate-dark flex items-center gap-2">
+                    <span className="text-lg">🎬</span> Property Video Tour
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 pb-4 px-4">
+                  <div className="relative w-full rounded-lg overflow-hidden" style={{ paddingTop: "56.25%" }}>
+                    <iframe
+                      className="absolute inset-0 w-full h-full rounded-lg"
+                      src={(() => {
+                        const url = listing.videoUrl || "";
+                        const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+                        if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+                        const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+                        if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+                        return url;
+                      })()}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      data-testid="iframe-listing-video"
+                      title="Property video tour"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Listing Details */}
             <Card>
               <CardHeader>

@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Upload, X } from "lucide-react";
+import { ArrowLeft, Upload, X, Loader2, Video } from "lucide-react";
 
 const listingSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
@@ -35,10 +35,38 @@ const listingSchema = z.object({
     required_error: "Please select a network",
   }),
   location: z.string().optional(),
+  videoUrl: z.string().url("Must be a valid URL (YouTube, Vimeo, etc.)").optional().or(z.literal("")),
   images: z.array(z.string()).default([]),
 });
 
 type ListingFormData = z.infer<typeof listingSchema>;
+
+async function uploadImageToServer(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const base64 = e.target?.result as string;
+        const response = await fetch("/api/upload-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ base64, filename: file.name }),
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.message || "Upload failed");
+        }
+        const { url } = await response.json();
+        resolve(url);
+      } catch (err: any) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function CreateListing() {
   const { id } = useParams();
@@ -47,7 +75,7 @@ export default function CreateListing() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({});
 
   const isEditing = !!id;
 
@@ -66,6 +94,7 @@ export default function CreateListing() {
       currency: undefined,
       network: undefined,
       location: "",
+      videoUrl: "",
       images: [],
     },
   });
@@ -80,6 +109,7 @@ export default function CreateListing() {
         currency: existingListing.currency,
         network: existingListing.network,
         location: existingListing.location || "",
+        videoUrl: existingListing.videoUrl || "",
         images: existingListing.images || [],
       });
       setImageUrls(existingListing.images || []);
@@ -90,7 +120,11 @@ export default function CreateListing() {
     mutationFn: async (data: ListingFormData) => {
       const endpoint = isEditing ? `/api/listings/${id}` : "/api/listings";
       const method = isEditing ? "PATCH" : "POST";
-      return await apiRequest(method, endpoint, { ...data, images: imageUrls });
+      return await apiRequest(method, endpoint, {
+        ...data,
+        images: imageUrls,
+        videoUrl: data.videoUrl || null,
+      });
     },
     onSuccess: () => {
       toast({
@@ -109,19 +143,37 @@ export default function CreateListing() {
     },
   });
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    
-    files.forEach((file) => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const imageUrl = e.target?.result as string;
-          setImageUrls(prev => [...prev, imageUrl]);
-        };
-        reader.readAsDataURL(file);
-      }
-    });
+    if (!files.length) return;
+
+    const newKeys: Record<string, boolean> = {};
+    files.forEach((f) => { newKeys[f.name + f.size] = true; });
+    setUploadingImages(prev => ({ ...prev, ...newKeys }));
+
+    const results = await Promise.allSettled(
+      files.filter(f => f.type.startsWith("image/")).map(async (file) => {
+        try {
+          const url = await uploadImageToServer(file);
+          setImageUrls(prev => [...prev, url]);
+        } catch (err: any) {
+          toast({
+            title: `Failed to upload ${file.name}`,
+            description: err.message,
+            variant: "destructive",
+          });
+        } finally {
+          setUploadingImages(prev => {
+            const next = { ...prev };
+            delete next[file.name + file.size];
+            return next;
+          });
+        }
+      })
+    );
+
+    // Reset input so the same file can be re-selected
+    event.target.value = "";
   };
 
   const removeImage = (index: number) => {
@@ -138,27 +190,19 @@ export default function CreateListing() {
       return;
     }
 
-    // Validate network matches currency
     if (data.currency === 'PI' && data.network !== 'PI_MAINNET') {
-      toast({
-        title: "Invalid network selection",
-        description: "Pi currency requires Pi Mainnet",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid network", description: "Pi currency requires Pi Mainnet", variant: "destructive" });
       return;
     }
-
     if (data.currency === 'USDT' && data.network === 'PI_MAINNET') {
-      toast({
-        title: "Invalid network selection",
-        description: "USDT cannot use Pi Mainnet",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid network", description: "USDT cannot use Pi Mainnet", variant: "destructive" });
       return;
     }
 
     createListingMutation.mutate(data);
   };
+
+  const isUploading = Object.keys(uploadingImages).length > 0;
 
   if (!isAuthenticated) {
     return (
@@ -167,9 +211,7 @@ export default function CreateListing() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
           <h1 className="text-2xl font-bold text-slate-dark mb-4">Authentication Required</h1>
           <p className="text-slate-medium mb-8">Please sign in to create or edit listings</p>
-          <a href="/api/login">
-            <Button>Sign In</Button>
-          </a>
+          <a href="/api/login"><Button>Sign In</Button></a>
         </div>
       </div>
     );
@@ -193,9 +235,8 @@ export default function CreateListing() {
   return (
     <div className="min-h-screen bg-slate-50">
       <Navigation />
-      
+
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-8">
           <Link href="/dashboard">
             <Button variant="ghost" className="flex items-center space-x-2 mb-4" data-testid="button-back">
@@ -215,9 +256,7 @@ export default function CreateListing() {
           <div className="space-y-8">
             {/* Basic Information */}
             <Card>
-              <CardHeader>
-                <CardTitle>Basic Information</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Basic Information</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="title">Title *</Label>
@@ -228,9 +267,7 @@ export default function CreateListing() {
                     data-testid="input-title"
                   />
                   {form.formState.errors.title && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {form.formState.errors.title.message}
-                    </p>
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.title.message}</p>
                   )}
                 </div>
 
@@ -251,9 +288,7 @@ export default function CreateListing() {
                     </SelectContent>
                   </Select>
                   {form.formState.errors.type && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {form.formState.errors.type.message}
-                    </p>
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.type.message}</p>
                   )}
                 </div>
 
@@ -267,9 +302,7 @@ export default function CreateListing() {
                     data-testid="input-description"
                   />
                   {form.formState.errors.description && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {form.formState.errors.description.message}
-                    </p>
+                    <p className="text-sm text-red-600 mt-1">{form.formState.errors.description.message}</p>
                   )}
                 </div>
 
@@ -287,9 +320,7 @@ export default function CreateListing() {
 
             {/* Pricing */}
             <Card>
-              <CardHeader>
-                <CardTitle>Pricing & Payment</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Pricing & Payment</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -298,14 +329,12 @@ export default function CreateListing() {
                       id="priceCrypto"
                       type="number"
                       step="0.00000001"
-                      placeholder="0.00000000"
+                      placeholder="0.00"
                       {...form.register("priceCrypto")}
                       data-testid="input-price"
                     />
                     {form.formState.errors.priceCrypto && (
-                      <p className="text-sm text-red-600 mt-1">
-                        {form.formState.errors.priceCrypto.message}
-                      </p>
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.priceCrypto.message}</p>
                     )}
                   </div>
 
@@ -315,33 +344,26 @@ export default function CreateListing() {
                       value={form.watch("currency") || ""}
                       onValueChange={(value) => {
                         form.setValue("currency", value as any);
-                        // Auto-set network based on currency
-                        if (value === "PI") {
-                          form.setValue("network", "PI_MAINNET");
-                        } else if (value === "USDT") {
-                          form.setValue("network", "TRON");
-                        } else if (["USD", "EUR", "GBP", "CAD", "NGN"].includes(value)) {
-                          form.setValue("network", "BANK_TRANSFER");
-                        }
+                        if (value === "PI") form.setValue("network", "PI_MAINNET");
+                        else if (value === "USDT") form.setValue("network", "TRON");
+                        else if (["USD", "EUR", "GBP", "CAD", "NGN"].includes(value)) form.setValue("network", "BANK_TRANSFER");
                       }}
                     >
                       <SelectTrigger data-testid="select-currency">
                         <SelectValue placeholder="Select currency" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="PI">π Pi (π)</SelectItem>
+                        <SelectItem value="PI">π Pi</SelectItem>
                         <SelectItem value="USDT">💎 USDT</SelectItem>
-                        <SelectItem value="USD">🇺🇸 USD (Bank Transfer)</SelectItem>
-                        <SelectItem value="EUR">🇪🇺 EUR (Bank Transfer)</SelectItem>
-                        <SelectItem value="GBP">🇬🇧 GBP (Bank Transfer)</SelectItem>
-                        <SelectItem value="CAD">🇨🇦 CAD (Bank Transfer)</SelectItem>
-                        <SelectItem value="NGN">🇳🇬 NGN (Bank Transfer)</SelectItem>
+                        <SelectItem value="USD">🇺🇸 USD</SelectItem>
+                        <SelectItem value="EUR">🇪🇺 EUR</SelectItem>
+                        <SelectItem value="GBP">🇬🇧 GBP</SelectItem>
+                        <SelectItem value="CAD">🇨🇦 CAD</SelectItem>
+                        <SelectItem value="NGN">🇳🇬 NGN</SelectItem>
                       </SelectContent>
                     </Select>
                     {form.formState.errors.currency && (
-                      <p className="text-sm text-red-600 mt-1">
-                        {form.formState.errors.currency.message}
-                      </p>
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.currency.message}</p>
                     )}
                   </div>
 
@@ -362,8 +384,8 @@ export default function CreateListing() {
                           <>
                             <SelectItem value="TRON">TRON (TRC20)</SelectItem>
                             <SelectItem value="TON">TON</SelectItem>
-                            <SelectItem value="BNB">BNB Chain (BEP20)</SelectItem>
-                            <SelectItem value="SOL">Solana (SPL)</SelectItem>
+                            <SelectItem value="BNB">BNB Chain</SelectItem>
+                            <SelectItem value="SOL">Solana</SelectItem>
                             <SelectItem value="AVAX">Avalanche</SelectItem>
                           </>
                         ) : ["USD", "EUR", "GBP", "CAD", "NGN"].includes(form.watch("currency") || "") ? (
@@ -372,17 +394,14 @@ export default function CreateListing() {
                       </SelectContent>
                     </Select>
                     {form.formState.errors.network && (
-                      <p className="text-sm text-red-600 mt-1">
-                        {form.formState.errors.network.message}
-                      </p>
+                      <p className="text-sm text-red-600 mt-1">{form.formState.errors.network.message}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> All transactions will be protected by our escrow system. 
-                    A 10% platform fee will be deducted from the final amount.
+                    <strong>Note:</strong> All transactions are protected by our escrow system. A 10% platform fee applies.
                   </p>
                 </div>
               </CardContent>
@@ -391,12 +410,13 @@ export default function CreateListing() {
             {/* Images */}
             <Card>
               <CardHeader>
-                <CardTitle>Images</CardTitle>
+                <CardTitle>Property Images</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="images">Upload Images</Label>
+                    <p className="text-xs text-slate-500 mb-2">Images are uploaded to the server and will display correctly on all devices.</p>
                     <div className="mt-2">
                       <input
                         type="file"
@@ -411,28 +431,46 @@ export default function CreateListing() {
                         type="button"
                         variant="outline"
                         onClick={() => document.getElementById('images')?.click()}
-                        disabled={uploadingImage}
+                        disabled={isUploading}
                         className="w-full h-32 border-2 border-dashed border-slate-300 hover:border-crypto-blue"
                         data-testid="button-upload-images"
                       >
                         <div className="text-center">
-                          <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                          <p className="text-slate-600">Click to upload images</p>
-                          <p className="text-sm text-slate-400">PNG, JPG, GIF up to 5MB each</p>
+                          {isUploading ? (
+                            <>
+                              <Loader2 className="w-8 h-8 mx-auto mb-2 text-crypto-blue animate-spin" />
+                              <p className="text-slate-600">Uploading...</p>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                              <p className="text-slate-600">Click to upload images</p>
+                              <p className="text-sm text-slate-400">PNG, JPG, WEBP — multiple allowed</p>
+                            </>
+                          )}
                         </div>
                       </Button>
                     </div>
                   </div>
 
                   {imageUrls.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                       {imageUrls.map((url, index) => (
-                        <div key={index} className="relative group">
+                        <div key={index} className="relative group aspect-square">
                           <img
                             src={url}
                             alt={`Listing image ${index + 1}`}
-                            className="w-full h-24 object-cover rounded-lg border"
+                            className="w-full h-full object-cover rounded-lg border border-slate-200"
+                            onError={(e) => {
+                              const t = e.target as HTMLImageElement;
+                              t.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect fill='%23e2e8f0' width='100' height='100'/%3E%3Ctext fill='%2394a3b8' font-family='sans-serif' font-size='12' x='50' y='55' text-anchor='middle'%3ENo Image%3C/text%3E%3C/svg%3E";
+                            }}
                           />
+                          {index === 0 && (
+                            <span className="absolute bottom-1 left-1 bg-crypto-blue text-white text-xs px-1.5 py-0.5 rounded font-medium">
+                              Main
+                            </span>
+                          )}
                           <Button
                             type="button"
                             variant="destructive"
@@ -451,6 +489,38 @@ export default function CreateListing() {
               </CardContent>
             </Card>
 
+            {/* Featured Video */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="w-5 h-5 text-crypto-blue" />
+                  Featured Video (Optional)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Label htmlFor="videoUrl">YouTube or Vimeo Video Link</Label>
+                <Input
+                  id="videoUrl"
+                  placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+                  {...form.register("videoUrl")}
+                  data-testid="input-video-url"
+                  className="mt-1"
+                />
+                {form.formState.errors.videoUrl && (
+                  <p className="text-sm text-red-600 mt-1">{form.formState.errors.videoUrl.message}</p>
+                )}
+                <p className="text-xs text-slate-500 mt-2">
+                  Paste a YouTube or Vimeo link to add a walkthrough video that buyers can watch on the listing page.
+                </p>
+                {form.watch("videoUrl") && !form.formState.errors.videoUrl && (
+                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                    <Video className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-green-700">Video link saved — it will appear on your listing page.</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Actions */}
             <Card>
               <CardContent className="pt-6">
@@ -463,11 +533,11 @@ export default function CreateListing() {
                   <Button
                     type="submit"
                     className="flex-1 bg-crypto-blue hover:bg-crypto-teal"
-                    disabled={createListingMutation.isPending}
+                    disabled={createListingMutation.isPending || isUploading}
                     data-testid="button-submit"
                   >
-                    {createListingMutation.isPending 
-                      ? (isEditing ? "Updating..." : "Creating...") 
+                    {createListingMutation.isPending
+                      ? (isEditing ? "Updating..." : "Creating...")
                       : (isEditing ? "Update Listing" : "Create Listing")
                     }
                   </Button>

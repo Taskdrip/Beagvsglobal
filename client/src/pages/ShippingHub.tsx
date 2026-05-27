@@ -708,6 +708,294 @@ function MyShipmentsList() {
   );
 }
 
+// ── Public Booking Form ───────────────────────────────────────────────────────
+const WHATSAPP_BOOKING = "2348037232210";
+
+const publicBookingSchema = z.object({
+  fullName: z.string().min(2, "Full name is required"),
+  email: z.string().email("Valid email is required"),
+  phone: z.string().min(7, "Phone number is required"),
+  origin: z.string().min(2, "Origin is required"),
+  originCountry: z.string().optional(),
+  destination: z.string().min(2, "Destination is required"),
+  destinationCountry: z.string().optional(),
+  cargoType: z.string().optional(),
+  weightKg: z.string().optional(),
+  serviceType: z.string().optional(),
+  additionalNotes: z.string().optional(),
+});
+
+type PublicBookingData = z.infer<typeof publicBookingSchema>;
+
+function PublicBookingForm() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<{ trackingNumber: string; isNewUser: boolean; tempPassword?: string } | null>(null);
+  const [formValues, setFormValues] = useState<PublicBookingData | null>(null);
+
+  const form = useForm<PublicBookingData>({
+    resolver: zodResolver(publicBookingSchema),
+    defaultValues: {
+      fullName: "", email: "", phone: "",
+      origin: "", originCountry: "",
+      destination: "", destinationCountry: "",
+      cargoType: "GENERAL", weightKg: "",
+      serviceType: "Air Standard (5-7 days)",
+      additionalNotes: "",
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (data: PublicBookingData) => {
+      const res = await fetch("/api/shipping/book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Booking failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data, vars) => {
+      setResult(data);
+      setFormValues(vars);
+    },
+    onError: (err: any) => {
+      toast({ title: "Booking failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const buildWhatsAppMessage = (vals: PublicBookingData, tracking: string) => {
+    const lines = [
+      `🚚 *New Shipping Booking — Beagvs Global*`,
+      `📦 Tracking: ${tracking}`,
+      `👤 Name: ${vals.fullName}`,
+      `📧 Email: ${vals.email}`,
+      `📞 Phone: ${vals.phone}`,
+      `📍 From: ${vals.origin}${vals.originCountry ? ", " + vals.originCountry : ""}`,
+      `🎯 To: ${vals.destination}${vals.destinationCountry ? ", " + vals.destinationCountry : ""}`,
+      vals.cargoType ? `📦 Cargo: ${vals.cargoType}` : "",
+      vals.weightKg ? `⚖️ Weight: ${vals.weightKg} kg` : "",
+      vals.serviceType ? `🚀 Service: ${vals.serviceType}` : "",
+      vals.additionalNotes ? `📝 Notes: ${vals.additionalNotes}` : "",
+    ].filter(Boolean).join("\n");
+    return `https://wa.me/${WHATSAPP_BOOKING}?text=${encodeURIComponent(lines)}`;
+  };
+
+  if (result && formValues) {
+    return (
+      <div className="rounded-2xl border border-green-400/25 overflow-hidden" style={{ background: 'linear-gradient(135deg, #0d2040 0%, #091525 60%, #0c2535 100%)' }}>
+        <div className="py-12 px-6 text-center max-w-lg mx-auto">
+          <div className="w-16 h-16 bg-green-400/15 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-400" />
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-2">Booking Confirmed! 🎉</h3>
+          <p className="text-white/60 mb-6">Your shipment has been registered. Use your tracking code to monitor progress.</p>
+
+          <div className="bg-white/5 border border-cyan-400/30 rounded-xl p-5 mb-6 text-left">
+            <p className="text-white/40 text-xs uppercase tracking-widest mb-1">Your Tracking Code</p>
+            <p className="text-cyan-300 font-mono text-2xl font-bold">{result.trackingNumber}</p>
+          </div>
+
+          {result.isNewUser && result.tempPassword && (
+            <div className="bg-yellow-400/10 border border-yellow-400/25 rounded-xl p-4 mb-6 text-left">
+              <p className="text-yellow-300 font-semibold text-sm mb-1">🔑 New Account Created</p>
+              <p className="text-white/60 text-sm mb-2">We created a Beagvs account with your email. Your temporary password:</p>
+              <p className="font-mono text-white font-bold text-lg bg-white/5 rounded px-3 py-1 inline-block">{result.tempPassword}</p>
+              <p className="text-white/40 text-xs mt-2">Please log in and change this password immediately.</p>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a href={buildWhatsAppMessage(formValues, result.trackingNumber)} target="_blank" rel="noopener noreferrer">
+              <Button className="bg-green-500 hover:bg-green-600 text-white font-semibold h-11 px-6 w-full sm:w-auto gap-2">
+                <Send className="w-4 h-4" /> Send Summary via WhatsApp
+              </Button>
+            </a>
+            <Link href={`/tracking?q=${result.trackingNumber}`}>
+              <Button variant="outline" className="border-cyan-400/30 text-cyan-300 hover:bg-cyan-400/10 h-11 px-6 w-full sm:w-auto gap-2">
+                <Globe className="w-4 h-4" /> Track Shipment
+              </Button>
+            </Link>
+          </div>
+
+          <button
+            onClick={() => { setResult(null); setFormValues(null); form.reset(); }}
+            className="mt-6 text-white/30 hover:text-white/60 text-sm underline transition-colors"
+          >
+            Book another shipment
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-cyan-400/20 overflow-hidden" style={{ background: 'linear-gradient(135deg, #0d2040 0%, #091525 60%, #0c2535 100%)' }}>
+      <div className="px-6 py-8 sm:px-10">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-cyan-400/15 rounded-xl flex items-center justify-center">
+            <Package className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white">Book a Shipment</h2>
+            <p className="text-white/50 text-sm">No account needed — we'll create one for you automatically</p>
+          </div>
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(v => mutation.mutate(v))} className="space-y-4">
+            <div className="grid sm:grid-cols-3 gap-4">
+              <FormField control={form.control} name="fullName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Full Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="John Doe" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" data-testid="input-booking-fullname" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Email *</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="email" placeholder="you@email.com" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" data-testid="input-booking-email" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="phone" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Phone *</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="tel" placeholder="+234 800 000 0000" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" data-testid="input-booking-phone" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="origin" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Origin City *</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Lagos, London, New York…" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" data-testid="input-booking-origin" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="originCountry" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Origin Country</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Nigeria, UK, USA…" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" />
+                  </FormControl>
+                </FormItem>
+              )} />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <FormField control={form.control} name="destination" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Destination City *</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Abuja, Paris, Dubai…" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" data-testid="input-booking-destination" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="destinationCountry" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Destination Country</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Nigeria, France, UAE…" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" />
+                  </FormControl>
+                </FormItem>
+              )} />
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-4">
+              <FormField control={form.control} name="cargoType" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Cargo Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="bg-white/5 border-white/15 text-white">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-[#0a1628] border-white/15 text-white">
+                      {CARGO_CATEGORIES.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="weightKg" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Weight (kg)</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="number" step="0.1" min="0" placeholder="5.0" className="bg-white/5 border-white/15 text-white placeholder:text-white/25" />
+                  </FormControl>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="serviceType" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Service Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="bg-white/5 border-white/15 text-white">
+                        <SelectValue placeholder="Select service" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-[#0a1628] border-white/15 text-white">
+                      {SERVICE_TYPES.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
+            </div>
+
+            <FormField control={form.control} name="additionalNotes" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-white/60 text-xs uppercase tracking-wide">Additional Notes / Special Instructions</FormLabel>
+                <FormControl>
+                  <Textarea {...field} rows={3} placeholder="Fragile items, customs info, delivery instructions…"
+                    className="bg-white/5 border-white/15 text-white placeholder:text-white/25 resize-none" data-testid="input-booking-notes" />
+                </FormControl>
+              </FormItem>
+            )} />
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button type="submit" disabled={mutation.isPending}
+                className="flex-1 h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 font-semibold text-base"
+                data-testid="button-submit-booking">
+                {mutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing…</> : <><Package className="w-4 h-4 mr-2" /> Book Shipment & Get Tracking Code</>}
+              </Button>
+              <a href={`https://wa.me/${WHATSAPP_BOOKING}?text=${encodeURIComponent("Hi Beagvs Global, I'd like to enquire about a shipment.")}`}
+                target="_blank" rel="noopener noreferrer">
+                <Button type="button" variant="outline"
+                  className="h-12 px-6 border-green-400/30 text-green-300 hover:bg-green-400/10 whitespace-nowrap w-full sm:w-auto gap-2">
+                  <Send className="w-4 h-4" /> Chat on WhatsApp
+                </Button>
+              </a>
+            </div>
+
+            <p className="text-white/30 text-xs text-center">
+              By submitting, a Beagvs account will be created with your email if you don't have one yet. Check your email for login credentials.
+            </p>
+          </form>
+        </Form>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function ShippingHub() {
   const [matchDetail, paramsDetail] = useRoute("/shipments/:id");
@@ -873,20 +1161,8 @@ export default function ShippingHub() {
               </Tabs>
             )}
 
-            {!isAuthenticated && (
-              <div className="rounded-2xl border border-cyan-400/25 text-center overflow-hidden" style={{ background: 'linear-gradient(135deg, #0d2040 0%, #091525 60%, #0c2535 100%)' }}>
-                <div className="py-12 px-6">
-                  <Shield className="w-12 h-12 text-cyan-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-white mb-2">Sign in to Book Shipments</h3>
-                  <p className="text-slate-400 mb-6">Create an account to book cargo, manage shipments, and track deliveries with escrow protection.</p>
-                  <Link href="/signup">
-                    <Button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 font-semibold h-11 px-8">
-                      Get Started <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            )}
+            {/* Public Booking Form — available to all visitors */}
+            <PublicBookingForm />
           </section>
         </>
       ) : (

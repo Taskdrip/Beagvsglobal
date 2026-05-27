@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,8 +24,102 @@ import {
   Clock,
   ShoppingCart,
   Store,
-  Truck
+  Truck,
+  ExternalLink
 } from "lucide-react";
+
+// ── Shipments Tab ─────────────────────────────────────────────────────────────
+const SHIPMENT_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  PENDING:          { label: "Pending",          color: "text-yellow-600",  bg: "bg-yellow-50"  },
+  PICKED_UP:        { label: "Picked Up",         color: "text-blue-600",    bg: "bg-blue-50"    },
+  IN_TRANSIT:       { label: "In Transit",        color: "text-cyan-600",    bg: "bg-cyan-50"    },
+  OUT_FOR_DELIVERY: { label: "Out for Delivery",  color: "text-purple-600",  bg: "bg-purple-50"  },
+  DELIVERED:        { label: "Delivered",         color: "text-green-600",   bg: "bg-green-50"   },
+  FAILED:           { label: "Failed",            color: "text-red-600",     bg: "bg-red-50"     },
+  RETURNED:         { label: "Returned",          color: "text-orange-600",  bg: "bg-orange-50"  },
+};
+
+function ShipmentsTab() {
+  const { data: shipments, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/shipments/me"],
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="animate-pulse space-y-3">
+            {[1, 2, 3].map(i => <div key={i} className="h-16 bg-slate-100 rounded-lg" />)}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!shipments || shipments.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <Truck className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-dark mb-2">No shipments yet</h3>
+          <p className="text-slate-medium mb-6">Book a shipment to see your tracking codes here</p>
+          <Link href="/shipping">
+            <Button data-testid="button-book-shipment">Book a Shipment</Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Truck className="w-5 h-5" />
+          My Shipments ({shipments.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {shipments.map((s: any) => {
+            const cfg = SHIPMENT_STATUS[s.status] ?? { label: s.status, color: "text-slate-600", bg: "bg-slate-50" };
+            return (
+              <div key={s.id} data-testid={`shipment-row-${s.id}`}
+                className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
+                  <Truck className={`w-5 h-5 ${cfg.color}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="font-mono font-bold text-slate-dark text-sm" data-testid={`text-tracking-${s.id}`}>
+                      {s.trackingNumber}
+                    </span>
+                    <Badge className={`${cfg.bg} ${cfg.color} border-0 text-xs font-medium`}>
+                      {cfg.label}
+                    </Badge>
+                  </div>
+                  <p className="text-slate-medium text-xs">
+                    {s.carrier}
+                    {s.origin ? ` · ${s.origin}` : ""}
+                    {s.destination ? ` → ${s.destination}` : ""}
+                    {s.weightKg ? ` · ${s.weightKg}kg` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Link href={`/tracking?q=${s.trackingNumber}`}>
+                    <Button variant="outline" size="sm" className="text-xs gap-1" data-testid={`button-track-${s.id}`}>
+                      <ExternalLink className="w-3 h-3" /> Track
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Dashboard() {
   const [currentMode, setCurrentMode] = useState<"buyer" | "seller">("buyer");
@@ -186,10 +281,11 @@ export default function Dashboard() {
 
         {/* Dashboard Tabs */}
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="listings" data-testid="tab-listings">Listings</TabsTrigger>
             <TabsTrigger value="escrows" data-testid="tab-escrows">Escrows</TabsTrigger>
+            <TabsTrigger value="shipments" data-testid="tab-shipments">Shipments</TabsTrigger>
             <TabsTrigger value="wallets" data-testid="tab-wallets">Wallets</TabsTrigger>
             <TabsTrigger value="social" data-testid="tab-social">Social</TabsTrigger>
           </TabsList>
@@ -457,6 +553,10 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="shipments" className="space-y-4">
+            <ShipmentsTab />
           </TabsContent>
 
           <TabsContent value="wallets" className="space-y-4">
