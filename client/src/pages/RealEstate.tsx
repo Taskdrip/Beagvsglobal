@@ -178,11 +178,17 @@ function PropertyCard({ listing }: { listing: any }) {
             <span className="text-amber-400 text-xs font-medium">{meta.propertyTitle}</span>
           </div>
         )}
-        <Link href={`/listing/${listing.slug}`}>
-          <h3 className="text-white font-semibold text-base mb-1 group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-snug">
+        {listing.slug ? (
+          <Link href={`/listing/${listing.slug}`}>
+            <h3 className="text-white font-semibold text-base mb-1 group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer leading-snug">
+              {listing.title}
+            </h3>
+          </Link>
+        ) : (
+          <h3 className="text-white font-semibold text-base mb-1 line-clamp-2 leading-snug">
             {listing.title}
           </h3>
-        </Link>
+        )}
 
         {/* Property specs */}
         <div className="flex items-center gap-4 mb-3 text-white/50 text-sm">
@@ -236,9 +242,10 @@ function PropertyCard({ listing }: { listing: any }) {
         </div>
 
         <div className="flex gap-2 mt-3">
-          <Link href={`/listing/${listing.slug}`} className="flex-1">
+          <Link href={listing.slug ? `/listing/${listing.slug}` : "#"} className="flex-1">
             <Button size="sm" className="w-full bg-gradient-to-r from-cyan-500/80 to-blue-600/80 hover:from-cyan-500 hover:to-blue-600 text-white text-xs h-9"
-              data-testid={`button-view-property-${listing.id}`}>
+              data-testid={`button-view-property-${listing.id}`}
+              disabled={!listing.slug}>
               <Eye className="w-3.5 h-3.5 mr-1" /> View Property
             </Button>
           </Link>

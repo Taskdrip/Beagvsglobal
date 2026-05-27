@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "wouter";
+import { getQueryFn } from "@/lib/queryClient";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -67,8 +68,11 @@ export default function ListingDetail() {
   const [showEscrowDialog, setShowEscrowDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
 
-  const { data: listing, isLoading } = useQuery({
+  const { data: listing, isLoading, isError } = useQuery({
     queryKey: ["/api/listings/slug", slug],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: !!slug,
+    retry: 1,
   });
 
   const { data: platformWallet } = useQuery({
@@ -255,16 +259,39 @@ export default function ListingDetail() {
     );
   }
 
-  if (!listing) {
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navigation />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+          <h1 className="text-2xl font-bold text-slate-dark mb-4">Something went wrong</h1>
+          <p className="text-slate-medium mb-8">We couldn't load this listing. Please try again.</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button onClick={() => window.location.reload()}>Try Again</Button>
+            <Link href="/real-estate">
+              <Button variant="outline">Browse Properties</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && !listing) {
     return (
       <div className="min-h-screen bg-slate-50">
         <Navigation />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
           <h1 className="text-2xl font-bold text-slate-dark mb-4">Listing not found</h1>
           <p className="text-slate-medium mb-8">The listing you're looking for doesn't exist or has been removed.</p>
-          <Link href="/marketplace">
-            <Button>Browse Marketplace</Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/real-estate">
+              <Button>Browse Properties</Button>
+            </Link>
+            <Link href="/marketplace">
+              <Button variant="outline">Browse Marketplace</Button>
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -278,11 +305,11 @@ export default function ListingDetail() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Navigation */}
-        <div className="mb-6">
-          <Link href="/marketplace">
+        <div className="mb-4 sm:mb-6">
+          <Link href={listing?.type === "REAL_ESTATE" ? "/real-estate" : "/marketplace"}>
             <Button variant="ghost" className="flex items-center space-x-2" data-testid="button-back">
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Marketplace</span>
+              <span>{listing?.type === "REAL_ESTATE" ? "Back to Real Estate" : "Back to Marketplace"}</span>
             </Button>
           </Link>
         </div>
@@ -296,7 +323,7 @@ export default function ListingDetail() {
               <CardContent className="p-0">
                 {listing.images && listing.images.length > 0 ? (
                   <div>
-                    <div className="relative h-96 overflow-hidden rounded-t-lg">
+                    <div className="relative h-56 sm:h-72 md:h-96 overflow-hidden rounded-t-lg">
                       <img
                         src={listing.images[selectedImageIndex]}
                         alt={listing.title}
@@ -374,7 +401,7 @@ export default function ListingDetail() {
                     )}
                   </div>
                 ) : (
-                  <div className="h-96 bg-slate-200 rounded-lg flex items-center justify-center">
+                  <div className="h-56 sm:h-72 md:h-96 bg-slate-200 rounded-lg flex items-center justify-center">
                     <Package className="w-16 h-16 text-slate-400" />
                   </div>
                 )}
