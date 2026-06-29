@@ -643,3 +643,43 @@ export type InsertFacialVerification = z.infer<typeof insertFacialVerificationSc
 export type FacialVerification = typeof facialVerifications.$inferSelect;
 export type InsertPlatformSetting = z.infer<typeof insertPlatformSettingSchema>;
 export type PlatformSetting = typeof platformSettings.$inferSelect;
+
+// ─── Competitor Intelligence ──────────────────────────────────────────────────
+
+export const competitors = pgTable("competitors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  website: varchar("website"),
+  country: varchar("country"),
+  industry: varchar("industry").notNull().default("BOTH"), // REAL_ESTATE | SHIPPING | BOTH
+  notes: text("notes"),
+  blogUrl: varchar("blog_url"),
+  socialLinks: jsonb("social_links").default({}),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const competitorContent = pgTable("competitor_content", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  competitorId: varchar("competitor_id").notNull().references(() => competitors.id, { onDelete: "cascade" }),
+  type: varchar("type").notNull(), // blog | twitter | instagram | linkedin | facebook | youtube | other
+  platform: varchar("platform").notNull(),
+  title: varchar("title"),
+  summary: text("summary"),
+  url: varchar("url"),
+  engagementLikes: integer("engagement_likes").default(0),
+  engagementShares: integer("engagement_shares").default(0),
+  engagementComments: integer("engagement_comments").default(0),
+  publishedAt: timestamp("published_at"),
+  trackedAt: timestamp("tracked_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCompetitorSchema = createInsertSchema(competitors).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCompetitorContentSchema = createInsertSchema(competitorContent).omit({ id: true, createdAt: true, trackedAt: true });
+
+export type Competitor = typeof competitors.$inferSelect;
+export type InsertCompetitor = z.infer<typeof insertCompetitorSchema>;
+export type CompetitorContent = typeof competitorContent.$inferSelect;
+export type InsertCompetitorContent = z.infer<typeof insertCompetitorContentSchema>;

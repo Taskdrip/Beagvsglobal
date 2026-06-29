@@ -17,6 +17,7 @@ import Footer from "@/components/Footer";
 import EscrowProgress from "@/components/EscrowProgress";
 import AdminPageEditor from "@/components/AdminPageEditor";
 import AdminBlogManager from "@/components/AdminBlogManager";
+import CompetitorDashboard from "@/components/CompetitorDashboard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -1500,6 +1501,9 @@ export default function Admin() {
             <TabsTrigger value="security" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-security">
               Security
             </TabsTrigger>
+            <TabsTrigger value="competitors" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-competitors-main">
+              🎯 Competitors
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="escrows" className="space-y-4">
@@ -2334,6 +2338,12 @@ export default function Admin() {
 
           <TabsContent value="security" className="space-y-6">
             <AdminSecurityTab adminUser={user} />
+          </TabsContent>
+
+          <TabsContent value="competitors" className="space-y-4">
+            <ErrorBoundary>
+              <CompetitorDashboard />
+            </ErrorBoundary>
           </TabsContent>
         </Tabs>
 

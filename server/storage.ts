@@ -16,6 +16,8 @@ import {
   shipmentEvents,
   aiSupportSessions,
   aiSupportMessages,
+  competitors,
+  competitorContent,
   type User,
   type UpsertUser,
   type InsertWallet,
@@ -48,6 +50,10 @@ import {
   type PlatformSetting,
   type AiSupportSession,
   type AiSupportMessage,
+  type Competitor,
+  type InsertCompetitor,
+  type CompetitorContent,
+  type InsertCompetitorContent,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, sql, count } from "drizzle-orm";
@@ -159,6 +165,18 @@ export interface IStorage {
   getPlatformSetting(key: string): Promise<PlatformSetting | undefined>;
   upsertPlatformSetting(key: string, value: any, description?: string, updatedBy?: string): Promise<PlatformSetting>;
   deletePlatformSetting(key: string): Promise<void>;
+
+  // Competitor intelligence operations
+  getCompetitors(): Promise<Competitor[]>;
+  getCompetitor(id: string): Promise<Competitor | undefined>;
+  createCompetitor(data: InsertCompetitor): Promise<Competitor>;
+  updateCompetitor(id: string, data: Partial<InsertCompetitor>): Promise<Competitor>;
+  deleteCompetitor(id: string): Promise<void>;
+  getCompetitorContent(competitorId?: string): Promise<(CompetitorContent & { competitor: Competitor })[]>;
+  createCompetitorContent(data: InsertCompetitorContent): Promise<CompetitorContent>;
+  updateCompetitorContent(id: string, data: Partial<InsertCompetitorContent>): Promise<CompetitorContent>;
+  deleteCompetitorContent(id: string): Promise<void>;
+  getCompetitorAnalytics(): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1191,6 +1209,107 @@ export class DatabaseStorage implements IStorage {
     const [msg] = await db.insert(aiSupportMessages).values(data).returning();
     await db.update(aiSupportSessions).set({ updatedAt: new Date() }).where(eq(aiSupportSessions.id, data.sessionId));
     return msg;
+  }
+
+  // ─── Competitor Intelligence ───────────────────────────────────────────────
+
+  async getCompetitors(): Promise<Competitor[]> {
+    return db.select().from(competitors).orderBy(desc(competitors.createdAt));
+  }
+
+  async getCompetitor(id: string): Promise<Competitor | undefined> {
+    const [c] = await db.select().from(competitors).where(eq(competitors.id, id));
+    return c;
+  }
+
+  async createCompetitor(data: InsertCompetitor): Promise<Competitor> {
+    const [c] = await db.insert(competitors).values(data).returning();
+    return c;
+  }
+
+  async updateCompetitor(id: string, data: Partial<InsertCompetitor>): Promise<Competitor> {
+    const [c] = await db.update(competitors).set({ ...data, updatedAt: new Date() }).where(eq(competitors.id, id)).returning();
+    return c;
+  }
+
+  async deleteCompetitor(id: string): Promise<void> {
+    await db.delete(competitors).where(eq(competitors.id, id));
+  }
+
+  async getCompetitorContent(competitorId?: string): Promise<(CompetitorContent & { competitor: Competitor })[]> {
+    const rows = await db
+      .select()
+      .from(competitorContent)
+      .innerJoin(competitors, eq(competitorContent.competitorId, competitors.id))
+      .where(competitorId ? eq(competitorContent.competitorId, competitorId) : undefined)
+      .orderBy(desc(competitorContent.publishedAt));
+    return rows.map(r => ({ ...r.competitor_content, competitor: r.competitors }));
+  }
+
+  async createCompetitorContent(data: InsertCompetitorContent): Promise<CompetitorContent> {
+    const [c] = await db.insert(competitorContent).values(data).returning();
+    return c;
+  }
+
+  async updateCompetitorContent(id: string, data: Partial<InsertCompetitorContent>): Promise<CompetitorContent> {
+    const [c] = await db.update(competitorContent).set(data).where(eq(competitorContent.id, id)).returning();
+    return c;
+  }
+
+  async deleteCompetitorContent(id: string): Promise<void> {
+    await db.delete(competitorContent).where(eq(competitorContent.id, id));
+  }
+
+  async getCompetitorAnalytics(): Promise<any> {
+    const allCompetitors = await db.select().from(competitors);
+    const allContent = await db.select().from(competitorContent).orderBy(desc(competitorContent.publishedAt));
+
+    const contentByCompetitor: Record<string, number> = {};
+    const engagementByCompetitor: Record<string, number> = {};
+    const contentByPlatform: Record<string, number> = {};
+    const contentByType: Record<string, number> = {};
+
+    for (const c of allContent) {
+      contentByCompetitor[c.competitorId] = (contentByCompetitor[c.competitorId] || 0) + 1;
+      const eng = (c.engagementLikes || 0) + (c.engagementShares || 0) + (c.engagementComments || 0);
+      engagementByCompetitor[c.competitorId] = (engagementByCompetitor[c.competitorId] || 0) + eng;
+      contentByPlatform[c.platform] = (contentByPlatform[c.platform] || 0) + 1;
+      contentByType[c.type] = (contentByType[c.type] || 0) + 1;
+    }
+
+    const topCompetitors = allCompetitors
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        industry: c.industry,
+        country: c.country,
+        contentCount: contentByCompetitor[c.id] || 0,
+        totalEngagement: engagementByCompetitor[c.id] || 0,
+      }))
+      .sort((a, b) => b.contentCount - a.contentCount);
+
+    const recentContent = allContent.slice(0, 20);
+    const platformBreakdown = Object.entries(contentByPlatform).map(([platform, count]) => ({ platform, count }));
+    const typeBreakdown = Object.entries(contentByType).map(([type, count]) => ({ type, count }));
+
+    // Monthly posting frequency (last 6 months)
+    const now = new Date();
+    const monthlyActivity: Record<string, number> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
+      monthlyActivity[key] = 0;
+    }
+    for (const c of allContent) {
+      const d = c.publishedAt || c.createdAt;
+      if (!d) continue;
+      const date = new Date(d);
+      const key = date.toLocaleString("default", { month: "short", year: "2-digit" });
+      if (key in monthlyActivity) monthlyActivity[key]++;
+    }
+    const activityTrend = Object.entries(monthlyActivity).map(([month, count]) => ({ month, count }));
+
+    return { topCompetitors, recentContent, platformBreakdown, typeBreakdown, activityTrend, totalCompetitors: allCompetitors.length, totalContent: allContent.length };
   }
 }
 

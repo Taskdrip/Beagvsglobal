@@ -1948,6 +1948,90 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // ─── Competitor Intelligence Routes ────────────────────────────────────────
+
+  app.get("/api/admin/competitors", isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const data = await storage.getCompetitors();
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to fetch competitors" });
+    }
+  });
+
+  app.post("/api/admin/competitors", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const c = await storage.createCompetitor(req.body);
+      res.json(c);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to create competitor" });
+    }
+  });
+
+  app.patch("/api/admin/competitors/:id", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const c = await storage.updateCompetitor(req.params.id, req.body);
+      res.json(c);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to update competitor" });
+    }
+  });
+
+  app.delete("/api/admin/competitors/:id", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      await storage.deleteCompetitor(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to delete competitor" });
+    }
+  });
+
+  app.get("/api/admin/competitor-content", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const competitorId = req.query.competitorId as string | undefined;
+      const data = await storage.getCompetitorContent(competitorId);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to fetch content" });
+    }
+  });
+
+  app.post("/api/admin/competitor-content", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const c = await storage.createCompetitorContent(req.body);
+      res.json(c);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to create content" });
+    }
+  });
+
+  app.patch("/api/admin/competitor-content/:id", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const c = await storage.updateCompetitorContent(req.params.id, req.body);
+      res.json(c);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to update content" });
+    }
+  });
+
+  app.delete("/api/admin/competitor-content/:id", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      await storage.deleteCompetitorContent(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to delete content" });
+    }
+  });
+
+  app.get("/api/admin/competitors/analytics", isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const data = await storage.getCompetitorAnalytics();
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
   // Health check — used by Railway to verify the app is alive
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
