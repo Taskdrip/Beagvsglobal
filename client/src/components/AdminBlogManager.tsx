@@ -511,11 +511,6 @@ export default function AdminBlogManager() {
 
   const { data: posts = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ["/api/admin/blog"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/blog");
-      if (!res.ok) throw new Error("Failed to load blog posts");
-      return res.json();
-    },
   });
 
   const publishMutation = useMutation({
