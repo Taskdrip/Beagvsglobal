@@ -6,7 +6,6 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema, insertPlatformSettingSchema } from "@shared/schema";
-import { ObjectStorageService } from "./objectStorage";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import fs from "fs";
