@@ -92,6 +92,21 @@ async function runAutoSeed() {
   } catch (err) {
     console.error("Auto-seed failed (non-fatal):", err);
   }
+  try {
+    const { seedBlogPosts } = await import("./seed-blog");
+    const result = await seedBlogPosts();
+    if (result.success) {
+      if ((result as any).created > 0) {
+        console.log(`[startup-seed] Blog posts seeded: ${(result as any).created} created, ${(result as any).skipped} skipped.`);
+      } else {
+        console.log(`[startup-seed] Blog posts already seeded, skipping.`);
+      }
+    } else {
+      console.warn("[startup-seed] Blog seed skipped:", (result as any).message);
+    }
+  } catch (err) {
+    console.error("Blog auto-seed failed (non-fatal):", err);
+  }
 }
 
 (async () => {
