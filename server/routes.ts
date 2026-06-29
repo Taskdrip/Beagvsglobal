@@ -910,6 +910,17 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // Admin: get ALL blog posts (including drafts) for admin management
+  app.get('/api/admin/blog', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const posts = await storage.getBlogPosts(undefined);
+      res.json(posts);
+    } catch (error) {
+      console.error("Error fetching all blog posts:", error);
+      res.status(500).json({ message: "Failed to fetch blog posts" });
+    }
+  });
+
   // Platform wallet routes (admin only)
   app.get('/api/platform-wallets', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
