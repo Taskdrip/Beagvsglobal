@@ -509,8 +509,10 @@ export default function AdminBlogManager() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
-  const { data: posts = [], isLoading, refetch } = useQuery<any[]>({
+  const { data: posts = [], isLoading, isError, error, refetch } = useQuery<any[]>({
     queryKey: ["/api/admin/blog"],
+    staleTime: 0,
+    retry: 1,
   });
 
   const publishMutation = useMutation({
@@ -635,6 +637,15 @@ export default function AdminBlogManager() {
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+            </div>
+          ) : isError ? (
+            <div className="text-center py-12">
+              <FileText className="w-12 h-12 text-red-200 mx-auto mb-3" />
+              <p className="text-red-500 font-medium">Failed to load blog posts</p>
+              <p className="text-slate-400 text-sm mt-1 mb-4">{(error as any)?.message || "Check that you are logged in as admin"}</p>
+              <Button size="sm" variant="outline" onClick={() => refetch()} data-testid="button-retry-blog">
+                <RefreshCw className="w-4 h-4 mr-2" /> Retry
+              </Button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-12">
