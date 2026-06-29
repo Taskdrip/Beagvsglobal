@@ -185,10 +185,30 @@ function BlockchainBackground() {
   );
 }
 
-function HeroSlider() {
+function HeroSlider({ content }: { content: any }) {
   const [current, setCurrent] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const slides = heroSlides.map((s, i) =>
+    i === 0
+      ? {
+          ...s,
+          title: content.heroTitle ?? s.title,
+          titleAccent: content.heroTitleAccent ?? s.titleAccent,
+          subtitle: content.heroSubtitle ?? s.subtitle,
+          cta: { ...s.cta, label: content.heroCta ?? s.cta.label },
+          secondary: { ...s.secondary, label: content.heroSecondaryCta ?? s.secondary.label },
+          image: content.heroImage || s.image,
+          stats: [
+            { value: content.stat1Value ?? s.stats[0].value, label: content.stat1Label ?? s.stats[0].label },
+            { value: content.stat2Value ?? s.stats[1].value, label: content.stat2Label ?? s.stats[1].label },
+            { value: content.stat3Value ?? s.stats[2].value, label: content.stat3Label ?? s.stats[2].label },
+            { value: content.stat4Value ?? s.stats[3].value, label: content.stat4Label ?? s.stats[3].label },
+          ],
+        }
+      : s
+  );
 
   const goTo = (idx: number) => {
     if (transitioning) return;
@@ -199,17 +219,17 @@ function HeroSlider() {
     }, 300);
   };
 
-  const prev = () => goTo((current - 1 + heroSlides.length) % heroSlides.length);
-  const next = () => goTo((current + 1) % heroSlides.length);
+  const prev = () => goTo((current - 1 + slides.length) % slides.length);
+  const next = () => goTo((current + 1) % slides.length);
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      setCurrent((c) => (c + 1) % heroSlides.length);
+      setCurrent((c) => (c + 1) % slides.length);
     }, 6000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  const slide = heroSlides[current];
+  const slide = slides[current];
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden bg-[#050d1a]" data-testid="section-hero">
@@ -338,7 +358,7 @@ function HeroSlider() {
           </button>
 
           <div className="flex gap-2">
-            {heroSlides.map((_, i) => (
+            {slides.map((_, i) => (
               <button
                 key={i}
                 onClick={() => goTo(i)}
@@ -408,7 +428,7 @@ export default function Landing() {
       <Navigation dark />
 
       {/* HERO SLIDER */}
-      <HeroSlider />
+      <HeroSlider content={c} />
 
       {/* LIVE STATS TICKER */}
       <section className="bg-[#0a1628] border-y border-cyan-500/10 py-4 overflow-hidden">

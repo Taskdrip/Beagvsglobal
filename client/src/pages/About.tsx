@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navigation from "@/components/Navigation";
@@ -24,10 +25,28 @@ import {
   Truck
 } from "lucide-react";
 
+const ABOUT_DEFAULTS = {
+  heroTitle: "Your Trusted Partner in Global Cargo & Freight",
+  heroSubtitle: "A licensed freight forwarder and customs agent providing comprehensive cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and beyond — now powered by secure cryptocurrency transactions.",
+  missionTitle: "Our Mission",
+  missionContent: "Beagvs Marine Services Nig Ltd is dedicated to providing seamless, reliable, and cost-effective freight forwarding and customs clearance services. We handle cargo with the utmost care — from consolidation at major Nigerian ports to final door-to-door delivery — while integrating modern cryptocurrency payment options for global trade security.",
+  stat1Value: "5,000+",
+  stat1Label: "Shipments Cleared",
+  stat2Value: "20+",
+  stat2Label: "Years Experience",
+  stat3Value: "5",
+  stat3Label: "Port Locations",
+  stat4Value: "99%",
+  stat4Label: "On-Time Clearance",
+};
+
 export default function About() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const { data: savedContent } = useQuery<any>({ queryKey: ["/api/page-content/about"] });
+  const c = { ...ABOUT_DEFAULTS, ...(savedContent || {}) };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -44,11 +63,10 @@ export default function About() {
             </div>
           </div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6" data-testid="text-about-title">
-            Your Trusted Partner in<br />
-            <span className="text-cyan-300">Global Cargo & Freight</span>
+            {c.heroTitle}
           </h1>
           <p className="text-xl text-blue-100 max-w-3xl mx-auto">
-            A licensed freight forwarder and customs agent providing comprehensive cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and beyond — now powered by secure cryptocurrency transactions.
+            {c.heroSubtitle}
           </p>
         </div>
       </section>
@@ -57,9 +75,9 @@ export default function About() {
       <section className="py-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <Target className="w-16 h-16 text-crypto-blue mx-auto mb-8" />
-          <h2 className="text-3xl font-bold text-slate-dark mb-6" data-testid="text-mission-title">Our Mission</h2>
+          <h2 className="text-3xl font-bold text-slate-dark mb-6" data-testid="text-mission-title">{c.missionTitle}</h2>
           <p className="text-xl text-slate-medium leading-relaxed" data-testid="text-mission-content">
-            Beagvs Marine Services Nig Ltd is dedicated to providing seamless, reliable, and cost-effective freight forwarding and customs clearance services. We handle cargo with the utmost care — from consolidation at major Nigerian ports to final door-to-door delivery — while integrating modern cryptocurrency payment options for global trade security.
+            {c.missionContent}
           </p>
         </div>
       </section>
@@ -259,20 +277,20 @@ export default function About() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="text-center" data-testid="stat-transactions">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">5,000+</div>
-              <p className="text-slate-medium">Shipments Cleared</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">{c.stat1Value}</div>
+              <p className="text-slate-medium">{c.stat1Label}</p>
             </div>
             <div className="text-center" data-testid="stat-users">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">20+</div>
-              <p className="text-slate-medium">Years Experience</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">{c.stat2Value}</div>
+              <p className="text-slate-medium">{c.stat2Label}</p>
             </div>
             <div className="text-center" data-testid="stat-countries">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">5</div>
-              <p className="text-slate-medium">Port Locations</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">{c.stat3Value}</div>
+              <p className="text-slate-medium">{c.stat3Label}</p>
             </div>
             <div className="text-center" data-testid="stat-success-rate">
-              <div className="text-4xl font-bold text-crypto-blue mb-2">99%</div>
-              <p className="text-slate-medium">On-Time Clearance</p>
+              <div className="text-4xl font-bold text-crypto-blue mb-2">{c.stat4Value}</div>
+              <p className="text-slate-medium">{c.stat4Label}</p>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -37,10 +38,26 @@ const contactSchema = z.object({
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
+const CONTACT_DEFAULTS = {
+  heroTitle: "Get In Touch",
+  heroSubtitle: "Have questions about cargo services, shipping rates, or customs clearance? Our team is ready to help with all your freight and logistics needs.",
+  email: "info@beagvsglobal.com",
+  phone1: "+234 803 723 2210",
+  phone2: "+234 815 557 6539",
+  phone3: "+234 802 752 9083",
+  whatsapp: "+2348037232210",
+  address1: "No 24, 1st Avenue Ottooba, Great Estate, Bagidan Ijede, Ikorodu, Lagos",
+  address2: "No 21, Nevis Street, off Mission Road, Benin City, Edo State",
+  hours: "Monday – Friday: 8:00 AM – 6:00 PM | Saturday: 9:00 AM – 3:00 PM",
+};
+
 export default function Contact() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const { data: savedContent } = useQuery<any>({ queryKey: ["/api/page-content/contact"] });
+  const c = { ...CONTACT_DEFAULTS, ...(savedContent || {}) };
 
   const { toast } = useToast();
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -96,10 +113,10 @@ export default function Contact() {
             </div>
           </div>
           <h1 className="text-4xl font-bold text-slate-dark mb-4" data-testid="text-contact-title">
-            Get In Touch
+            {c.heroTitle}
           </h1>
           <p className="text-xl text-slate-medium max-w-3xl mx-auto">
-            Have questions about cargo services, shipping rates, or customs clearance? Our team is ready to help with all your freight and logistics needs.
+            {c.heroSubtitle}
           </p>
         </div>
         
@@ -191,9 +208,9 @@ export default function Contact() {
                   <div>
                     <h4 className="font-semibold text-slate-dark">Phone / WhatsApp</h4>
                     <div className="space-y-1 mt-1">
-                      <a href="tel:+2348037232210" className="block text-slate-medium hover:text-crypto-blue transition-colors">+234 803 723 2210</a>
-                      <a href="tel:+2348155576539" className="block text-slate-medium hover:text-crypto-blue transition-colors">+234 815 557 6539</a>
-                      <a href="tel:+2348027529083" className="block text-slate-medium hover:text-crypto-blue transition-colors">+234 802 752 9083</a>
+                      {c.phone1 && <a href={`tel:${c.phone1.replace(/\s/g, "")}`} className="block text-slate-medium hover:text-crypto-blue transition-colors">{c.phone1}</a>}
+                      {c.phone2 && <a href={`tel:${c.phone2.replace(/\s/g, "")}`} className="block text-slate-medium hover:text-crypto-blue transition-colors">{c.phone2}</a>}
+                      {c.phone3 && <a href={`tel:${c.phone3.replace(/\s/g, "")}`} className="block text-slate-medium hover:text-crypto-blue transition-colors">{c.phone3}</a>}
                     </div>
                   </div>
                 </div>
@@ -203,8 +220,8 @@ export default function Contact() {
                     <MapPin className="w-5 h-5 text-orange-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-slate-dark">Head Office — Lagos</h4>
-                    <p className="text-slate-medium text-sm mt-1">No 24, 1st Avenue Ottooba, Great Estate,<br />Bagidan Ijede, Ikorodu, Lagos</p>
+                    <h4 className="font-semibold text-slate-dark">Head Office</h4>
+                    <p className="text-slate-medium text-sm mt-1">{c.address1}</p>
                   </div>
                 </div>
 
@@ -213,8 +230,8 @@ export default function Contact() {
                     <MapPin className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-slate-dark">Branch Office — Benin City</h4>
-                    <p className="text-slate-medium text-sm mt-1">No 21, Nevis Street, off Mission Road,<br />Benin City, Edo State</p>
+                    <h4 className="font-semibold text-slate-dark">Branch Office</h4>
+                    <p className="text-slate-medium text-sm mt-1">{c.address2}</p>
                   </div>
                 </div>
 
@@ -224,10 +241,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <h4 className="font-semibold text-slate-dark">Business Hours</h4>
-                    <p className="text-slate-medium text-sm">Monday – Friday: 8:00 AM – 6:00 PM</p>
-                    <p className="text-slate-medium text-sm">Saturday: 9:00 AM – 3:00 PM</p>
-                    <p className="text-slate-medium text-sm">Sunday: Closed</p>
-                    <p className="text-xs text-slate-400 mt-1">Typical response within 24 hours</p>
+                    <p className="text-slate-medium text-sm">{c.hours}</p>
                   </div>
                 </div>
               </CardContent>

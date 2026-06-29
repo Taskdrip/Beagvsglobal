@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
@@ -12,7 +13,31 @@ import {
   Ship
 } from "lucide-react";
 
+const FOOTER_DEFAULTS = {
+  companyName: "Beagvs Marine Services",
+  companyTagline: "Nig Ltd",
+  companyDescription: "Licensed freight forwarder and customs agent. Providing cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and worldwide.",
+  address1: "Head Office: No 24, 1st Avenue Ottooba, Great Estate, Bagidan Ijede, Ikorodu, Lagos",
+  address2: "Branch: No 21, Nevis Street, off Mission Road, Benin City",
+  phone1: "+234 803 723 2210",
+  phone2: "+234 815 557 6539",
+  phone3: "+234 802 752 9083",
+  email: "info@beagvsglobal.com",
+  whatsapp: "+2348037232210",
+  twitterUrl: "",
+  linkedinUrl: "",
+  instagramUrl: "",
+  facebookUrl: "",
+  whatsappUrl: "https://wa.me/2348037232210?text=Hello%20Beagvs%20Global%2C%20I%20would%20like%20to%20make%20an%20enquiry.",
+  copyrightText: "© 2025 Beagvs Marine Services Nig Ltd. All rights reserved.",
+};
+
 export default function Footer() {
+  const { data: savedContent } = useQuery<any>({
+    queryKey: ["/api/page-content/footer"],
+  });
+  const fc = { ...FOOTER_DEFAULTS, ...(savedContent || {}) };
+
   return (
     <footer className="bg-slate-800 text-white py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -22,57 +47,68 @@ export default function Footer() {
             <div className="flex items-center space-x-2">
               <Ship className="w-8 h-8 text-crypto-blue" />
               <div>
-                <div className="text-lg font-bold leading-tight">Beagvs Marine Services</div>
-                <div className="text-xs text-slate-400">Nig Ltd</div>
+                <div className="text-lg font-bold leading-tight">{fc.companyName}</div>
+                <div className="text-xs text-slate-400">{fc.companyTagline}</div>
               </div>
             </div>
             <p className="text-slate-300 leading-relaxed text-sm">
-              Licensed freight forwarder and customs agent. Providing cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and worldwide.
+              {fc.companyDescription}
             </p>
             <div className="space-y-2 text-sm text-slate-400">
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
-                <span>Head Office: No 24, 1st Avenue Ottooba, Great Estate, Bagidan Ijede, Ikorodu, Lagos</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
-                <span>Branch: No 21, Nevis Street, off Mission Road, Benin City</span>
-              </div>
+              {fc.address1 && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                  <span>{fc.address1}</span>
+                </div>
+              )}
+              {fc.address2 && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-crypto-blue" />
+                  <span>{fc.address2}</span>
+                </div>
+              )}
             </div>
             <div className="space-y-1 text-sm">
-              <a href="tel:+2348037232210" className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
-                <Phone className="w-4 h-4" /> +234 803 723 2210
-              </a>
-              <a href="tel:+2348155576539" className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
-                <Phone className="w-4 h-4" /> +234 815 557 6539
-              </a>
-              <a href="tel:+2348027529083" className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
-                <Phone className="w-4 h-4" /> +234 802 752 9083
-              </a>
+              {fc.phone1 && (
+                <a href={`tel:${fc.phone1.replace(/\s/g, "")}`} className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
+                  <Phone className="w-4 h-4" /> {fc.phone1}
+                </a>
+              )}
+              {fc.phone2 && (
+                <a href={`tel:${fc.phone2.replace(/\s/g, "")}`} className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
+                  <Phone className="w-4 h-4" /> {fc.phone2}
+                </a>
+              )}
+              {fc.phone3 && (
+                <a href={`tel:${fc.phone3.replace(/\s/g, "")}`} className="flex items-center gap-2 text-slate-400 hover:text-crypto-blue transition-colors">
+                  <Phone className="w-4 h-4" /> {fc.phone3}
+                </a>
+              )}
             </div>
             <div className="flex space-x-4">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-2 text-slate-400 hover:text-crypto-blue"
-                data-testid="social-twitter"
-              >
-                <Twitter className="w-5 h-5" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-2 text-slate-400 hover:text-crypto-blue"
-                data-testid="social-linkedin"
-              >
-                <Linkedin className="w-5 h-5" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-2 text-slate-400 hover:text-crypto-blue"
-                data-testid="social-telegram"
-              >
+              {fc.twitterUrl ? (
+                <a href={fc.twitterUrl} target="_blank" rel="noopener noreferrer" data-testid="social-twitter">
+                  <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue">
+                    <Twitter className="w-5 h-5" />
+                  </Button>
+                </a>
+              ) : (
+                <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue" data-testid="social-twitter">
+                  <Twitter className="w-5 h-5" />
+                </Button>
+              )}
+              {fc.linkedinUrl ? (
+                <a href={fc.linkedinUrl} target="_blank" rel="noopener noreferrer" data-testid="social-linkedin">
+                  <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue">
+                    <Linkedin className="w-5 h-5" />
+                  </Button>
+                </a>
+              ) : (
+                <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue" data-testid="social-linkedin">
+                  <Linkedin className="w-5 h-5" />
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue" data-testid="social-telegram">
                 <MessageCircle className="w-5 h-5" />
               </Button>
             </div>
@@ -223,13 +259,13 @@ export default function Footer() {
               </h5>
               <p className="text-slate-400 text-xs">Property enquiries, shipping quotes, and general support — chat with us instantly.</p>
               <a
-                href="https://wa.me/2348037232210?text=Hello%20Beagvs%20Global%2C%20I%20would%20like%20to%20make%20an%20enquiry."
+                href={fc.whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="button-footer-whatsapp"
               >
                 <Button size="sm" className="w-full bg-green-600 hover:bg-green-500 text-white text-xs mt-2">
-                  +234 803 723 2210
+                  {fc.phone1}
                 </Button>
               </a>
             </div>
@@ -264,7 +300,7 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
               <p className="text-slate-400 text-sm">
-                © 2025 Beagvs Marine Services Nig Ltd. All rights reserved.
+                {fc.copyrightText}
               </p>
               <div className="flex items-center space-x-2 text-sm text-slate-400">
                 <MapPin className="w-4 h-4" />
