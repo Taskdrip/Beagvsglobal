@@ -72,6 +72,21 @@ app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
 const port = parseInt(process.env.PORT || "5000", 10);
 const server = createServer(app);
 
+// Temporary catch-all during startup — replaced once Vite / static files are ready
+let startupDone = false;
+app.use((req, res, next) => {
+  if (startupDone || req.path.startsWith("/api") || req.path.startsWith("/health")) {
+    return next();
+  }
+  res.status(200).set("Content-Type", "text/html").end(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Beagvs Global</title>` +
+    `<style>body{margin:0;background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif}` +
+    `.box{text-align:center;color:#94a3b8}.spin{width:48px;height:48px;border:4px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:s 0.8s linear infinite;margin:0 auto 20px}` +
+    `@keyframes s{to{transform:rotate(360deg)}}</style></head>` +
+    `<body><div class="box"><div class="spin"></div><p>Starting up…</p></div></body></html>`
+  );
+});
+
 server.listen({ port, host: "0.0.0.0" }, () => {
   log(`serving on port ${port}`);
 });
@@ -148,6 +163,7 @@ async function runAutoSeed() {
       serveStatic(app);
     }
 
+    startupDone = true;
     log("Application fully initialised");
 
     // Run auto-seed after everything is ready (non-blocking)
