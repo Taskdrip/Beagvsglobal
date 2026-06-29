@@ -174,6 +174,7 @@ interface EditorDialogProps {
 function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
   const { toast } = useToast();
   const isEdit = !!post;
+  const [activeTab, setActiveTab] = useState("content");
 
   const form = useForm<BlogFormData>({
     resolver: zodResolver(blogSchema),
@@ -196,6 +197,7 @@ function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
   // which causes React error #301 (too many re-renders).
   useEffect(() => {
     if (!open) return;
+    setActiveTab("content");
     form.reset({
       title: post?.title ?? "",
       excerpt: post?.excerpt ?? "",
@@ -236,6 +238,21 @@ function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
   });
 
   const onSubmit = (data: BlogFormData) => saveMutation.mutate(data);
+
+  // When validation fails, switch to the tab that has errors so the user can see them
+  const onInvalid = (errors: Record<string, any>) => {
+    const contentErrors = ["title", "excerpt", "contentMarkdown"];
+    const hasContentError = contentErrors.some((f) => errors[f]);
+    if (hasContentError) {
+      setActiveTab("content");
+      toast({
+        title: "Missing required fields",
+        description: "Please fill in Title, Excerpt, and Content before saving.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const titleVal = form.watch("title");
   const metaVal = form.watch("metaDescription") ?? "";
   const ogTitleVal = form.watch("ogTitle") ?? "";
@@ -253,8 +270,11 @@ function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <Tabs defaultValue="content" className="w-full">
+        <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+          {/* Hidden input keeps coverImageUrl registered so handleSubmit always includes it */}
+          <input type="hidden" {...form.register("coverImageUrl")} />
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full">
               <TabsTrigger value="content" className="flex-1 flex items-center gap-2">
                 <FileText className="w-4 h-4" /> Content
