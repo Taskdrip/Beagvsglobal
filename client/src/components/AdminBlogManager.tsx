@@ -241,16 +241,40 @@ function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
 
   // When validation fails, switch to the tab that has errors so the user can see them
   const onInvalid = (errors: Record<string, any>) => {
-    const contentErrors = ["title", "excerpt", "contentMarkdown"];
+    const contentErrors = ["title", "excerpt", "contentMarkdown", "published"];
+    const seoErrors = ["metaDescription", "focusKeyword"];
+    const socialErrors = ["tags", "ogTitle", "ogDescription"];
+
     const hasContentError = contentErrors.some((f) => errors[f]);
+    const hasSeoError = seoErrors.some((f) => errors[f]);
+    const hasSocialError = socialErrors.some((f) => errors[f]);
+    const hasImageError = !!errors.coverImageUrl;
+
+    // Navigate to the first tab that has an error
     if (hasContentError) {
       setActiveTab("content");
-      toast({
-        title: "Missing required fields",
-        description: "Please fill in Title, Excerpt, and Content before saving.",
-        variant: "destructive",
-      });
+    } else if (hasImageError) {
+      setActiveTab("image");
+    } else if (hasSeoError) {
+      setActiveTab("seo");
+    } else if (hasSocialError) {
+      setActiveTab("social");
     }
+
+    // Always show a descriptive toast so the user knows something went wrong
+    const firstError = Object.values(errors)[0];
+    const errorMessage =
+      firstError?.message ||
+      (hasContentError ? "Please fill in Title, Excerpt, and Content." : null) ||
+      (hasSeoError ? "Meta description is too long (max 160 chars)." : null) ||
+      (hasSocialError ? "OG Title max 60 chars, OG Description max 160 chars." : null) ||
+      "Please check all fields before saving.";
+
+    toast({
+      title: "Cannot save — please fix the highlighted fields",
+      description: errorMessage,
+      variant: "destructive",
+    });
   };
 
   const titleVal = form.watch("title");

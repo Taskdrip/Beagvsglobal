@@ -883,9 +883,24 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       if (user?.role !== 'ADMIN') {
         return res.status(403).json({ message: "Unauthorized" });
       }
-      
-      const postData = insertBlogPostSchema.partial().parse(req.body);
+
+      // Only allow updating content fields — never touch authorId or slug via PATCH
+      const updateSchema = insertBlogPostSchema.omit({ authorId: true, slug: true }).partial();
+      const rawData = updateSchema.parse(req.body);
+
+      // Strip undefined values so Drizzle doesn't attempt to set required columns to NULL
+      const postData = Object.fromEntries(
+        Object.entries(rawData).filter(([, v]) => v !== undefined)
+      ) as Partial<typeof rawData>;
+
+      if (Object.keys(postData).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+
       const post = await storage.updateBlogPost(req.params.id, postData);
+      if (!post) {
+        return res.status(404).json({ message: "Blog post not found" });
+      }
       res.json(post);
     } catch (error: any) {
       console.error("Error updating blog post:", error);

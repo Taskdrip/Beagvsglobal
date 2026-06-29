@@ -114,7 +114,7 @@ export interface IStorage {
   getBlogPosts(published?: boolean): Promise<(BlogPost & { author: User })[]>;
   getBlogPost(slug: string): Promise<(BlogPost & { author: User }) | undefined>;
   createBlogPost(post: InsertBlogPost): Promise<BlogPost>;
-  updateBlogPost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost>;
+  updateBlogPost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost | undefined>;
   deleteBlogPost(id: string): Promise<void>;
   
   // Platform wallet operations
@@ -697,7 +697,7 @@ export class DatabaseStorage implements IStorage {
     return newPost;
   }
 
-  async updateBlogPost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost> {
+  async updateBlogPost(id: string, post: Partial<InsertBlogPost>): Promise<BlogPost | undefined> {
     const [updatedPost] = await db
       .update(blogPosts)
       .set({ ...post, updatedAt: new Date() })
