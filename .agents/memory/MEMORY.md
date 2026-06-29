@@ -1,0 +1,1 @@
+- [React form.reset during render](react-form-reset-render.md) — calling react-hook-form's reset() during render body (not in useEffect) causes React error #301 in production.

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -178,23 +178,24 @@ function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
   const form = useForm<BlogFormData>({
     resolver: zodResolver(blogSchema),
     defaultValues: {
-      title: post?.title ?? "",
-      excerpt: post?.excerpt ?? "",
-      contentMarkdown: post?.contentMarkdown ?? "",
-      coverImageUrl: post?.coverImageUrl ?? "",
-      published: post?.published ?? false,
-      metaDescription: post?.metaDescription ?? "",
-      focusKeyword: post?.focusKeyword ?? "",
-      tags: Array.isArray(post?.tags) ? post.tags.join(", ") : (post?.tags ?? ""),
-      ogTitle: post?.ogTitle ?? "",
-      ogDescription: post?.ogDescription ?? "",
+      title: "",
+      excerpt: "",
+      contentMarkdown: "",
+      coverImageUrl: "",
+      published: false,
+      metaDescription: "",
+      focusKeyword: "",
+      tags: "",
+      ogTitle: "",
+      ogDescription: "",
     },
   });
 
-  // Reset form when post changes
-  const prevId = useRef<string | null>(null);
-  if (post?.id !== prevId.current) {
-    prevId.current = post?.id ?? null;
+  // Reset form inside useEffect — NEVER call form.reset() during render,
+  // as it triggers a react-hook-form state dispatch during the render phase
+  // which causes React error #301 (too many re-renders).
+  useEffect(() => {
+    if (!open) return;
     form.reset({
       title: post?.title ?? "",
       excerpt: post?.excerpt ?? "",
@@ -207,7 +208,8 @@ function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
       ogTitle: post?.ogTitle ?? "",
       ogDescription: post?.ogDescription ?? "",
     });
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post?.id, open]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: BlogFormData) => {
@@ -217,17 +219,9 @@ function BlogEditorDialog({ open, onClose, post, onSaved }: EditorDialogProps) {
       };
       if (isEdit) {
         const res = await apiRequest("PATCH", `/api/blog/${post.id}`, payload);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.message || "Update failed");
-        }
         return res.json();
       } else {
         const res = await apiRequest("POST", "/api/blog", payload);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.message || "Create failed");
-        }
         return res.json();
       }
     },
@@ -512,16 +506,14 @@ export default function AdminBlogManager() {
   const { data: posts = [], isLoading, isError, error, refetch } = useQuery<any[]>({
     queryKey: ["/api/admin/blog"],
     staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
     retry: 1,
   });
 
   const publishMutation = useMutation({
     mutationFn: async ({ id, published }: { id: string; published: boolean }) => {
       const res = await apiRequest("PATCH", `/api/blog/${id}`, { published });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Failed to update");
-      }
       return res.json();
     },
     onSuccess: (_, vars) => {
