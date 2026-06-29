@@ -17,6 +17,7 @@ import Footer from "@/components/Footer";
 import EscrowProgress from "@/components/EscrowProgress";
 import AdminPageEditor from "@/components/AdminPageEditor";
 import AdminBlogManager from "@/components/AdminBlogManager";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -1095,7 +1096,7 @@ function AdminSupportChatTab() {
 }
 
 export default function Admin() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1105,27 +1106,15 @@ export default function Admin() {
   const [newTempPassword, setNewTempPassword] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [editingUser, setEditingUser] = useState<any>(null);
+  const [feeEdits, setFeeEdits] = useState<Record<string, any>>({});
 
-  // Check admin access
-  if (!isAuthenticated || user?.role !== 'ADMIN') {
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <Navigation />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-dark mb-4">Access Denied</h1>
-          <p className="text-slate-medium mb-8">You need admin privileges to access this page.</p>
-          <Link href="/">
-            <Button>Go Home</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const isAdminUser = isAuthenticated && user?.role === 'ADMIN';
 
-  // Data queries
+  // All data queries — always called (hooks must not be conditional).
+  // enabled: isAdminUser prevents actual network requests until access is confirmed.
   const { data: escrows } = useQuery({
     queryKey: ["/api/escrows", { admin: true }],
+    enabled: isAdminUser,
     retry: (failureCount, error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({
@@ -1144,6 +1133,7 @@ export default function Admin() {
 
   const { data: platformWallets } = useQuery({
     queryKey: ["/api/platform-wallets"],
+    enabled: isAdminUser,
     retry: (failureCount, error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({
@@ -1162,23 +1152,25 @@ export default function Admin() {
 
   const { data: platformSettings, refetch: refetchSettings } = useQuery({
     queryKey: ["/api/platform-settings"],
+    enabled: isAdminUser,
   });
 
   const { data: allShipments } = useQuery({
     queryKey: ["/api/admin/shipments"],
+    enabled: isAdminUser,
   });
 
   const { data: allUsers, refetch: refetchUsers } = useQuery({
     queryKey: ["/api/admin/users"],
+    enabled: isAdminUser,
   });
 
   const { data: adminStats } = useQuery({
     queryKey: ["/api/admin/stats"],
+    enabled: isAdminUser,
   });
 
-  const [feeEdits, setFeeEdits] = useState<Record<string, any>>({});
-
-  // Form setup
+  // Form setup — always called
   const walletForm = useForm<PlatformWalletFormData>({
     resolver: zodResolver(platformWalletSchema),
     defaultValues: {
@@ -1187,8 +1179,7 @@ export default function Admin() {
     },
   });
 
-
-  // Mutations
+  // Mutations — always called
   const updateEscrowMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       await apiRequest("PATCH", `/api/escrows/${id}`, data);
@@ -1252,24 +1243,6 @@ export default function Admin() {
     },
   });
 
-  // Event handlers
-  const handleEscrowAction = (escrow: any, status: string) => {
-    setSelectedEscrow({ ...escrow, newStatus: status });
-  };
-
-  const confirmEscrowAction = () => {
-    if (!selectedEscrow) return;
-    updateEscrowMutation.mutate({
-      id: selectedEscrow.id,
-      data: { status: selectedEscrow.newStatus }
-    });
-  };
-
-  const handleCreateWallet = (data: PlatformWalletFormData) => {
-    createWalletMutation.mutate(data);
-  };
-
-  // Fee management mutations
   const upsertSettingMutation = useMutation({
     mutationFn: ({ key, value, description }: { key: string; value: any; description?: string }) =>
       apiRequest("PUT", `/api/platform-settings/${key}`, { value, description }),
@@ -1327,6 +1300,7 @@ export default function Admin() {
     onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
   });
 
+  // Helpers (pure functions, safe to define after hooks)
   const DEFAULT_FEE_SETTINGS = [
     { key: "fee_product",          label: "Product / Goods",        description: "Platform fee % on product escrows",          defaultPct: 10 },
     { key: "fee_real_estate",      label: "Real Estate",            description: "Platform fee % on real estate escrows",      defaultPct: 5  },
@@ -1351,6 +1325,51 @@ export default function Admin() {
     };
     return variants[status as keyof typeof variants] || "bg-gray-100 text-gray-800";
   };
+
+  // Event handlers
+  const handleEscrowAction = (escrow: any, status: string) => {
+    setSelectedEscrow({ ...escrow, newStatus: status });
+  };
+
+  const confirmEscrowAction = () => {
+    if (!selectedEscrow) return;
+    updateEscrowMutation.mutate({
+      id: selectedEscrow.id,
+      data: { status: selectedEscrow.newStatus }
+    });
+  };
+
+  const handleCreateWallet = (data: PlatformWalletFormData) => {
+    createWalletMutation.mutate(data);
+  };
+
+  // All conditional returns come AFTER all hooks
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navigation />
+        <div className="flex justify-center items-center py-24">
+          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdminUser) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navigation />
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-slate-dark mb-4">Access Denied</h1>
+          <p className="text-slate-medium mb-8">You need admin privileges to access this page.</p>
+          <Link href="/">
+            <Button>Go Home</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1686,7 +1705,9 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="blog" className="space-y-4">
-            <AdminBlogManager />
+            <ErrorBoundary>
+              <AdminBlogManager />
+            </ErrorBoundary>
           </TabsContent>
 
           {/* ── Fees & Rates Tab ── */}
