@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { getQueryFn } from "@/lib/queryClient";
@@ -42,6 +42,107 @@ import {
   FileText,
   Phone
 } from "lucide-react";
+
+const FEE_KEY_MAP: Record<string, string> = {
+  REAL_ESTATE: 'fee_real_estate',
+  SHIPPING_SERVICE: 'fee_shipping_service',
+  PRODUCT: 'fee_product',
+  SERVICE: 'fee_service',
+};
+const DEFAULT_FEES: Record<string, number> = { REAL_ESTATE: 5, SHIPPING_SERVICE: 8, PRODUCT: 10, SERVICE: 10 };
+
+function EscrowConfirmBreakdown({ listing, onConfirm, onCancel, isPending }: {
+  listing: any; onConfirm: () => void; onCancel: () => void; isPending: boolean;
+}) {
+  const { data: platformSettings } = useQuery<any[]>({ queryKey: ["/api/platform-settings"] });
+
+  const feeKey = FEE_KEY_MAP[listing?.type] || 'fee_product';
+  const feeSettingRaw = platformSettings?.find((s: any) => s.key === feeKey);
+  const feePct = feeSettingRaw ? parseFloat(String(feeSettingRaw.value)) : (DEFAULT_FEES[listing?.type] ?? 10);
+
+  const price = parseFloat(listing?.priceCrypto || "0");
+  const feeAmount = price * (feePct / 100);
+  const sellerReceives = price - feeAmount;
+
+  const NETWORK_LABELS: Record<string, string> = {
+    PI_MAINNET: "Pi Network", TRON: "USDT · TRON", TON: "USDT · TON",
+    BNB: "USDT · BNB Chain", SOL: "USDT · Solana", AVAX: "USDT · Avalanche",
+    BANK_TRANSFER: "Bank Transfer",
+  };
+
+  const TYPE_LABELS: Record<string, string> = {
+    REAL_ESTATE: "Real Estate", SHIPPING_SERVICE: "Shipping Service",
+    PRODUCT: "Product", SERVICE: "Service",
+  };
+
+  return (
+    <div className="space-y-4 pt-1">
+      {/* What you're buying */}
+      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">{TYPE_LABELS[listing?.type] || listing?.type}</p>
+        <p className="font-semibold text-slate-900">{listing?.title}</p>
+        {listing?.location && <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1"><MapPin className="w-3 h-3" />{listing.location}</p>}
+        <div className="mt-2 flex items-center gap-1 text-sm font-medium text-slate-500">
+          <span>Payment via:</span>
+          <span className="text-slate-700 font-semibold">{NETWORK_LABELS[listing?.network] || listing?.network}</span>
+          <CryptoIcon currency={listing?.currency} showLabel={false} size="sm" />
+          <span>{listing?.currency}</span>
+        </div>
+      </div>
+
+      {/* Fee breakdown */}
+      <div className="space-y-2.5">
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-600">Item Price <span className="text-xs text-slate-400">(you pay)</span></span>
+          <div className="flex items-center gap-1 font-bold text-slate-900">
+            {price.toLocaleString()} <CryptoIcon currency={listing?.currency} showLabel={false} size="sm" /> {listing?.currency}
+          </div>
+        </div>
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-500 flex items-center gap-1">
+            Platform Fee
+            <span className="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded-full font-medium">{feePct}%</span>
+            <span className="text-xs text-slate-400">(deducted from seller)</span>
+          </span>
+          <span className="text-slate-500 text-sm">− {feeAmount.toLocaleString(undefined, { maximumFractionDigits: 8 })} {listing?.currency}</span>
+        </div>
+        <Separator />
+        <div className="flex justify-between items-center">
+          <span className="font-semibold text-blue-700 text-sm">💸 Amount You Send</span>
+          <div className="flex items-center gap-1 font-bold text-blue-700 text-lg">
+            {price.toLocaleString()} <CryptoIcon currency={listing?.currency} showLabel={false} size="sm" /> {listing?.currency}
+          </div>
+        </div>
+      </div>
+
+      {/* Escrow guarantee */}
+      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1">
+        <div className="flex items-start gap-2">
+          <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-emerald-800">
+            <strong>Escrow Protected</strong> — Your payment is held safely until the transaction completes. The platform fee ({feePct}%) is deducted from the seller's payout; you pay only the listed price.
+          </div>
+        </div>
+        <div className="text-xs text-emerald-700 ml-6">
+          Seller receives: <strong>{sellerReceives.toLocaleString(undefined, { maximumFractionDigits: 8 })} {listing?.currency}</strong> after fee
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Button variant="outline" className="flex-1" onClick={onCancel} disabled={isPending} data-testid="button-cancel-escrow">
+          Cancel
+        </Button>
+        <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={onConfirm} disabled={isPending} data-testid="button-confirm-escrow">
+          {isPending ? (
+            <span className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creating…</span>
+          ) : (
+            <span className="flex items-center gap-2"><Shield className="w-4 h-4" />Proceed to Checkout</span>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const WHATSAPP_NUMBER = "2348037232210";
 
@@ -614,94 +715,17 @@ export default function ListingDetail() {
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
-                          <DialogTitle>Create Escrow Transaction</DialogTitle>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Shield className="w-5 h-5 text-blue-600" />
+                            Secure Escrow Checkout
+                          </DialogTitle>
                         </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <h4 className="font-semibold text-blue-800 mb-2">Escrow Protection</h4>
-                            <p className="text-sm text-blue-700">
-                              Your payment will be held securely until the transaction is complete. 
-                              A 10% platform fee will be deducted from the total amount.
-                            </p>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-medium">Item Price:</span>
-                              <div className="flex items-center gap-1 font-semibold">
-                                {parseFloat(listing.priceCrypto).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
-                              </div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-medium">Platform Fee (10%):</span>
-                              <div className="flex items-center gap-1 font-semibold">
-                                {(parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
-                              </div>
-                            </div>
-                            <Separator />
-                            <div className="flex justify-between items-center text-lg">
-                              <span className="font-semibold">Total:</span>
-                              <div className="flex items-center gap-1 font-bold">
-                                {(parseFloat(listing.priceCrypto) + parseFloat(listing.priceCrypto) * 0.1).toLocaleString()} <CryptoIcon currency={listing.currency} showLabel={false} size="sm" />
-                              </div>
-                            </div>
-                          </div>
-
-                          {platformWallet && (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                              <h4 className="font-semibold text-yellow-800 mb-3">Payment Instructions</h4>
-                              
-                              <div className="mb-3">
-                                <div className="flex items-center justify-center space-x-2 mb-2">
-                                  <CryptoIcon currency={listing.currency} size="md" />
-                                </div>
-                                <p className="text-sm text-yellow-700 text-center">Send payment to this wallet address:</p>
-                              </div>
-
-                              <div className="bg-white p-3 rounded-lg border">
-                                <div className="flex items-center space-x-2">
-                                  <p className="font-mono text-sm flex-1 break-all">
-                                    {platformWallet.address}
-                                  </p>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(platformWallet.address);
-                                      toast({
-                                        title: "Copied!",
-                                        description: "Wallet address copied to clipboard",
-                                      });
-                                    }}
-                                    className="flex-shrink-0"
-                                    data-testid="button-copy-wallet"
-                                  >
-                                    Copy
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex space-x-3">
-                            <Button
-                              variant="outline"
-                              className="flex-1"
-                              onClick={() => setShowEscrowDialog(false)}
-                              data-testid="button-cancel-escrow"
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              className="flex-1 bg-crypto-blue hover:bg-crypto-teal"
-                              onClick={handleCreateEscrow}
-                              disabled={createEscrowMutation.isPending}
-                              data-testid="button-confirm-escrow"
-                            >
-                              {createEscrowMutation.isPending ? "Creating..." : "Create Escrow"}
-                            </Button>
-                          </div>
-                        </div>
+                        <EscrowConfirmBreakdown
+                          listing={listing}
+                          onConfirm={handleCreateEscrow}
+                          onCancel={() => setShowEscrowDialog(false)}
+                          isPending={createEscrowMutation.isPending}
+                        />
                       </DialogContent>
                     </Dialog>
 

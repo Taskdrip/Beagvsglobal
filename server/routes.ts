@@ -512,13 +512,44 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   app.post('/api/escrows', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const escrowData = insertEscrowSchema.parse({ ...req.body, buyerId: userId });
-      
+
+      // Resolve platform fee % from admin settings based on listing type
+      let platformFeePct = 10; // fallback
+      try {
+        if (req.body.listingId) {
+          const listing = await storage.getListing(req.body.listingId);
+          const feeKeyMap: Record<string, string> = {
+            REAL_ESTATE: 'fee_real_estate',
+            SHIPPING_SERVICE: 'fee_shipping_service',
+            PRODUCT: 'fee_product',
+            SERVICE: 'fee_service',
+          };
+          const feeKey = listing ? feeKeyMap[listing.type] || 'fee_product' : 'fee_product';
+          const setting = await storage.getPlatformSetting(feeKey);
+          if (setting && setting.value !== null && setting.value !== undefined) {
+            const parsed = parseFloat(String(setting.value));
+            if (!isNaN(parsed)) platformFeePct = parsed;
+          }
+        }
+      } catch { /* use fallback */ }
+
+      const amount = parseFloat(req.body.amount || '0');
+      const platformFeeAmount = amount * (platformFeePct / 100);
+      const sellerNetAmount = amount - platformFeeAmount;
+
+      const escrowData = insertEscrowSchema.parse({
+        ...req.body,
+        buyerId: userId,
+        platformFeePct: platformFeePct.toString(),
+        platformFeeAmount: platformFeeAmount.toString(),
+        sellerNetAmount: sellerNetAmount.toString(),
+      });
+
       const escrow = await storage.createEscrow(escrowData);
-      
+
       // Create chat thread for the escrow
       await storage.getOrCreateChatThread(escrow.listingId, escrow.buyerId, escrow.sellerId, escrow.id);
-      
+
       res.status(201).json(escrow);
     } catch (error: any) {
       console.error("Error creating escrow:", error);

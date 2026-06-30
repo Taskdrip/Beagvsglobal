@@ -10,13 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Upload, X, Loader2, Video } from "lucide-react";
+import { ArrowLeft, Upload, X, Loader2, Video, TrendingDown, Info, CheckCircle2 } from "lucide-react";
 
 const listingSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
@@ -66,6 +67,108 @@ async function uploadImageToServer(file: File): Promise<string> {
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsDataURL(file);
   });
+}
+
+const FEE_KEY_MAP: Record<string, string> = {
+  REAL_ESTATE: 'fee_real_estate',
+  SHIPPING_SERVICE: 'fee_shipping_service',
+  PRODUCT: 'fee_product',
+  SERVICE: 'fee_service',
+};
+
+const DEFAULT_FEES: Record<string, number> = {
+  REAL_ESTATE: 5,
+  SHIPPING_SERVICE: 8,
+  PRODUCT: 10,
+  SERVICE: 10,
+};
+
+function SellerFeeBreakdown({ price, currency, listingType, network }: {
+  price: string;
+  currency: string;
+  listingType: string;
+  network: string;
+}) {
+  const { data: platformSettings } = useQuery<any[]>({
+    queryKey: ["/api/platform-settings"],
+  });
+
+  const feeKey = FEE_KEY_MAP[listingType] || 'fee_product';
+  const feeSettingRaw = platformSettings?.find((s: any) => s.key === feeKey);
+  const feePct = feeSettingRaw ? parseFloat(String(feeSettingRaw.value)) : (DEFAULT_FEES[listingType] ?? 10);
+
+  const priceNum = parseFloat(price || "0");
+  const isValid = !isNaN(priceNum) && priceNum > 0 && currency;
+
+  const feeAmount = priceNum * (feePct / 100);
+  const sellerReceives = priceNum - feeAmount;
+
+  const NETWORK_LABELS: Record<string, string> = {
+    PI_MAINNET: "Pi Network (Mainnet)",
+    TRON: "USDT via TRON (TRC20)",
+    TON: "USDT via TON",
+    BNB: "USDT via BNB Chain",
+    SOL: "USDT via Solana",
+    AVAX: "USDT via Avalanche",
+    BANK_TRANSFER: "Bank Transfer",
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Fee Breakdown Card */}
+      <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white">
+          <TrendingDown className="w-4 h-4" />
+          <span className="text-sm font-semibold">Seller Earnings Breakdown</span>
+          <span className="ml-auto text-xs bg-white/20 px-2 py-0.5 rounded-full">Platform Fee: {feePct}%</span>
+        </div>
+        <div className="p-4 space-y-2.5">
+          {!isValid ? (
+            <p className="text-sm text-slate-400 text-center py-2 flex items-center justify-center gap-1.5">
+              <Info className="w-4 h-4" /> Enter a price above to see your earnings breakdown
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Listing Price (buyer pays)</span>
+                <span className="font-semibold text-slate-800">{priceNum.toLocaleString()} {currency}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600 flex items-center gap-1">
+                  Platform Service Fee
+                  <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-medium">{feePct}%</span>
+                </span>
+                <span className="text-red-500 font-medium">− {feeAmount.toLocaleString(undefined, { maximumFractionDigits: 8 })} {currency}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> You Receive
+                </span>
+                <span className="text-lg font-bold text-emerald-700">{sellerReceives.toLocaleString(undefined, { maximumFractionDigits: 8 })} {currency}</span>
+              </div>
+              {network && (
+                <div className="mt-1 pt-2 border-t border-slate-200">
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5" />
+                    Payment method: <span className="font-medium">{NETWORK_LABELS[network] || network}</span>
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Escrow protection note */}
+      <div className="flex gap-2 items-start p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+        <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-emerald-800">
+          <strong>Escrow Protected.</strong> The buyer's payment is held securely until the transaction is complete. The platform fee is deducted from your payout — the buyer pays only the listed price.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function CreateListing() {
@@ -399,11 +502,13 @@ export default function CreateListing() {
                   </div>
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> All transactions are protected by our escrow system. A 10% platform fee applies.
-                  </p>
-                </div>
+                {/* Real-time fee breakdown for seller */}
+                <SellerFeeBreakdown
+                  price={form.watch("priceCrypto")}
+                  currency={form.watch("currency")}
+                  listingType={form.watch("type")}
+                  network={form.watch("network")}
+                />
               </CardContent>
             </Card>
 
