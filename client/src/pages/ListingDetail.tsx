@@ -17,6 +17,7 @@ import Footer from "@/components/Footer";
 import StarRating from "@/components/StarRating";
 import EscrowProgress from "@/components/EscrowProgress";
 import CryptoIcon from "@/components/CryptoIcon";
+import GuestCheckoutAuth from "@/components/GuestCheckoutAuth";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -168,6 +169,7 @@ export default function ListingDetail() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showEscrowDialog, setShowEscrowDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [escrowDialogStep, setEscrowDialogStep] = useState<"auth" | "confirm">("confirm");
 
   const { data: listing, isLoading, isError } = useQuery({
     queryKey: ["/api/listings/slug", slug],
@@ -304,15 +306,12 @@ export default function ListingDetail() {
 
 
   const handleCreateEscrow = () => {
-    if (!isAuthenticated) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to create an escrow",
-        variant: "destructive",
-      });
-      return;
-    }
     createEscrowMutation.mutate();
+  };
+
+  const handleOpenEscrowDialog = () => {
+    setEscrowDialogStep(isAuthenticated ? "confirm" : "auth");
+    setShowEscrowDialog(true);
   };
 
   const handleFollow = () => {
@@ -702,44 +701,69 @@ export default function ListingDetail() {
                       </Button>
                     </a>
 
-                    <Dialog open={showEscrowDialog} onOpenChange={setShowEscrowDialog}>
-                      <DialogTrigger asChild>
-                        <Button 
-                          className="w-full bg-crypto-blue hover:bg-crypto-teal font-semibold" 
-                          size="lg"
-                          data-testid="button-buy-escrow"
-                        >
-                          <Shield className="w-4 h-4 mr-2" />
-                          Buy via Escrow
-                        </Button>
-                      </DialogTrigger>
+                    {/* Buy via Escrow — open to all, auth inline */}
+                    <Button 
+                      className="w-full bg-crypto-blue hover:bg-crypto-teal font-semibold" 
+                      size="lg"
+                      data-testid="button-buy-escrow"
+                      onClick={handleOpenEscrowDialog}
+                    >
+                      <Shield className="w-4 h-4 mr-2" />
+                      Buy via Escrow
+                    </Button>
+
+                    <Dialog open={showEscrowDialog} onOpenChange={(open) => { setShowEscrowDialog(open); if (!open) setEscrowDialogStep(isAuthenticated ? "confirm" : "auth"); }}>
                       <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
                           <DialogTitle className="flex items-center gap-2">
                             <Shield className="w-5 h-5 text-blue-600" />
-                            Secure Escrow Checkout
+                            {escrowDialogStep === "auth" ? "Create Account to Continue" : "Secure Escrow Checkout"}
                           </DialogTitle>
                         </DialogHeader>
-                        <EscrowConfirmBreakdown
-                          listing={listing}
-                          onConfirm={handleCreateEscrow}
-                          onCancel={() => setShowEscrowDialog(false)}
-                          isPending={createEscrowMutation.isPending}
-                        />
+
+                        {escrowDialogStep === "auth" ? (
+                          <GuestCheckoutAuth
+                            ctaContext={`Sign in or create a free account to buy "${listing?.title}" via secure escrow.`}
+                            onAuthSuccess={() => {
+                              setEscrowDialogStep("confirm");
+                            }}
+                          />
+                        ) : (
+                          <EscrowConfirmBreakdown
+                            listing={listing}
+                            onConfirm={handleCreateEscrow}
+                            onCancel={() => setShowEscrowDialog(false)}
+                            isPending={createEscrowMutation.isPending}
+                          />
+                        )}
                       </DialogContent>
                     </Dialog>
 
                     {!isAuthenticated ? (
-                      <a href="/api/login">
-                        <Button 
-                          variant="outline" 
-                          className="w-full border-crypto-blue text-crypto-blue hover:bg-blue-50"
-                          data-testid="button-login-to-chat"
-                        >
-                          <MessageCircle className="w-4 h-4 mr-2" />
-                          Login to Chat
-                        </Button>
-                      </a>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            className="w-full border-crypto-blue text-crypto-blue hover:bg-blue-50"
+                            data-testid="button-login-to-chat"
+                          >
+                            <MessageCircle className="w-4 h-4 mr-2" />
+                            Chat with Seller
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-lg">
+                          <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                              <MessageCircle className="w-5 h-5 text-blue-600" />
+                              Sign In to Chat
+                            </DialogTitle>
+                          </DialogHeader>
+                          <GuestCheckoutAuth
+                            ctaContext="Create a free account or sign in to chat with the seller."
+                            onAuthSuccess={() => { window.location.reload(); }}
+                          />
+                        </DialogContent>
+                      </Dialog>
                     ) : hasEscrow ? (
                       <Dialog>
                         <DialogTrigger asChild>

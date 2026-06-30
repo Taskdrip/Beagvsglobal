@@ -16,6 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import CryptoIcon from "@/components/CryptoIcon";
+import GuestCheckoutAuth from "@/components/GuestCheckoutAuth";
 
 const NETWORK_LABELS: Record<string, string> = {
   PI_MAINNET: "Pi Network (Mainnet)",
@@ -204,21 +205,47 @@ export default function Checkout() {
     });
   };
 
-  // ─── Auth guard ───────────────────────────────────────────────────────────
+  // ─── Auth guard (inline — no bounce) ─────────────────────────────────────
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-lg">
-          <CardContent className="p-8 text-center">
-            <Lock className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-slate-800 mb-2">Sign In Required</h2>
-            <p className="text-slate-500 mb-6">You need to be signed in to access the checkout page.</p>
-            <a href="/api/login">
-              <Button className="w-full bg-blue-600 hover:bg-blue-700">Sign In to Continue</Button>
-            </a>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10 pb-16">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-1.5 shadow-sm mb-3">
+              <Lock className="w-3.5 h-3.5 text-blue-600" />
+              <span className="text-xs font-medium text-slate-600">Secured by Beagvs Escrow</span>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900">Complete Your Purchase</h1>
+            <p className="text-slate-500 text-sm mt-1">Create a free account or sign in to continue checkout</p>
+          </div>
+
+          {/* What they're checking out (from URL params — shown even before auth) */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 flex items-center gap-3">
+            <Shield className="w-8 h-8 text-blue-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-blue-800">Escrow-Protected Transaction</p>
+              <p className="text-xs text-blue-600 mt-0.5">Your payment is held safely until delivery is confirmed. Sign in to view payment details.</p>
+            </div>
+          </div>
+
+          <Card className="shadow-lg">
+            <CardContent className="p-6">
+              <GuestCheckoutAuth
+                ctaContext="Create a free account or sign in to complete your escrow purchase. It only takes a minute."
+                onAuthSuccess={async () => {
+                  await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+                  window.location.reload();
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-xs text-slate-400 mt-4">
+            Already have an account? Use the "Sign In" tab above.
+          </p>
+        </div>
       </div>
     );
   }
