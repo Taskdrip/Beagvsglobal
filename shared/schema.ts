@@ -38,6 +38,7 @@ export const notificationTypeEnum = pgEnum('notification_type', ['FOLLOW_REQUEST
 export const kycStatusEnum = pgEnum('kyc_status', ['NOT_STARTED', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED']);
 export const documentTypeEnum = pgEnum('document_type', ['DRIVERS_LICENSE', 'INTERNATIONAL_PASSPORT', 'NATIONAL_ID', 'VOTER_ID']);
 export const verificationTypeEnum = pgEnum('verification_type', ['FACIAL', 'DOCUMENT']);
+export const listingApprovalStatusEnum = pgEnum('listing_approval_status', ['PENDING', 'APPROVED', 'REJECTED']);
 
 // User storage table (required for Replit Auth)
 export const users = pgTable("users", {
@@ -95,6 +96,10 @@ export const listings = pgTable("listings", {
   location: varchar("location"),
   metadata: jsonb("metadata"),
   isActive: boolean("is_active").default(true),
+  approvalStatus: listingApprovalStatusEnum("approval_status").default('PENDING'),
+  approvalNote: text("approval_note"),
+  approvedAt: timestamp("approved_at"),
+  approvedBy: varchar("approved_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
