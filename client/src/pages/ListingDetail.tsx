@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { getQueryFn } from "@/lib/queryClient";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -309,8 +309,14 @@ export default function ListingDetail() {
     createEscrowMutation.mutate();
   };
 
+  const [, navigate] = useLocation();
+
   const handleOpenEscrowDialog = () => {
-    setEscrowDialogStep(isAuthenticated ? "confirm" : "auth");
+    if (!isAuthenticated) {
+      navigate(`/buy/${slug}`);
+      return;
+    }
+    setEscrowDialogStep("confirm");
     setShowEscrowDialog(true);
   };
 

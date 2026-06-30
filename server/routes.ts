@@ -10,6 +10,7 @@ import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
+import { saveImage, serveStoredImage } from "./imageStorage";
 
 export async function registerRoutes(app: Express, existingServer?: HttpServer): Promise<Server> {
   // Auth middleware
@@ -1348,17 +1349,26 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     try {
       const { base64, filename } = req.body;
       if (!base64 || !filename) return res.status(400).json({ message: "Missing base64 or filename" });
-      const uploadsDir = path.join(process.cwd(), "public", "uploads");
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
       const ext = (filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const filePath = path.join(uploadsDir, name);
       const dataStr = base64.includes(",") ? base64.split(",")[1] : base64;
-      fs.writeFileSync(filePath, Buffer.from(dataStr, "base64"));
-      res.json({ url: `/uploads/${name}` });
+      const buffer = Buffer.from(dataStr, "base64");
+      const url = await saveImage(buffer, ext);
+      res.json({ url });
     } catch (error: any) {
       console.error("Image upload error:", error);
       res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  // Proxy route: serve images stored in Replit Object Storage
+  app.get('/api/img/:bucket/*', async (req: any, res) => {
+    try {
+      const { bucket } = req.params;
+      const objectName = req.params[0];
+      if (!bucket || !objectName) return res.status(400).end();
+      await serveStoredImage(bucket, objectName, res);
+    } catch {
+      res.status(404).end();
     }
   });
 
@@ -1793,19 +1803,16 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  // Admin: upload image (base64) — stores in public/uploads/ and returns URL
+  // Admin: upload image (base64) — stores persistently and returns URL
   app.post('/api/admin/upload-image', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const { base64, filename } = req.body;
       if (!base64 || !filename) return res.status(400).json({ message: "Missing base64 or filename" });
-      const uploadsDir = path.join(process.cwd(), "public", "uploads");
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
       const ext = (filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const name = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const filePath = path.join(uploadsDir, name);
       const dataStr = base64.includes(",") ? base64.split(",")[1] : base64;
-      fs.writeFileSync(filePath, Buffer.from(dataStr, "base64"));
-      res.json({ url: `/uploads/${name}` });
+      const buffer = Buffer.from(dataStr, "base64");
+      const url = await saveImage(buffer, ext);
+      res.json({ url });
     } catch (error: any) {
       console.error("Image upload error:", error);
       res.status(500).json({ message: "Upload failed" });

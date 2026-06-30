@@ -32,6 +32,7 @@ import KycVerification from "@/pages/KycVerification";
 import ShippingTracker from "@/pages/ShippingTracker";
 import ShippingHub from "@/pages/ShippingHub";
 import RealEstate from "@/pages/RealEstate";
+import GuestCheckout from "@/pages/GuestCheckout";
 import Help from "@/pages/Help";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
@@ -59,6 +60,7 @@ function Router() {
           <Route path="/about" component={About} />
           <Route path="/contact" component={Contact} />
           <Route path="/checkout/:escrowId" component={Checkout} />
+          <Route path="/buy/:slug" component={GuestCheckout} />
           <Route path="/tracking" component={ShippingTracker} />
           <Route path="/tracking/:trackingNumber" component={ShippingTracker} />
           <Route path="/shipping" component={ShippingHub} />
@@ -83,6 +85,7 @@ function Router() {
           <Route path="/contact" component={Contact} />
           <Route path="/profile/:id" component={Profile} />
           <Route path="/checkout/:escrowId" component={Checkout} />
+          <Route path="/buy/:slug" component={GuestCheckout} />
           <Route path="/chat/:listingId" component={Chat} />
           <Route path="/admin/payment-methods" component={AdminPaymentMethods} />
           <Route path="/account/settings" component={AccountSettings} />
