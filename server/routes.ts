@@ -361,9 +361,9 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  app.get('/api/listings/:id', async (req, res) => {
+  app.get('/api/listings/slug/:slug', async (req, res) => {
     try {
-      const listing = await storage.getListing(req.params.id);
+      const listing = await storage.getListingBySlug(req.params.slug);
       if (!listing) {
         return res.status(404).json({ message: "Listing not found" });
       }
@@ -374,9 +374,9 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  app.get('/api/listings/slug/:slug', async (req, res) => {
+  app.get('/api/listings/:id', async (req, res) => {
     try {
-      const listing = await storage.getListingBySlug(req.params.slug);
+      const listing = await storage.getListing(req.params.id);
       if (!listing) {
         return res.status(404).json({ message: "Listing not found" });
       }
