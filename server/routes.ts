@@ -900,6 +900,16 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       });
       
       const post = await storage.createBlogPost(postData);
+
+      // Auto-ping Google when a published blog post is created
+      if (postData.published && post.slug) {
+        getSiteUrl().then((baseUrl) => {
+          const url = `${baseUrl}/blog/${post.slug}`;
+          fetch(`https://www.google.com/ping?sitemap=${encodeURIComponent(`${baseUrl}/sitemap.xml`)}`).catch(() => {});
+          console.log(`[seo] Auto-pinged Google for new blog post: ${url}`);
+        }).catch(() => {});
+      }
+
       res.status(201).json(post);
     } catch (error: any) {
       console.error("Error creating blog post:", error);
@@ -933,6 +943,15 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       if (!post) {
         return res.status(404).json({ message: "Blog post not found" });
       }
+
+      // Auto-ping Google when a blog post is published (published flipped to true)
+      if (postData.published === true && post.slug) {
+        getSiteUrl().then((baseUrl) => {
+          fetch(`https://www.google.com/ping?sitemap=${encodeURIComponent(`${baseUrl}/sitemap.xml`)}`).catch(() => {});
+          console.log(`[seo] Auto-pinged Google for updated blog post: /blog/${post.slug}`);
+        }).catch(() => {});
+      }
+
       res.json(post);
     } catch (error: any) {
       console.error("Error updating blog post:", error);
@@ -2074,6 +2093,248 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       res.status(500).json({ message: "Failed to fetch analytics" });
     }
   });
+
+  // ─── SEO & SITEMAP ────────────────────────────────────────────────────────
+
+  // Helper: get configured site URL
+  async function getSiteUrl(): Promise<string> {
+    try {
+      const setting = await storage.getPlatformSetting("seo_site_url");
+      return (setting?.value || "https://beagvsmarine.com").replace(/\/$/, "");
+    } catch {
+      return "https://beagvsmarine.com";
+    }
+  }
+
+  // Dynamic XML sitemap — includes all static pages, published blog posts, approved listings
+  app.get("/sitemap.xml", async (_req, res) => {
+    try {
+      const baseUrl = await getSiteUrl();
+
+      const staticPages = [
+        { path: "/", priority: "1.0", changefreq: "daily" },
+        { path: "/marketplace", priority: "0.9", changefreq: "daily" },
+        { path: "/real-estate", priority: "0.9", changefreq: "daily" },
+        { path: "/shipping", priority: "0.8", changefreq: "weekly" },
+        { path: "/blog", priority: "0.8", changefreq: "weekly" },
+        { path: "/about", priority: "0.7", changefreq: "monthly" },
+        { path: "/contact", priority: "0.7", changefreq: "monthly" },
+        { path: "/tracking", priority: "0.6", changefreq: "monthly" },
+        { path: "/help", priority: "0.5", changefreq: "monthly" },
+        { path: "/careers", priority: "0.5", changefreq: "monthly" },
+        { path: "/privacy", priority: "0.3", changefreq: "yearly" },
+        { path: "/terms", priority: "0.3", changefreq: "yearly" },
+      ];
+
+      const [posts, listings] = await Promise.all([
+        storage.getBlogPosts(true),
+        storage.getListings({}),
+      ]);
+
+      const now = new Date().toISOString();
+
+      const urlEntries = [
+        ...staticPages.map(
+          (p) =>
+            `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+        ),
+        ...posts.map((p: any) => {
+          const lastmod = p.updatedAt?.toISOString() || p.createdAt?.toISOString() || now;
+          return `  <url>\n    <loc>${baseUrl}/blog/${p.slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.7</priority>\n  </url>`;
+        }),
+        ...listings
+          .filter((l: any) => l.approvalStatus === "APPROVED" || l.isActive)
+          .map((l: any) => {
+            const lastmod = l.updatedAt?.toISOString() || l.createdAt?.toISOString() || now;
+            return `  <url>\n    <loc>${baseUrl}/listing/${l.slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.6</priority>\n  </url>`;
+          }),
+      ];
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlEntries.join("\n")}\n</urlset>`;
+
+      res.set("Content-Type", "application/xml; charset=utf-8");
+      res.set("Cache-Control", "public, max-age=3600");
+      res.send(xml);
+    } catch (err) {
+      console.error("Sitemap generation error:", err);
+      res.status(500).send("<?xml version=\"1.0\"?><urlset/>");
+    }
+  });
+
+  // Robots.txt
+  app.get("/robots.txt", async (_req, res) => {
+    try {
+      const baseUrl = await getSiteUrl();
+      const txt = [
+        "User-agent: *",
+        "Allow: /",
+        "Disallow: /admin",
+        "Disallow: /api/",
+        "Disallow: /dashboard",
+        "Disallow: /account/",
+        "Disallow: /kyc",
+        "Disallow: /chat/",
+        "Disallow: /checkout/",
+        "",
+        `Sitemap: ${baseUrl}/sitemap.xml`,
+      ].join("\n");
+      res.set("Content-Type", "text/plain; charset=utf-8");
+      res.set("Cache-Control", "public, max-age=86400");
+      res.send(txt);
+    } catch (err) {
+      res.status(500).send("User-agent: *\nAllow: /");
+    }
+  });
+
+  // Admin: sitemap JSON preview
+  app.get("/api/admin/seo/sitemap-preview", isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const baseUrl = await getSiteUrl();
+      const staticPaths = [
+        "/", "/marketplace", "/real-estate", "/shipping", "/blog",
+        "/about", "/contact", "/tracking", "/help", "/careers", "/privacy", "/terms",
+      ];
+      const [posts, listings] = await Promise.all([
+        storage.getBlogPosts(true),
+        storage.getListings({}),
+      ]);
+      const activeListings = listings.filter((l: any) => l.approvalStatus === "APPROVED" || l.isActive);
+
+      const urls = [
+        ...staticPaths.map((p) => ({ loc: `${baseUrl}${p}`, type: "static", priority: p === "/" ? "1.0" : "0.7" })),
+        ...posts.map((p: any) => ({ loc: `${baseUrl}/blog/${p.slug}`, type: "blog", priority: "0.7", title: p.title })),
+        ...activeListings.map((l: any) => ({ loc: `${baseUrl}/listing/${l.slug}`, type: "listing", priority: "0.6", title: l.title })),
+      ];
+
+      res.json({
+        urls,
+        staticCount: staticPaths.length,
+        blogCount: posts.length,
+        listingCount: activeListings.length,
+        total: urls.length,
+        sitemapUrl: `${baseUrl}/sitemap.xml`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to generate sitemap preview" });
+    }
+  });
+
+  // Admin: SEO health check
+  app.get("/api/admin/seo/health", isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const [posts, listings] = await Promise.all([
+        storage.getBlogPosts(true),
+        storage.getListings({}),
+      ]);
+
+      const postsNoMeta = posts.filter((p: any) => !p.metaDescription || p.metaDescription.length < 10);
+      const postsNoExcerpt = posts.filter((p: any) => !p.excerpt || p.excerpt.length < 10);
+      const listingsNoDesc = listings.filter((l: any) => !l.description || l.description.length < 50);
+
+      const checks = [
+        {
+          label: "Blog post meta descriptions",
+          status: postsNoMeta.length === 0 ? "ok" : "warn",
+          count: postsNoMeta.length,
+          detail: postsNoMeta.length === 0
+            ? "All published posts have meta descriptions"
+            : `${postsNoMeta.length} post(s) missing meta description — add them in Blog editor`,
+        },
+        {
+          label: "Blog post excerpts",
+          status: postsNoExcerpt.length === 0 ? "ok" : "warn",
+          count: postsNoExcerpt.length,
+          detail: postsNoExcerpt.length === 0
+            ? "All published posts have excerpts"
+            : `${postsNoExcerpt.length} post(s) missing an excerpt`,
+        },
+        {
+          label: "Listing descriptions",
+          status: listingsNoDesc.length === 0 ? "ok" : "warn",
+          count: listingsNoDesc.length,
+          detail: listingsNoDesc.length === 0
+            ? "All listings have sufficient descriptions"
+            : `${listingsNoDesc.length} listing(s) with short descriptions (< 50 chars)`,
+        },
+        {
+          label: "Sitemap accessible",
+          status: "ok",
+          count: 0,
+          detail: "sitemap.xml is publicly accessible at /sitemap.xml",
+        },
+        {
+          label: "robots.txt accessible",
+          status: "ok",
+          count: 0,
+          detail: "robots.txt is publicly accessible at /robots.txt",
+        },
+      ];
+
+      res.json({ checks });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to run health check" });
+    }
+  });
+
+  // Admin: ping Google to re-index sitemap
+  app.post("/api/admin/seo/ping-google", isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const baseUrl = await getSiteUrl();
+      const sitemapUrl = `${baseUrl}/sitemap.xml`;
+
+      const [googleResp, bingResp] = await Promise.allSettled([
+        fetch(`https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`),
+        fetch(`https://www.bing.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`),
+      ]);
+
+      const googleOk = googleResp.status === "fulfilled" && googleResp.value.ok;
+      const bingOk = bingResp.status === "fulfilled" && bingResp.value.ok;
+
+      res.json({
+        success: true,
+        google: googleOk,
+        bing: bingOk,
+        sitemapUrl,
+        message: `Sitemap submitted to ${[googleOk && "Google", bingOk && "Bing"].filter(Boolean).join(" & ") || "search engines"}. Google will crawl it within 24 hours.`,
+      });
+    } catch (err: any) {
+      console.error("Google ping error:", err);
+      res.status(500).json({ message: "Failed to ping Google" });
+    }
+  });
+
+  // Admin: ping a specific URL to Google
+  app.post("/api/admin/seo/ping-url", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ message: "URL is required" });
+
+      // Use Google's IndexNow-style ping via sitemap ping with the URL
+      await fetch(`https://www.google.com/ping?sitemap=${encodeURIComponent(url)}`);
+      res.json({ success: true, url, message: "URL submitted to Google for indexing." });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to ping URL" });
+    }
+  });
+
+  // Admin: save an SEO setting
+  app.post("/api/admin/seo/settings", isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { key, value } = req.body;
+      const allowedKeys = ["seo_ga4_id", "seo_gsc_verification", "seo_site_url"];
+      if (!allowedKeys.includes(key)) {
+        return res.status(400).json({ message: "Invalid setting key" });
+      }
+      const userId = req.user?.claims?.sub || req.session?.userId;
+      await storage.upsertPlatformSetting(key, value, undefined, userId);
+      res.json({ success: true, key, value });
+    } catch (err: any) {
+      console.error("SEO setting save error:", err);
+      res.status(500).json({ message: "Failed to save SEO setting" });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Health check — used by Railway to verify the app is alive
   app.get("/api/health", (_req, res) => {

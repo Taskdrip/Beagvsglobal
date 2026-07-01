@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import ChatWidget from "@/components/ChatWidget";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
@@ -111,6 +112,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
+        <GoogleAnalytics />
         <Router />
         <ChatWidget />
       </TooltipProvider>
