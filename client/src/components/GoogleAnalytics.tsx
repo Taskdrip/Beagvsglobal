@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+const DEFAULT_GA4_ID = "G-JSCKFS7853";
+
 declare global {
   interface Window {
     dataLayer: any[];
@@ -13,28 +15,19 @@ export default function GoogleAnalytics() {
     queryKey: ["/api/platform-settings"],
   });
 
-  const measurementId = settings?.find((s: any) => s.key === "seo_ga4_id")?.value;
+  const overrideId = settings?.find((s: any) => s.key === "seo_ga4_id")?.value;
+  const measurementId = overrideId || DEFAULT_GA4_ID;
   const gscCode = settings?.find((s: any) => s.key === "seo_gsc_verification")?.value;
 
-  // Inject GA4 script
+  // If an override ID is configured in admin settings and differs from the default,
+  // load it as an additional config (the default is already loaded in index.html).
   useEffect(() => {
-    if (!measurementId || typeof window === "undefined") return;
-    if (document.getElementById("ga4-script")) return;
+    if (!overrideId || overrideId === DEFAULT_GA4_ID) return;
+    if (typeof window === "undefined" || !window.gtag) return;
+    window.gtag("config", overrideId, { anonymize_ip: true });
+  }, [overrideId]);
 
-    const script1 = document.createElement("script");
-    script1.id = "ga4-script";
-    script1.async = true;
-    script1.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
-    document.head.appendChild(script1);
-
-    window.dataLayer = window.dataLayer || [];
-    function gtag(...args: any[]) { window.dataLayer.push(args); }
-    window.gtag = gtag;
-    gtag("js", new Date());
-    gtag("config", measurementId, { anonymize_ip: true });
-  }, [measurementId]);
-
-  // Inject Google Search Console verification meta tag
+  // Inject Google Search Console verification meta tag dynamically
   useEffect(() => {
     if (!gscCode || typeof document === "undefined") return;
     const existingTag = document.querySelector('meta[name="google-site-verification"]');
