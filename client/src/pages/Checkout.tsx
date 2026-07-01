@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Clock, Copy, CheckCircle, MessageCircle, Shield, AlertCircle, Package,
-  MapPin, Truck, Info, Lock, Banknote, Wallet,
-  RefreshCw, User, Building2, Upload, FileImage, ReceiptText
+  MapPin, Truck, ChevronRight, Info, Lock, Banknote, Wallet, ArrowRight,
+  RefreshCw, User, Building2, Upload, FileImage, ReceiptText, ShieldCheck,
+  Eye
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -207,26 +208,35 @@ export default function Checkout() {
     }
   };
 
+  const [chatThreadId, setChatThreadId] = useState<string | null>(null);
+
   const confirmPaymentMutation = useMutation({
     mutationFn: async () => {
+      // Submit payment proof
       await apiRequest("PATCH", `/api/escrows/${escrowId}`, {
         status: "PAYMENT_SUBMITTED",
         buyerTxHash: txHash || undefined,
         paymentReceiptUrl: receiptUrl || undefined,
         paymentNotes: paymentNotes || undefined,
       });
+      // Create/get escrow chat thread with seller
+      try {
+        const threadRes = await apiRequest("POST", "/api/chat/threads", {
+          listingId: escrow?.listingId,
+          sellerId: escrow?.sellerId,
+          escrowId: escrowId,
+        });
+        const thread = await threadRes.json();
+        return thread;
+      } catch { return null; }
     },
-    onSuccess: () => {
+    onSuccess: (thread: any) => {
       setPaymentConfirmed(true);
       setStep(3);
+      if (thread?.id) setChatThreadId(thread.id);
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
-      toast({ title: "Payment submitted for review!", description: "Admin will verify your payment shortly." });
-      // Also open a chat thread
-      if (escrow) {
-        apiRequest("POST", "/api/chat/threads", {
-          listingId: escrow.listingId, sellerId: escrow.sellerId, escrowId: escrow.id,
-        }).catch(() => {});
-      }
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
+      toast({ title: "Payment submitted for review!", description: "Admin will verify your payment shortly. You're now in the escrow chat." });
     },
     onError: (error: any) => {
       toast({ title: "Failed to submit payment", description: error.message, variant: "destructive" });
@@ -341,9 +351,152 @@ export default function Checkout() {
   const feeAmount = amount * (feePct / 100);
   const sellerReceives = amount - feeAmount;
 
-  // ─── Step 3: Success state ─────────────────────────────────────────────────
+  // ─── Status-aware screens (when returning to an existing escrow) ───────────
+
+  // Payment already submitted — under review
+  if (escrow.status === 'PAYMENT_SUBMITTED' && !paymentConfirmed) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10 space-y-5">
+          <Card className="shadow-lg border-blue-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-8 h-8 text-blue-500 animate-pulse" />
+              </div>
+              <h1 className="text-2xl font-bold text-blue-700 mb-2">Payment Under Review</h1>
+              <p className="text-slate-600 mb-1">Your payment proof has been received.</p>
+              <p className="text-slate-500 text-sm mb-6">
+                Our team is verifying your payment. You'll receive a notification once it's approved — usually within 1–24 hours.
+              </p>
+
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {[
+                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
+                  { label: "Status", value: "Under Review" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="font-semibold text-slate-800 text-sm mt-0.5 break-all">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {escrow.buyerTxHash && (
+                <div className="bg-slate-50 border rounded-xl p-3 text-left mb-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Your Transaction Hash</p>
+                  <p className="font-mono text-xs text-slate-700 break-all">{escrow.buyerTxHash}</p>
+                </div>
+              )}
+              {escrow.paymentReceiptUrl && (
+                <a href={escrow.paymentReceiptUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline mb-4 block">
+                  <Eye className="w-4 h-4" /> View submitted receipt
+                </a>
+              )}
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5 text-left flex gap-2">
+                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700">
+                  <strong>What's next?</strong> Once admin approves, the seller will be notified and you can proceed with your order via the escrow chat below.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <Link href={`/chat/${escrow.listingId}`}>
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 gap-2" data-testid="button-open-chat">
+                    <MessageCircle className="w-4 h-4" /> Open Escrow Chat
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline" className="w-full gap-2" data-testid="button-go-dashboard">
+                    View My Transactions
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Escrow is funded (admin approved) — show active escrow state
+  if (escrow.status === 'FUNDED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10 space-y-5">
+          <Card className="shadow-lg border-emerald-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ShieldCheck className="w-9 h-9 text-emerald-500" />
+              </div>
+              <h1 className="text-2xl font-bold text-emerald-700 mb-2">Payment Approved!</h1>
+              <p className="text-slate-600 mb-1">Your payment has been verified and the escrow is now active.</p>
+              <p className="text-slate-500 text-sm mb-6">
+                {isBuyer
+                  ? "You can now communicate with the seller to coordinate delivery."
+                  : "The buyer's payment is verified. Proceed with fulfilling the order."}
+              </p>
+
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {[
+                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
+                  { label: "Status", value: "Active" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="font-semibold text-slate-800 text-sm mt-0.5 break-all">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <Link href={`/chat/${escrow.listingId}`}>
+                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2" data-testid="button-open-chat-funded">
+                    <MessageCircle className="w-4 h-4" /> Open Escrow Chat
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline" className="w-full" data-testid="button-go-dashboard-funded">
+                    View My Transactions
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Escrow released/completed
+  if (escrow.status === 'RELEASED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10">
+          <Card className="shadow-lg border-green-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-9 h-9 text-green-500" />
+              </div>
+              <h1 className="text-2xl font-bold text-green-700 mb-2">Transaction Complete</h1>
+              <p className="text-slate-600 mb-6">This escrow has been completed successfully. Funds have been released to the seller.</p>
+              <Link href="/dashboard">
+                <Button className="w-full" data-testid="button-dashboard-released">View Dashboard</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 3: Success state (just submitted) ────────────────────────────────
 
   if (step === 3 || paymentConfirmed) {
+    const chatHref = escrow?.listingId ? `/chat/${escrow.listingId}` : "/dashboard";
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
         <div className="max-w-2xl mx-auto pt-8 space-y-5">
@@ -353,30 +506,54 @@ export default function Checkout() {
                 <ReceiptText className="w-10 h-10 text-blue-500" />
               </div>
               <h1 className="text-2xl font-bold text-blue-700 mb-2">Payment Submitted!</h1>
-              <p className="text-slate-600 mb-1">Your payment proof has been submitted for review.</p>
+              <p className="text-slate-600 mb-1">Your payment proof has been received and is being reviewed.</p>
               <p className="text-slate-500 text-sm mb-4">Our team will verify and approve it within 1–24 hours. You'll get a notification once it's done.</p>
 
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
                   { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
-                  { label: "Transaction", value: escrow.id?.slice(0, 8) + "…" },
+                  { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
                   { label: "Status", value: "Under Review" },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-slate-50 rounded-lg p-3">
                     <p className="text-xs text-slate-500">{label}</p>
-                    <p className="font-semibold text-slate-800 text-sm mt-0.5">{value}</p>
+                    <p className="font-semibold text-slate-800 text-sm mt-0.5 break-all">{value}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 text-left">
-                <div className="flex items-center gap-2 text-green-700 font-semibold mb-1">
-                  <MessageCircle className="w-4 h-4" /> Secure Chat Activated
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-left flex gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-800 mb-0.5">What happens next?</p>
+                  <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                    <li>Admin reviews your payment proof (within 1–24 hours)</li>
+                    <li>You get a notification when approved or if more info is needed</li>
+                    <li>Chat with the seller anytime in the escrow chat below</li>
+                    <li>Once approved, the seller fulfils your order</li>
+                  </ul>
                 </div>
-                <p className="text-sm text-green-600">You can now communicate securely with {isBuyer ? "the seller" : "the buyer"} via escrow-protected chat.</p>
               </div>
 
-              <p className="text-sm text-slate-400 animate-pulse">Redirecting to chat…</p>
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-5 text-left">
+                <div className="flex items-center gap-2 text-green-700 font-semibold mb-1">
+                  <MessageCircle className="w-4 h-4" /> Escrow Chat is Active
+                </div>
+                <p className="text-sm text-green-600">You can now communicate with the seller and our admin team in the secure escrow chat.</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <Link href={chatHref}>
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 font-semibold gap-2 text-base py-3" data-testid="button-open-escrow-chat">
+                    <MessageCircle className="w-5 h-5" /> Open Escrow Chat
+                  </Button>
+                </Link>
+                <Link href="/dashboard?tab=transactions">
+                  <Button variant="outline" className="w-full gap-2" data-testid="button-view-transactions">
+                    View My Transactions
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
 
