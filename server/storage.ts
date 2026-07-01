@@ -299,8 +299,37 @@ export class DatabaseStorage implements IStorage {
   async getListing(id: string) {
     const [listing] = await db
       .select({
-        listing: listings,
-        seller: users,
+        listing: {
+          id: listings.id,
+          sellerId: listings.sellerId,
+          type: listings.type,
+          title: listings.title,
+          slug: listings.slug,
+          description: listings.description,
+          priceCrypto: listings.priceCrypto,
+          currency: listings.currency,
+          network: listings.network,
+          images: listings.images,
+          location: listings.location,
+          isActive: listings.isActive,
+          createdAt: listings.createdAt,
+          updatedAt: listings.updatedAt,
+          metadata: listings.metadata,
+        },
+        seller: {
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+          role: users.role,
+          accountType: users.accountType,
+          location: users.location,
+          bio: users.bio,
+          whatsapp: users.whatsapp,
+          createdAt: users.createdAt,
+        },
       })
       .from(listings)
       .leftJoin(users, eq(listings.sellerId, users.id))
@@ -308,27 +337,78 @@ export class DatabaseStorage implements IStorage {
 
     if (!listing) return undefined;
 
-    const reviewsData = await db
-      .select({
-        review: reviews,
-        reviewer: users,
-      })
-      .from(reviews)
-      .leftJoin(users, eq(reviews.reviewerId, users.id))
-      .where(eq(reviews.listingId, id));
+    let reviewsData: Array<{
+      review: { id: string; listingId: string; reviewerId: string; rating: number; comment: string | null; createdAt: Date | null };
+      reviewer: { id: string; username: string | null; profileImageUrl: string | null; firstName: string | null; lastName: string | null } | null;
+    }> = [];
+    try {
+      const alias = users;
+      reviewsData = await db
+        .select({
+          review: {
+            id: reviews.id,
+            listingId: reviews.listingId,
+            reviewerId: reviews.reviewerId,
+            rating: reviews.rating,
+            comment: reviews.comment,
+            createdAt: reviews.createdAt,
+          },
+          reviewer: {
+            id: alias.id,
+            username: alias.username,
+            profileImageUrl: alias.profileImageUrl,
+            firstName: alias.firstName,
+            lastName: alias.lastName,
+          },
+        })
+        .from(reviews)
+        .leftJoin(alias, eq(reviews.reviewerId, alias.id))
+        .where(eq(reviews.listingId, id));
+    } catch (err) {
+      console.error("[storage] getListing: reviews query failed:", err);
+    }
 
     return {
       ...listing.listing,
-      seller: listing.seller!,
-      reviews: reviewsData.map(r => ({ ...r.review, reviewer: r.reviewer! })),
+      seller: listing.seller ?? null,
+      reviews: reviewsData.map(r => ({ ...r.review, reviewer: r.reviewer ?? null })),
     };
   }
 
   async getListingBySlug(slug: string) {
     const [listing] = await db
       .select({
-        listing: listings,
-        seller: users,
+        listing: {
+          id: listings.id,
+          sellerId: listings.sellerId,
+          type: listings.type,
+          title: listings.title,
+          slug: listings.slug,
+          description: listings.description,
+          priceCrypto: listings.priceCrypto,
+          currency: listings.currency,
+          network: listings.network,
+          images: listings.images,
+          location: listings.location,
+          isActive: listings.isActive,
+          createdAt: listings.createdAt,
+          updatedAt: listings.updatedAt,
+          metadata: listings.metadata,
+        },
+        seller: {
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+          role: users.role,
+          accountType: users.accountType,
+          location: users.location,
+          bio: users.bio,
+          whatsapp: users.whatsapp,
+          createdAt: users.createdAt,
+        },
       })
       .from(listings)
       .leftJoin(users, eq(listings.sellerId, users.id))
@@ -336,18 +416,34 @@ export class DatabaseStorage implements IStorage {
 
     if (!listing) return undefined;
 
-    let reviewsData: { review: typeof reviews.$inferSelect; reviewer: typeof users.$inferSelect | null }[] = [];
+    let reviewsData: Array<{
+      review: { id: string; listingId: string; reviewerId: string; rating: number; comment: string | null; createdAt: Date | null };
+      reviewer: { id: string; username: string | null; profileImageUrl: string | null; firstName: string | null; lastName: string | null } | null;
+    }> = [];
     try {
       reviewsData = await db
         .select({
-          review: reviews,
-          reviewer: users,
+          review: {
+            id: reviews.id,
+            listingId: reviews.listingId,
+            reviewerId: reviews.reviewerId,
+            rating: reviews.rating,
+            comment: reviews.comment,
+            createdAt: reviews.createdAt,
+          },
+          reviewer: {
+            id: users.id,
+            username: users.username,
+            profileImageUrl: users.profileImageUrl,
+            firstName: users.firstName,
+            lastName: users.lastName,
+          },
         })
         .from(reviews)
         .leftJoin(users, eq(reviews.reviewerId, users.id))
         .where(eq(reviews.listingId, listing.listing.id));
     } catch (err) {
-      console.error("[storage] getListingBySlug: reviews query failed, returning listing without reviews:", err);
+      console.error("[storage] getListingBySlug: reviews query failed:", err);
     }
 
     return {
@@ -389,7 +485,13 @@ export class DatabaseStorage implements IStorage {
         rating: reviews.rating,
         comment: reviews.comment,
         createdAt: reviews.createdAt,
-        reviewer: users,
+        reviewer: {
+          id: users.id,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+          firstName: users.firstName,
+          lastName: users.lastName,
+        },
       })
       .from(reviews)
       .leftJoin(users, eq(reviews.reviewerId, users.id))
