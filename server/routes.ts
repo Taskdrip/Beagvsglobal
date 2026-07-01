@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema, insertPlatformSettingSchema } from "@shared/schema";
+import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema, insertPlatformSettingSchema, insertCompetitorSchema, insertCompetitorContentSchema } from "@shared/schema";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -1833,7 +1833,8 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   app.patch('/api/admin/listings/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const listing = await storage.updateListing(id, req.body);
+      const safe = insertListingSchema.partial().parse(req.body);
+      const listing = await storage.updateListing(id, safe);
       if (!listing) return res.status(404).json({ message: "Listing not found" });
       res.json(listing);
     } catch (error: any) {
@@ -1999,19 +2000,23 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
   app.post("/api/admin/competitors", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
     try {
-      const c = await storage.createCompetitor(req.body);
+      const data = insertCompetitorSchema.parse(req.body);
+      const c = await storage.createCompetitor(data);
       res.json(c);
     } catch (e: any) {
-      res.status(500).json({ message: "Failed to create competitor" });
+      console.error("Create competitor error:", e);
+      res.status(400).json({ message: e.message || "Failed to create competitor" });
     }
   });
 
   app.patch("/api/admin/competitors/:id", isAuthenticatedEnhanced, isAdmin, async (req, res) => {
     try {
-      const c = await storage.updateCompetitor(req.params.id, req.body);
+      const data = insertCompetitorSchema.partial().parse(req.body);
+      const c = await storage.updateCompetitor(req.params.id, data);
       res.json(c);
     } catch (e: any) {
-      res.status(500).json({ message: "Failed to update competitor" });
+      console.error("Update competitor error:", e);
+      res.status(400).json({ message: e.message || "Failed to update competitor" });
     }
   });
 

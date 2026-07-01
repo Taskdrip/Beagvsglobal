@@ -4,14 +4,24 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { 
   Globe,
-  Twitter,
-  Linkedin,
   MessageCircle,
   Mail,
   MapPin,
   Phone,
-  Ship
+  Ship,
+  Youtube,
+  Twitter,
+  Instagram,
 } from "lucide-react";
+import { SiTelegram, SiTiktok, SiX } from "react-icons/si";
+
+const SOCIAL_LINKS = [
+  { href: "https://x.com/Beagvsglobal", icon: SiX, label: "X (Twitter)", color: "hover:text-white" },
+  { href: "https://www.instagram.com/beagvsglobal/", icon: Instagram, label: "Instagram", color: "hover:text-pink-400" },
+  { href: "https://t.me/beagvsglobal", icon: SiTelegram, label: "Telegram", color: "hover:text-blue-400" },
+  { href: "https://www.youtube.com/@beagvsglobal", icon: Youtube, label: "YouTube", color: "hover:text-red-500" },
+  { href: "https://www.tiktok.com/@beagvsglobal", icon: SiTiktok, label: "TikTok", color: "hover:text-white" },
+];
 
 const FOOTER_DEFAULTS = {
   companyName: "Beagvs Marine Services",
@@ -24,10 +34,6 @@ const FOOTER_DEFAULTS = {
   phone3: "+234 802 752 9083",
   email: "info@beagvsglobal.com",
   whatsapp: "+2348037232210",
-  twitterUrl: "",
-  linkedinUrl: "",
-  instagramUrl: "",
-  facebookUrl: "",
   whatsappUrl: "https://wa.me/2348037232210?text=Hello%20Beagvs%20Global%2C%20I%20would%20like%20to%20make%20an%20enquiry.",
   copyrightText: "© 2025 Beagvs Marine Services Nig Ltd. All rights reserved.",
 };
@@ -85,32 +91,24 @@ export default function Footer() {
                 </a>
               )}
             </div>
-            <div className="flex space-x-4">
-              {fc.twitterUrl ? (
-                <a href={fc.twitterUrl} target="_blank" rel="noopener noreferrer" data-testid="social-twitter">
-                  <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue">
-                    <Twitter className="w-5 h-5" />
-                  </Button>
-                </a>
-              ) : (
-                <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue" data-testid="social-twitter">
-                  <Twitter className="w-5 h-5" />
-                </Button>
-              )}
-              {fc.linkedinUrl ? (
-                <a href={fc.linkedinUrl} target="_blank" rel="noopener noreferrer" data-testid="social-linkedin">
-                  <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue">
-                    <Linkedin className="w-5 h-5" />
-                  </Button>
-                </a>
-              ) : (
-                <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue" data-testid="social-linkedin">
-                  <Linkedin className="w-5 h-5" />
-                </Button>
-              )}
-              <Button variant="ghost" size="sm" className="p-2 text-slate-400 hover:text-crypto-blue" data-testid="social-telegram">
-                <MessageCircle className="w-5 h-5" />
-              </Button>
+            {/* Social Media Links */}
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wider mb-2 font-medium">Follow Us</p>
+              <div className="flex gap-1 flex-wrap">
+                {SOCIAL_LINKS.map(({ href, icon: Icon, label, color }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    data-testid={`social-${label.toLowerCase().replace(/[^a-z]/g, "")}`}
+                    className={`w-9 h-9 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-400 ${color} hover:border-slate-500 hover:bg-slate-600 transition-all`}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
           
@@ -147,7 +145,7 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/marketplace?type=REAL_ESTATE">
+                <Link href="/real-estate">
                   <span className="hover:text-crypto-blue transition-colors cursor-pointer" data-testid="footer-link-real-estate">
                     Real Estate Trading
                   </span>
@@ -297,9 +295,9 @@ export default function Footer() {
         
         {/* Bottom Section */}
         <div className="border-t border-slate-700 pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
-              <p className="text-slate-400 text-sm">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex flex-col md:flex-row items-center gap-3 md:gap-6">
+              <p className="text-slate-400 text-sm text-center md:text-left">
                 {fc.copyrightText}
               </p>
               <div className="flex items-center space-x-2 text-sm text-slate-400">
@@ -307,30 +305,41 @@ export default function Footer() {
                 <span>Lagos · Benin City · Nigeria</span>
               </div>
             </div>
-            
-            <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
-              <span className="text-slate-400 text-sm">Supported Networks:</span>
-              <div className="flex flex-wrap gap-2 justify-center">
-                <span className="bg-purple-900 text-purple-300 px-2 py-1 rounded text-xs font-medium" data-testid="network-badge-pi">
-                  Pi
-                </span>
-                <span className="bg-red-900 text-red-300 px-2 py-1 rounded text-xs font-medium" data-testid="network-badge-tron">
-                  TRON
-                </span>
-                <span className="bg-blue-900 text-blue-300 px-2 py-1 rounded text-xs font-medium" data-testid="network-badge-ton">
-                  TON
-                </span>
-                <span className="bg-yellow-900 text-yellow-300 px-2 py-1 rounded text-xs font-medium" data-testid="network-badge-bnb">
-                  BNB
-                </span>
-                <span className="bg-green-900 text-green-300 px-2 py-1 rounded text-xs font-medium" data-testid="network-badge-sol">
-                  SOL
-                </span>
-                <span className="bg-orange-900 text-orange-300 px-2 py-1 rounded text-xs font-medium" data-testid="network-badge-avax">
-                  AVAX
-                </span>
+
+            {/* Social icons row at bottom too */}
+            <div className="flex items-center gap-3">
+              <span className="text-slate-500 text-xs hidden md:block">Connect:</span>
+              <div className="flex gap-2">
+                {SOCIAL_LINKS.map(({ href, icon: Icon, label, color }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className={`text-slate-500 ${color} transition-colors`}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </a>
+                ))}
               </div>
             </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-2 justify-center">
+            <span className="text-slate-500 text-xs mr-1">Supported Networks:</span>
+            {[
+              { label: "Pi", cls: "bg-purple-900 text-purple-300", testid: "pi" },
+              { label: "TRON", cls: "bg-red-900 text-red-300", testid: "tron" },
+              { label: "TON", cls: "bg-blue-900 text-blue-300", testid: "ton" },
+              { label: "BNB", cls: "bg-yellow-900 text-yellow-300", testid: "bnb" },
+              { label: "SOL", cls: "bg-green-900 text-green-300", testid: "sol" },
+              { label: "AVAX", cls: "bg-orange-900 text-orange-300", testid: "avax" },
+            ].map(({ label, cls, testid }) => (
+              <span key={label} className={`${cls} px-2 py-1 rounded text-xs font-medium`} data-testid={`network-badge-${testid}`}>
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       </div>

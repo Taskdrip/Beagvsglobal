@@ -22,8 +22,19 @@ import {
   Phone,
   CheckCircle,
   Anchor,
-  Truck
+  Truck,
+  Youtube,
+  Instagram,
 } from "lucide-react";
+import { SiTelegram, SiTiktok, SiX } from "react-icons/si";
+
+const SOCIAL_LINKS = [
+  { href: "https://x.com/Beagvsglobal", icon: SiX, label: "X (Twitter)", color: "hover:bg-slate-700 hover:text-white", textColor: "text-slate-600" },
+  { href: "https://www.instagram.com/beagvsglobal/", icon: Instagram, label: "Instagram", color: "hover:bg-pink-50 hover:text-pink-500", textColor: "text-slate-600" },
+  { href: "https://t.me/beagvsglobal", icon: SiTelegram, label: "Telegram", color: "hover:bg-blue-50 hover:text-blue-500", textColor: "text-slate-600" },
+  { href: "https://www.youtube.com/@beagvsglobal", icon: Youtube, label: "YouTube", color: "hover:bg-red-50 hover:text-red-500", textColor: "text-slate-600" },
+  { href: "https://www.tiktok.com/@beagvsglobal", icon: SiTiktok, label: "TikTok", color: "hover:bg-slate-100 hover:text-slate-900", textColor: "text-slate-600" },
+];
 
 const ABOUT_DEFAULTS = {
   heroTitle: "Your Trusted Partner in Global Cargo & Freight",
@@ -292,6 +303,29 @@ export default function About() {
               <div className="text-4xl font-bold text-crypto-blue mb-2">{c.stat4Value}</div>
               <p className="text-slate-medium">{c.stat4Label}</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Social Media Section */}
+      <section className="py-16 bg-slate-50">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl font-bold text-slate-dark mb-2">Follow Beagvs Global</h2>
+          <p className="text-slate-medium mb-8">Stay connected for shipping updates, real estate listings, and platform news.</p>
+          <div className="flex flex-wrap justify-center gap-4">
+            {SOCIAL_LINKS.map(({ href, icon: Icon, label, color }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid={`social-about-${label.toLowerCase().replace(/[^a-z]/g, "")}`}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 font-medium text-sm shadow-sm ${color} transition-all`}
+              >
+                <Icon className="w-5 h-5" />
+                {label}
+              </a>
+            ))}
           </div>
         </div>
       </section>
