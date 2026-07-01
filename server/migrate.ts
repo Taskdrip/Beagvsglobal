@@ -47,6 +47,20 @@ export async function runMigrations(): Promise<void> {
 export async function runSafetySQL(): Promise<void> {
   console.log("[migrate] Running post-migration schema safety checks...");
 
+  // ── Phase 1: enum types (must exist before columns that reference them) ────
+  // Run these in a single DO block so each is independent and idempotent.
+  await pool.query(`
+    DO $$
+    BEGIN
+      BEGIN
+        CREATE TYPE "public"."listing_approval_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED');
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END;
+    END $$;
+  `).catch((e: any) => {
+    console.warn("[migrate] Enum safety warning:", e.message?.split("\n")[0]);
+  });
+
   const statements: string[] = [
     // ── listings ──────────────────────────────────────────────────────────
     `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "metadata" jsonb`,
@@ -54,6 +68,13 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "location" varchar`,
     `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true`,
     `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "video_url" varchar`,
+
+    // Approval workflow columns — these require the listing_approval_status enum
+    // which is created in Phase 1 above.
+    `DO $$ BEGIN ALTER TABLE "listings" ADD COLUMN "approval_status" "listing_approval_status" DEFAULT 'PENDING'; EXCEPTION WHEN duplicate_column THEN NULL; WHEN undefined_object THEN NULL; END $$`,
+    `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "approval_note" text`,
+    `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "approved_at" timestamp`,
+    `ALTER TABLE "listings" ADD COLUMN IF NOT EXISTS "approved_by" varchar`,
 
     // ── users ──────────────────────────────────────────────────────────────
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "must_change_password" boolean DEFAULT false`,
@@ -98,6 +119,38 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "special_instructions" text`,
     `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "insurance_value" numeric(18,2)`,
     `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "insurance_currency" varchar`,
+
+    // ── competitors (entire table — created via db:push, not in migration SQL) ─
+    `CREATE TABLE IF NOT EXISTS "competitors" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "name" varchar NOT NULL,
+      "website" varchar,
+      "country" varchar,
+      "industry" varchar NOT NULL DEFAULT 'BOTH',
+      "notes" text,
+      "blog_url" varchar,
+      "social_links" jsonb DEFAULT '{}',
+      "is_active" boolean DEFAULT true,
+      "created_at" timestamp DEFAULT now(),
+      "updated_at" timestamp DEFAULT now()
+    )`,
+
+    // ── competitor_content ─────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS "competitor_content" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "competitor_id" varchar NOT NULL REFERENCES "competitors"("id") ON DELETE CASCADE,
+      "type" varchar NOT NULL,
+      "platform" varchar NOT NULL,
+      "title" varchar,
+      "summary" text,
+      "url" varchar,
+      "engagement_likes" integer DEFAULT 0,
+      "engagement_shares" integer DEFAULT 0,
+      "engagement_comments" integer DEFAULT 0,
+      "published_at" timestamp,
+      "tracked_at" timestamp DEFAULT now(),
+      "created_at" timestamp DEFAULT now()
+    )`,
 
     // ── index (safe) ───────────────────────────────────────────────────────
     `CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "sessions" USING btree ("expire")`,
