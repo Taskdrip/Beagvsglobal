@@ -106,6 +106,13 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "platform_fee_pct" numeric(5,2) DEFAULT '10.00'`,
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "platform_fee_amount" numeric(18,8)`,
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "seller_net_amount" numeric(18,8)`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "payment_receipt_url" varchar`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "payment_notes" text`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "payment_submitted_at" timestamp`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "admin_reviewed_at" timestamp`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "admin_reviewed_by" varchar`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "metadata" jsonb`,
+    `DO $$ BEGIN ALTER TYPE "public"."escrow_status" ADD VALUE IF NOT EXISTS 'PAYMENT_SUBMITTED'; EXCEPTION WHEN others THEN NULL; END $$`,
 
     // ── shipments ──────────────────────────────────────────────────────────
     `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "carrier_url" varchar`,

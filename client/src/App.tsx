@@ -38,6 +38,7 @@ import Help from "@/pages/Help";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Careers from "@/pages/Careers";
+import Notifications from "@/pages/Notifications";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -100,6 +101,7 @@ function Router() {
           <Route path="/privacy" component={Privacy} />
           <Route path="/terms" component={Terms} />
           <Route path="/careers" component={Careers} />
+          <Route path="/notifications" component={Notifications} />
         </>
       )}
       <Route component={NotFound} />

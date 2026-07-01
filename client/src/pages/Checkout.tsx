@@ -1,16 +1,17 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Clock, Copy, CheckCircle, MessageCircle, Shield, AlertCircle, Package,
-  MapPin, Truck, ChevronRight, Info, Lock, Banknote, Wallet, ArrowRight,
-  RefreshCw, User, Building2
+  MapPin, Truck, Info, Lock, Banknote, Wallet,
+  RefreshCw, User, Building2, Upload, FileImage, ReceiptText
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -178,25 +179,57 @@ export default function Checkout() {
     return () => clearInterval(timer);
   }, [paymentConfirmed, step]);
 
+  const [txHash, setTxHash] = useState("");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [receiptUrl, setReceiptUrl] = useState("");
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReceiptUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const resp = await fetch(`/api/escrows/${escrowId}/upload-receipt`, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: buffer,
+      });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { url } = await resp.json();
+      setReceiptUrl(url);
+      toast({ title: "Receipt uploaded successfully!" });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setReceiptUploading(false);
+    }
+  };
+
   const confirmPaymentMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("PATCH", `/api/escrows/${escrowId}`, { status: "FUNDED" });
+      await apiRequest("PATCH", `/api/escrows/${escrowId}`, {
+        status: "PAYMENT_SUBMITTED",
+        buyerTxHash: txHash || undefined,
+        paymentReceiptUrl: receiptUrl || undefined,
+        paymentNotes: paymentNotes || undefined,
+      });
     },
     onSuccess: () => {
       setPaymentConfirmed(true);
       setStep(3);
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
-      toast({ title: "Payment confirmed!", description: "Secure chat is now active. Redirecting…" });
-      setTimeout(() => {
-        if (escrow) {
-          apiRequest("POST", "/api/chat/threads", {
-            listingId: escrow.listingId, sellerId: escrow.sellerId, escrowId: escrow.id,
-          }).then(() => { window.location.href = `/chat/${escrow.listingId}`; });
-        }
-      }, 2500);
+      toast({ title: "Payment submitted for review!", description: "Admin will verify your payment shortly." });
+      // Also open a chat thread
+      if (escrow) {
+        apiRequest("POST", "/api/chat/threads", {
+          listingId: escrow.listingId, sellerId: escrow.sellerId, escrowId: escrow.id,
+        }).catch(() => {});
+      }
     },
     onError: (error: any) => {
-      toast({ title: "Failed to confirm payment", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to submit payment", description: error.message, variant: "destructive" });
     },
   });
 
@@ -316,17 +349,18 @@ export default function Checkout() {
         <div className="max-w-2xl mx-auto pt-8 space-y-5">
           <Card className="shadow-lg">
             <CardContent className="p-8 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-10 h-10 text-green-500" />
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ReceiptText className="w-10 h-10 text-blue-500" />
               </div>
-              <h1 className="text-2xl font-bold text-green-700 mb-2">Payment Confirmed!</h1>
-              <p className="text-slate-600 mb-4">Your escrow transaction is now active and funds are secured.</p>
+              <h1 className="text-2xl font-bold text-blue-700 mb-2">Payment Submitted!</h1>
+              <p className="text-slate-600 mb-1">Your payment proof has been submitted for review.</p>
+              <p className="text-slate-500 text-sm mb-4">Our team will verify and approve it within 1–24 hours. You'll get a notification once it's done.</p>
 
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
-                  { label: "Amount Paid", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
                   { label: "Transaction", value: escrow.id?.slice(0, 8) + "…" },
-                  { label: "Status", value: "Funded" },
+                  { label: "Status", value: "Under Review" },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-slate-50 rounded-lg p-3">
                     <p className="text-xs text-slate-500">{label}</p>
@@ -438,7 +472,7 @@ export default function Checkout() {
     );
   }
 
-  // ─── Step 2: Confirm payment ───────────────────────────────────────────────
+  // ─── Step 2: Submit payment proof ─────────────────────────────────────────
 
   if (step === 2) {
     return (
@@ -449,8 +483,11 @@ export default function Checkout() {
           <Card className="shadow-lg mb-4">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-slate-800">
-                <Shield className="w-5 h-5 text-blue-600" /> Confirm Payment Sent
+                <ReceiptText className="w-5 h-5 text-blue-600" /> Submit Payment Proof
               </CardTitle>
+              <p className="text-sm text-slate-500 mt-1">
+                Provide your transaction details so our team can verify your payment quickly.
+              </p>
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Summary */}
@@ -468,35 +505,112 @@ export default function Checkout() {
                 </div>
               </div>
 
-              {/* Checklist */}
-              <div className="space-y-2">
-                {[
-                  `I have sent exactly ${amount.toLocaleString()} ${escrow.currency} to the provided ${isFiatCurrency ? "bank account" : "wallet address"}`,
-                  "I understand funds are held in escrow until the transaction is verified",
-                  "I agree that false payment confirmations may result in account suspension",
-                ].map((text, i) => (
-                  <div key={i} className="flex items-start gap-2.5 bg-slate-50 rounded-lg p-2.5">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-slate-600">{text}</p>
+              {/* Tx Hash */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Transaction Hash / Reference ID
+                  {!isFiatCurrency && <span className="text-red-500 ml-1">*</span>}
+                </label>
+                <Input
+                  placeholder={isFiatCurrency ? "Bank transfer reference / receipt number" : "e.g. 0x1a2b3c4d…"}
+                  value={txHash}
+                  onChange={e => setTxHash(e.target.value)}
+                  className="font-mono text-sm"
+                  data-testid="input-tx-hash"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  {isFiatCurrency
+                    ? "Enter the bank transfer reference or receipt number"
+                    : "Paste the blockchain transaction hash from your wallet"}
+                </p>
+              </div>
+
+              {/* Receipt Upload */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Payment Screenshot / Receipt <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  ref={fileInputRef}
+                  onChange={handleReceiptUpload}
+                  className="hidden"
+                  data-testid="input-receipt-file"
+                />
+                {receiptUrl ? (
+                  <div className="border border-emerald-200 rounded-xl p-3 bg-emerald-50 flex items-center gap-3">
+                    <FileImage className="w-8 h-8 text-emerald-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-emerald-700">Receipt uploaded ✓</p>
+                      <a href={receiptUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 underline">View receipt</a>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => setReceiptUrl("")} className="text-xs">Remove</Button>
                   </div>
-                ))}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={receiptUploading}
+                    className="w-full border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
+                    data-testid="button-upload-receipt"
+                  >
+                    {receiptUploading ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <p className="text-sm text-blue-600">Uploading…</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <Upload className="w-8 h-8 text-slate-400" />
+                        <p className="text-sm font-medium text-slate-600">Upload receipt or screenshot</p>
+                        <p className="text-xs text-slate-400">PNG, JPG, PDF accepted</p>
+                      </div>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Notes for Admin <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <Textarea
+                  placeholder="Any additional information about your payment…"
+                  value={paymentNotes}
+                  onChange={e => setPaymentNotes(e.target.value)}
+                  rows={2}
+                  className="text-sm"
+                  data-testid="input-payment-notes"
+                />
+              </div>
+
+              {/* Info */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700">
+                  Your payment will be reviewed by our team within 1–24 hours. You'll receive a notification once approved.
+                  False submissions may result in account suspension.
+                </p>
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>← Back</Button>
+                <Button variant="outline" className="flex-1" onClick={() => setStep(1)} data-testid="button-back-to-step1">← Back</Button>
                 <Button
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 font-semibold"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 font-semibold"
                   onClick={() => confirmPaymentMutation.mutate()}
-                  disabled={confirmPaymentMutation.isPending}
+                  disabled={confirmPaymentMutation.isPending || (!txHash && !receiptUrl)}
                   data-testid="button-confirm-payment"
                 >
                   {confirmPaymentMutation.isPending ? (
-                    <span className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Confirming…</span>
+                    <span className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting…</span>
                   ) : (
-                    <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" />Yes, Payment Sent</span>
+                    <span className="flex items-center gap-2"><ReceiptText className="w-4 h-4" />Submit Payment for Review</span>
                   )}
                 </Button>
               </div>
+              <p className="text-center text-xs text-slate-400">You need at least a transaction hash or receipt to submit.</p>
             </CardContent>
           </Card>
         </div>

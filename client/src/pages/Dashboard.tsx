@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,20 +12,26 @@ import EscrowProgress from "@/components/EscrowProgress";
 import { KycStatus } from "@/components/KycStatus";
 import CryptoIcon from "@/components/CryptoIcon";
 import { Link } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Plus,
   Package,
   DollarSign,
   Users,
   Bell,
-  TrendingUp,
   MessageSquare,
-  Star,
   Clock,
   ShoppingCart,
   Store,
   Truck,
-  ExternalLink
+  ExternalLink,
+  CheckCircle,
+  ArrowRight,
+  AlertCircle,
+  ReceiptText,
+  RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 
 // ── Shipments Tab ─────────────────────────────────────────────────────────────
@@ -121,8 +127,20 @@ function ShipmentsTab() {
   );
 }
 
+const ESCROW_STATUS_CFG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  CREATED:           { label: "Awaiting Payment",   color: "text-yellow-700", bg: "bg-yellow-50",  icon: Clock },
+  PAYMENT_SUBMITTED: { label: "Payment Under Review", color: "text-blue-700",   bg: "bg-blue-50",   icon: ReceiptText },
+  FUNDED:            { label: "Funded",              color: "text-cyan-700",   bg: "bg-cyan-50",   icon: ShieldCheck },
+  SHIPPED:           { label: "Shipped",             color: "text-purple-700", bg: "bg-purple-50", icon: Truck },
+  DELIVERED:         { label: "Delivered",           color: "text-indigo-700", bg: "bg-indigo-50", icon: CheckCircle },
+  RELEASED:          { label: "Completed",           color: "text-green-700",  bg: "bg-green-50",  icon: CheckCircle },
+  DISPUTED:          { label: "Disputed",            color: "text-red-700",    bg: "bg-red-50",    icon: AlertCircle },
+  REFUNDED:          { label: "Refunded",            color: "text-orange-700", bg: "bg-orange-50", icon: RefreshCw },
+};
+
 export default function Dashboard() {
   const [currentMode, setCurrentMode] = useState<"buyer" | "seller">("buyer");
+  const { toast } = useToast();
   
   const { data: user } = useQuery({
     queryKey: ["/api/auth/user"],
@@ -144,12 +162,32 @@ export default function Dashboard() {
     queryKey: ["/api/notifications"],
   });
 
+  const { data: chatThreads } = useQuery<any[]>({
+    queryKey: ["/api/chat/threads"],
+  });
+
   const { data: followers } = useQuery({
     queryKey: ["/api/user/followers"],
   });
 
   const { data: following } = useQuery({
     queryKey: ["/api/user/following"],
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/notifications/${id}/read`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      const unread = (notifications as any[] || []).filter((n: any) => !n.readAt);
+      await Promise.all(unread.map((n: any) => apiRequest("PATCH", `/api/notifications/${n.id}/read`, {})));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      toast({ title: "All notifications marked as read" });
+    },
   });
 
   const activeListings = Array.isArray(userListings) ? userListings.filter((listing: any) => listing.isActive)?.length : 0;
@@ -281,13 +319,18 @@ export default function Dashboard() {
 
         {/* Dashboard Tabs */}
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="listings" data-testid="tab-listings">Listings</TabsTrigger>
-            <TabsTrigger value="escrows" data-testid="tab-escrows">Escrows</TabsTrigger>
-            <TabsTrigger value="shipments" data-testid="tab-shipments">Shipments</TabsTrigger>
-            <TabsTrigger value="wallets" data-testid="tab-wallets">Wallets</TabsTrigger>
-            <TabsTrigger value="social" data-testid="tab-social">Social</TabsTrigger>
+          <TabsList className="flex w-full overflow-x-auto gap-0.5 h-auto flex-wrap">
+            <TabsTrigger value="overview" className="flex-1 min-w-fit" data-testid="tab-overview">Overview</TabsTrigger>
+            <TabsTrigger value="transactions" className="flex-1 min-w-fit" data-testid="tab-transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="messages" className="flex-1 min-w-fit" data-testid="tab-messages">Messages</TabsTrigger>
+            <TabsTrigger value="listings" className="flex-1 min-w-fit" data-testid="tab-listings">Listings</TabsTrigger>
+            <TabsTrigger value="escrows" className="flex-1 min-w-fit" data-testid="tab-escrows">Escrows</TabsTrigger>
+            <TabsTrigger value="shipments" className="flex-1 min-w-fit" data-testid="tab-shipments">Shipments</TabsTrigger>
+            <TabsTrigger value="wallets" className="flex-1 min-w-fit" data-testid="tab-wallets">Wallets</TabsTrigger>
+            <TabsTrigger value="notifications" className="flex-1 min-w-fit" data-testid="tab-notifications">
+              Notifications {unreadNotifications > 0 && <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5">{unreadNotifications}</span>}
+            </TabsTrigger>
+            <TabsTrigger value="social" className="flex-1 min-w-fit" data-testid="tab-social">Social</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -555,12 +598,251 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
+          {/* ── Transactions Tab ───────────────────────────────────────────── */}
+          <TabsContent value="transactions" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ReceiptText className="w-5 h-5 text-blue-600" />
+                  My Transactions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!userEscrows ? (
+                  <div className="space-y-3">
+                    {[1,2,3].map(i => <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse" />)}
+                  </div>
+                ) : (userEscrows as any[]).length === 0 ? (
+                  <div className="text-center py-12">
+                    <ReceiptText className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-slate-700 mb-2">No transactions yet</h3>
+                    <p className="text-slate-500 mb-6">Your buy/sell escrow transactions will appear here</p>
+                    <Link href="/marketplace">
+                      <Button data-testid="button-browse-transactions">Browse Marketplace</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(userEscrows as any[]).map((escrow: any) => {
+                      const cfg = ESCROW_STATUS_CFG[escrow.status] ?? { label: escrow.status, color: "text-slate-700", bg: "bg-slate-50", icon: Clock };
+                      const Icon = cfg.icon;
+                      const isBuyer = escrow.buyerId === (user as any)?.id;
+                      return (
+                        <div key={escrow.id} data-testid={`transaction-row-${escrow.id}`}
+                          className="border rounded-xl p-4 hover:shadow-sm transition-all">
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
+                              <Icon className={`w-5 h-5 ${cfg.color}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="font-semibold text-slate-800 truncate">{escrow.listing?.title || "Listing"}</span>
+                                <Badge className={`${cfg.bg} ${cfg.color} border-0 text-xs font-medium`}>{cfg.label}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {isBuyer ? "Buyer" : "Seller"}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm flex-wrap">
+                                <span className="text-slate-500">
+                                  {isBuyer ? `Seller: ${escrow.seller?.username}` : `Buyer: ${escrow.buyer?.username}`}
+                                </span>
+                                <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                  {escrow.amount} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
+                                </span>
+                                <span className="text-slate-400 text-xs">{new Date(escrow.createdAt).toLocaleDateString()}</span>
+                              </div>
+                              {escrow.status === 'PAYMENT_SUBMITTED' && isBuyer && (
+                                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" /> Payment submitted — awaiting admin review
+                                </p>
+                              )}
+                              {escrow.status === 'PAYMENT_SUBMITTED' && !isBuyer && (
+                                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" /> Buyer submitted payment — admin is reviewing
+                                </p>
+                              )}
+                              {escrow.buyerTxHash && (
+                                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                                  Tx: {escrow.buyerTxHash.slice(0,20)}…
+                                </p>
+                              )}
+                              {escrow.adminNote && (
+                                <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" /> {escrow.adminNote}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-2 flex-shrink-0">
+                              <Link href={`/checkout/${escrow.id}`}>
+                                <Button size="sm" variant="outline" className="text-xs gap-1" data-testid={`button-view-transaction-${escrow.id}`}>
+                                  <ExternalLink className="w-3 h-3" /> View
+                                </Button>
+                              </Link>
+                              {escrow.listing?.listingId && (
+                                <Link href={`/chat/${escrow.listingId}`}>
+                                  <Button size="sm" variant="outline" className="text-xs gap-1" data-testid={`button-chat-transaction-${escrow.id}`}>
+                                    <MessageSquare className="w-3 h-3" /> Chat
+                                  </Button>
+                                </Link>
+                              )}
+                              {escrow.listingId && (
+                                <Link href={`/chat/${escrow.listingId}`}>
+                                  <Button size="sm" variant="ghost" className="text-xs gap-1 text-blue-600" data-testid={`button-open-chat-${escrow.id}`}>
+                                    <MessageSquare className="w-3 h-3" /> Chat
+                                  </Button>
+                                </Link>
+                              )}
+                              {escrow.status === 'SHIPPED' && isBuyer && (
+                                <Link href={`/tracking`}>
+                                  <Button size="sm" variant="outline" className="text-xs gap-1" data-testid={`button-track-tx-${escrow.id}`}>
+                                    <Truck className="w-3 h-3" /> Track
+                                  </Button>
+                                </Link>
+                              )}
+                            </div>
+                          </div>
+                          <EscrowProgress status={escrow.status} className="mt-3" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Messages Tab ───────────────────────────────────────────────── */}
+          <TabsContent value="messages" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                  My Messages
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!chatThreads ? (
+                  <div className="space-y-3">
+                    {[1,2,3].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />)}
+                  </div>
+                ) : chatThreads.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-slate-700 mb-2">No messages yet</h3>
+                    <p className="text-slate-500 mb-6">Messages with buyers/sellers appear here when you start a transaction</p>
+                    <Link href="/marketplace">
+                      <Button data-testid="button-browse-messages">Browse Marketplace</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {chatThreads.map((thread: any) => {
+                      const isAsbuyer = thread.buyerId === (user as any)?.id;
+                      const counterpart = isAsbuyer ? thread.seller : thread.buyer;
+                      const listing = thread.listing;
+                      return (
+                        <div key={thread.id} data-testid={`chat-thread-${thread.id}`}
+                          className="flex items-center gap-4 p-4 rounded-xl border hover:bg-slate-50 transition-all">
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">
+                            {counterpart?.username?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="font-semibold text-slate-800 text-sm">{counterpart?.username || "User"}</span>
+                              <Badge variant="outline" className="text-xs">{isAsbuyer ? "You're buyer" : "You're seller"}</Badge>
+                            </div>
+                            {listing && (
+                              <p className="text-xs text-slate-500 truncate">{listing.title}</p>
+                            )}
+                            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {thread.lastMessageAt ? new Date(thread.lastMessageAt).toLocaleString() : "No messages yet"}
+                            </p>
+                          </div>
+                          {thread.listingId && (
+                            <Link href={`/chat/${thread.listingId}`}>
+                              <Button size="sm" variant="outline" className="text-xs gap-1" data-testid={`button-open-thread-${thread.id}`}>
+                                <MessageSquare className="w-3 h-3" /> Open <ArrowRight className="w-3 h-3" />
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="shipments" className="space-y-4">
             <ShipmentsTab />
           </TabsContent>
 
           <TabsContent value="wallets" className="space-y-4">
             <WalletManager />
+          </TabsContent>
+
+          {/* ── Notifications Tab ──────────────────────────────────────────── */}
+          <TabsContent value="notifications" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-blue-600" />
+                    Notifications
+                    {unreadNotifications > 0 && (
+                      <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{unreadNotifications}</span>
+                    )}
+                  </CardTitle>
+                  {unreadNotifications > 0 && (
+                    <Button size="sm" variant="outline" onClick={() => markAllReadMutation.mutate()} data-testid="button-mark-all-read">
+                      Mark all read
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!notifications ? (
+                  <div className="space-y-3">
+                    {[1,2,3].map(i => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}
+                  </div>
+                ) : (notifications as any[]).length === 0 ? (
+                  <div className="text-center py-10">
+                    <Bell className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-500">No notifications yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(notifications as any[]).map((n: any) => {
+                      const isUnread = !n.readAt;
+                      const message = n.data?.message || n.type.replace(/_/g, " ");
+                      return (
+                        <div key={n.id} data-testid={`notification-item-${n.id}`}
+                          className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${isUnread ? "bg-blue-50 border-blue-100" : "bg-white border-slate-100"}`}>
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${isUnread ? "bg-blue-500" : "bg-slate-300"}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm ${isUnread ? "font-medium text-slate-800" : "text-slate-600"}`}>{message}</p>
+                            {n.data?.listingTitle && <p className="text-xs text-slate-400">"{n.data.listingTitle}"</p>}
+                            <p className="text-xs text-slate-400 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {n.data?.escrowId && (
+                              <Link href={`/checkout/${n.data.escrowId}`}>
+                                <Button size="sm" variant="ghost" className="text-xs h-7" data-testid={`button-notif-view-${n.id}`}>View</Button>
+                              </Link>
+                            )}
+                            {isUnread && (
+                              <button onClick={() => markReadMutation.mutate(n.id)} className="text-xs text-slate-400 hover:text-blue-600" data-testid={`button-notif-read-${n.id}`}>✓</button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="social" className="space-y-4">

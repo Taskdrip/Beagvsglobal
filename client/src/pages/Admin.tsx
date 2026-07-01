@@ -1511,9 +1511,94 @@ export default function Admin() {
           </TabsList>
 
           <TabsContent value="escrows" className="space-y-4">
+            {/* ── PAYMENT_SUBMITTED Priority Queue ── */}
+            {escrows && escrows.filter((e: any) => e.status === 'PAYMENT_SUBMITTED').length > 0 && (
+              <Card className="border-blue-300 shadow-md">
+                <CardHeader className="bg-blue-50 rounded-t-xl">
+                  <CardTitle className="flex items-center gap-2 text-blue-800">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+                    Payments Awaiting Review ({escrows.filter((e: any) => e.status === 'PAYMENT_SUBMITTED').length})
+                  </CardTitle>
+                  <p className="text-sm text-blue-600">These buyers have submitted payment receipts and are waiting for your approval.</p>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  {escrows.filter((e: any) => e.status === 'PAYMENT_SUBMITTED').map((escrow: any) => (
+                    <div key={escrow.id} className="border border-blue-200 rounded-xl p-4 bg-white" data-testid={`payment-review-${escrow.id}`}>
+                      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+                        <div>
+                          <h4 className="font-semibold text-slate-900">{escrow.listing?.title || "Unnamed Listing"}</h4>
+                          <p className="text-sm text-slate-500">{escrow.buyer?.username} → {escrow.seller?.username}</p>
+                          <p className="text-sm font-bold text-blue-700 mt-1">{escrow.amount} {escrow.currency}</p>
+                          <p className="text-xs text-slate-400">Submitted: {escrow.paymentSubmittedAt ? new Date(escrow.paymentSubmittedAt).toLocaleString() : "—"}</p>
+                        </div>
+                        <div className="flex flex-col gap-2 items-end flex-shrink-0">
+                          <Button
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                            onClick={() => updateEscrowMutation.mutate({ id: escrow.id, data: { status: 'FUNDED' } })}
+                            disabled={updateEscrowMutation.isPending}
+                            data-testid={`button-approve-payment-${escrow.id}`}
+                          >
+                            ✓ Approve Payment
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50 gap-1"
+                            onClick={() => {
+                              const note = window.prompt("Enter rejection reason for the buyer:");
+                              if (note !== null) {
+                                updateEscrowMutation.mutate({ id: escrow.id, data: { status: 'CREATED', adminNote: note } });
+                              }
+                            }}
+                            disabled={updateEscrowMutation.isPending}
+                            data-testid={`button-reject-payment-${escrow.id}`}
+                          >
+                            ✗ Reject
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Payment evidence */}
+                      {(escrow.buyerTxHash || escrow.paymentReceiptUrl || escrow.paymentNotes) && (
+                        <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-100">
+                          {escrow.buyerTxHash && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Transaction Hash</p>
+                              <p className="font-mono text-xs text-slate-700 break-all">{escrow.buyerTxHash}</p>
+                            </div>
+                          )}
+                          {escrow.paymentNotes && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Buyer Notes</p>
+                              <p className="text-xs text-slate-700">{escrow.paymentNotes}</p>
+                            </div>
+                          )}
+                          {escrow.paymentReceiptUrl && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Payment Receipt</p>
+                              {escrow.paymentReceiptUrl.endsWith('.pdf') ? (
+                                <a href={escrow.paymentReceiptUrl} target="_blank" rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                                  📄 View Receipt PDF
+                                </a>
+                              ) : (
+                                <a href={escrow.paymentReceiptUrl} target="_blank" rel="noopener noreferrer">
+                                  <img src={escrow.paymentReceiptUrl} alt="Payment receipt" className="max-h-48 rounded-lg border cursor-pointer hover:opacity-90" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
-                <CardTitle>Escrow Management</CardTitle>
+                <CardTitle>All Escrow Transactions</CardTitle>
               </CardHeader>
               <CardContent>
                 {escrows && escrows.length > 0 ? (

@@ -560,25 +560,128 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
   app.patch('/api/escrows/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const escrowData = insertEscrowSchema.partial().parse(req.body);
-      
+      const existing = await storage.getEscrow(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Escrow not found" });
+
       // Calculate fees if status is being updated to RELEASED
       if (escrowData.status === 'RELEASED') {
-        const escrow = await storage.getEscrow(req.params.id);
-        if (escrow) {
-          const platformFeeAmount = Number(escrow.amount) * (Number(escrow.platformFeePct) / 100);
-          const sellerNetAmount = Number(escrow.amount) - platformFeeAmount;
-          
-          escrowData.platformFeeAmount = platformFeeAmount.toString();
-          escrowData.sellerNetAmount = sellerNetAmount.toString();
-        }
+        const platformFeeAmount = Number(existing.amount) * (Number(existing.platformFeePct) / 100);
+        const sellerNetAmount = Number(existing.amount) - platformFeeAmount;
+        escrowData.platformFeeAmount = platformFeeAmount.toString();
+        escrowData.sellerNetAmount = sellerNetAmount.toString();
       }
-      
+
+      // When buyer submits payment — move to PAYMENT_SUBMITTED, notify seller + admins
+      if (escrowData.status === 'PAYMENT_SUBMITTED') {
+        (escrowData as any).paymentSubmittedAt = new Date();
+        // Notify the seller
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your listing',
+            message: 'A buyer has submitted payment for review. Please wait for admin approval.',
+            action: 'payment_submitted',
+          },
+        });
+        // Notify all admins
+        try {
+          const { db } = await import('./db');
+          const { users: usersTable } = await import('@shared/schema');
+          const { eq } = await import('drizzle-orm');
+          const admins = await db.select().from(usersTable).where(eq(usersTable.role, 'ADMIN'));
+          for (const admin of admins) {
+            await storage.createNotification({
+              userId: admin.id,
+              type: 'ESCROW_UPDATE',
+              data: {
+                escrowId: existing.id,
+                listingTitle: (existing as any).listing?.title ?? 'a listing',
+                buyerUsername: (existing as any).buyer?.username ?? 'a buyer',
+                message: 'New payment submitted and awaiting your review.',
+                action: 'payment_needs_review',
+              },
+            });
+          }
+        } catch (e) { console.warn('Could not notify admins:', e); }
+      }
+
+      // When admin approves (FUNDED) — notify buyer and seller
+      if (escrowData.status === 'FUNDED' && existing.status === 'PAYMENT_SUBMITTED') {
+        (escrowData as any).adminReviewedAt = new Date();
+        (escrowData as any).adminReviewedBy = userId;
+        await storage.createNotification({
+          userId: existing.buyerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your purchase',
+            message: 'Your payment has been verified and approved! The escrow is now active.',
+            action: 'payment_approved',
+          },
+        });
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your listing',
+            message: 'Payment has been verified. You can now proceed with the order.',
+            action: 'payment_approved',
+          },
+        });
+      }
+
+      // When admin rejects (back to CREATED) — notify buyer
+      if (escrowData.status === 'CREATED' && existing.status === 'PAYMENT_SUBMITTED') {
+        (escrowData as any).adminReviewedAt = new Date();
+        (escrowData as any).adminReviewedBy = userId;
+        await storage.createNotification({
+          userId: existing.buyerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your purchase',
+            message: `Your payment submission was rejected. Reason: ${req.body.adminNote || 'Please check your payment details and try again.'}`,
+            action: 'payment_rejected',
+          },
+        });
+      }
+
       const escrow = await storage.updateEscrow(req.params.id, escrowData);
       res.json(escrow);
     } catch (error: any) {
       console.error("Error updating escrow:", error);
       res.status(400).json({ message: error.message || "Failed to update escrow" });
+    }
+  });
+
+  // Upload payment receipt (multipart — saves to /public/uploads/receipts/)
+  app.post('/api/escrows/:id/upload-receipt', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { saveImage } = await import('./imageStorage');
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', async () => {
+        try {
+          const body = Buffer.concat(chunks);
+          // Detect content type from header
+          const contentType = req.headers['content-type'] || 'image/jpeg';
+          const ext = contentType.includes('pdf') ? 'pdf'
+            : contentType.includes('png') ? 'png'
+            : contentType.includes('gif') ? 'gif'
+            : 'jpg';
+          const url = await saveImage(body, ext);
+          res.json({ url });
+        } catch (e: any) {
+          res.status(500).json({ message: e.message || 'Upload failed' });
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Upload failed' });
     }
   });
 

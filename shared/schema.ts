@@ -32,7 +32,7 @@ export const walletTypeEnum = pgEnum('wallet_type', ['PI', 'USDT_TRON', 'USDT_TO
 export const listingTypeEnum = pgEnum('listing_type', ['REAL_ESTATE', 'SHIPPING_SERVICE', 'PRODUCT', 'SERVICE']);
 export const currencyEnum = pgEnum('currency', ['PI', 'USDT', 'USD', 'NGN', 'EUR', 'GBP', 'CAD']);
 export const networkEnum = pgEnum('network', ['PI_MAINNET', 'TRON', 'TON', 'BNB', 'SOL', 'AVAX', 'BANK_TRANSFER']);
-export const escrowStatusEnum = pgEnum('escrow_status', ['CREATED', 'FUNDED', 'SHIPPED', 'DELIVERED', 'DISPUTED', 'RELEASED', 'REFUNDED']);
+export const escrowStatusEnum = pgEnum('escrow_status', ['CREATED', 'PAYMENT_SUBMITTED', 'FUNDED', 'SHIPPED', 'DELIVERED', 'DISPUTED', 'RELEASED', 'REFUNDED']);
 export const followStatusEnum = pgEnum('follow_status', ['PENDING', 'ACCEPTED', 'REJECTED']);
 export const notificationTypeEnum = pgEnum('notification_type', ['FOLLOW_REQUEST', 'MESSAGE', 'ESCROW_UPDATE', 'REVIEW', 'KYC_STATUS']);
 export const kycStatusEnum = pgEnum('kyc_status', ['NOT_STARTED', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED']);
@@ -124,10 +124,16 @@ export const escrows = pgTable("escrows", {
   status: escrowStatusEnum("status").default('CREATED'),
   buyerTxHash: varchar("buyer_tx_hash"),
   sellerTxHash: varchar("seller_tx_hash"),
+  paymentReceiptUrl: varchar("payment_receipt_url"),
+  paymentNotes: text("payment_notes"),
+  paymentSubmittedAt: timestamp("payment_submitted_at"),
   adminNote: text("admin_note"),
+  adminReviewedAt: timestamp("admin_reviewed_at"),
+  adminReviewedBy: varchar("admin_reviewed_by"),
   platformFeePct: decimal("platform_fee_pct", { precision: 5, scale: 2 }).default('10.00'),
   platformFeeAmount: decimal("platform_fee_amount", { precision: 18, scale: 8 }),
   sellerNetAmount: decimal("seller_net_amount", { precision: 18, scale: 8 }),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
