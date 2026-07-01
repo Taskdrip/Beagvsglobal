@@ -173,7 +173,17 @@ export default function ListingDetail() {
 
   const { data: listing, isLoading, isError } = useQuery({
     queryKey: ["/api/listings/slug", slug],
-    queryFn: getQueryFn({ on401: "returnNull", on404: "returnNull" }),
+    queryFn: async () => {
+      const res = await fetch(`/api/listings/slug/${encodeURIComponent(slug!)}`, {
+        credentials: "include",
+      });
+      if (res.status === 401 || res.status === 404) return null;
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(`${res.status}: ${text}`);
+      }
+      return res.json();
+    },
     enabled: !!slug,
     retry: 1,
   });

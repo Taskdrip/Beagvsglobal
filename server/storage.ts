@@ -336,19 +336,24 @@ export class DatabaseStorage implements IStorage {
 
     if (!listing) return undefined;
 
-    const reviewsData = await db
-      .select({
-        review: reviews,
-        reviewer: users,
-      })
-      .from(reviews)
-      .leftJoin(users, eq(reviews.reviewerId, users.id))
-      .where(eq(reviews.listingId, listing.listing.id));
+    let reviewsData: { review: typeof reviews.$inferSelect; reviewer: typeof users.$inferSelect | null }[] = [];
+    try {
+      reviewsData = await db
+        .select({
+          review: reviews,
+          reviewer: users,
+        })
+        .from(reviews)
+        .leftJoin(users, eq(reviews.reviewerId, users.id))
+        .where(eq(reviews.listingId, listing.listing.id));
+    } catch (err) {
+      console.error("[storage] getListingBySlug: reviews query failed, returning listing without reviews:", err);
+    }
 
     return {
       ...listing.listing,
-      seller: listing.seller!,
-      reviews: reviewsData.map(r => ({ ...r.review, reviewer: r.reviewer! })),
+      seller: listing.seller ?? null,
+      reviews: reviewsData.map(r => ({ ...r.review, reviewer: r.reviewer ?? null })),
     };
   }
 

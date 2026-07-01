@@ -385,11 +385,11 @@ export default function RealEstate() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}
-                className="border-white/20 text-white/70 hover:text-white">
+                className="bg-transparent border-white/20 text-white/70 hover:bg-white/10 hover:text-white hover:border-white/40">
                 <Filter className="w-3.5 h-3.5 mr-1.5" /> Filters <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${showFilters ? "rotate-180" : ""}`} />
               </Button>
               <Button variant="outline" size="sm" onClick={() => setShowCalc(!showCalc)}
-                className="border-white/20 text-white/70 hover:text-white">
+                className="bg-transparent border-white/20 text-white/70 hover:bg-white/10 hover:text-white hover:border-white/40">
                 <Calculator className="w-3.5 h-3.5 mr-1.5" /> Mortgage Calc
               </Button>
               {isAuthenticated && (
