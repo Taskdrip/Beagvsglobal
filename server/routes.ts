@@ -393,10 +393,37 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const listingData = insertListingSchema.parse({
         ...req.body,
         sellerId: userId,
+        approvalStatus: 'PENDING',
         slug: req.body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + Date.now(),
       });
       
       const listing = await storage.createListing(listingData);
+
+      // Notify the seller their listing is under review
+      await storage.createNotification({
+        userId,
+        type: 'LISTING_SUBMITTED',
+        title: 'Listing Submitted for Review',
+        message: `Your listing "${listing.title}" has been submitted and is pending admin approval. You'll be notified once it's reviewed.`,
+        data: { listingId: listing.id },
+      }).catch(() => {});
+
+      // Notify all admins of new pending listing
+      try {
+        const admins = await storage.getAdminUsers?.();
+        if (admins?.length) {
+          await Promise.all(admins.map((admin: any) =>
+            storage.createNotification({
+              userId: admin.id,
+              type: 'LISTING_PENDING_REVIEW',
+              title: 'New Listing Awaiting Approval',
+              message: `A new listing "${listing.title}" has been submitted and requires your review.`,
+              data: { listingId: listing.id },
+            }).catch(() => {})
+          ));
+        }
+      } catch {}
+
       res.status(201).json(listing);
     } catch (error: any) {
       console.error("Error creating listing:", error);
@@ -1918,7 +1945,8 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         sellerId: userId,
         slug,
         isActive: isActive !== false,
-      });
+        approvalStatus: 'APPROVED', // admin-created listings are auto-approved
+      } as any);
       res.status(201).json(listing);
     } catch (error: any) {
       res.status(400).json({ message: error.message || "Failed to create listing" });
@@ -1941,13 +1969,47 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  // Admin: get all listings
+  // Admin: get all listings (all approval statuses)
   app.get('/api/admin/listings', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
     try {
-      const allListings = await storage.getListings({});
+      const allListings = await storage.getAllListingsAdmin();
       res.json(allListings);
     } catch (error: any) {
       res.status(500).json({ message: "Failed to fetch listings" });
+    }
+  });
+
+  // Admin: approve or reject a listing
+  app.patch('/api/admin/listings/:id/approve', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { status, rejectionReason } = req.body;
+      if (!['APPROVED', 'REJECTED'].includes(status)) {
+        return res.status(400).json({ message: "status must be APPROVED or REJECTED" });
+      }
+      const listing = await storage.getListing(req.params.id);
+      if (!listing) return res.status(404).json({ message: "Listing not found" });
+
+      const updated = await storage.updateListing(req.params.id, {
+        approvalStatus: status,
+        isActive: status === 'APPROVED',
+      } as any);
+
+      const notifMessage = status === 'APPROVED'
+        ? `Great news! Your listing "${listing.title}" has been approved and is now live on the marketplace.`
+        : `Your listing "${listing.title}" was not approved.${rejectionReason ? ` Reason: ${rejectionReason}` : ' Please contact support for more information.'}`;
+
+      await storage.createNotification({
+        userId: listing.sellerId,
+        type: status === 'APPROVED' ? 'LISTING_APPROVED' : 'LISTING_REJECTED',
+        title: status === 'APPROVED' ? 'Listing Approved!' : 'Listing Not Approved',
+        message: notifMessage,
+        data: { listingId: listing.id, rejectionReason },
+      }).catch(() => {});
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error approving listing:", error);
+      res.status(500).json({ message: error.message || "Failed to update listing approval" });
     }
   });
 

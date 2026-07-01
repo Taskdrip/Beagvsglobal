@@ -161,6 +161,9 @@ export async function runSafetySQL(): Promise<void> {
 
     // ── index (safe) ───────────────────────────────────────────────────────
     `CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "sessions" USING btree ("expire")`,
+
+    // ── Auto-approve existing active listings (seeded by admin before approval flow existed) ──
+    `UPDATE "listings" SET "approval_status" = 'APPROVED' WHERE "is_active" = true AND ("approval_status" = 'PENDING' OR "approval_status" IS NULL)`,
   ];
 
   let applied = 0;

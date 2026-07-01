@@ -303,6 +303,23 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
     onError: (err: any) => toast({ title: "Failed to delete", description: err.message, variant: "destructive" }),
   });
 
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+
+  const approveListingMutation = useMutation({
+    mutationFn: async ({ id, status, reason }: { id: string; status: "APPROVED" | "REJECTED"; reason?: string }) => {
+      await apiRequest("PATCH", `/api/admin/listings/${id}/approve`, { status, rejectionReason: reason });
+    },
+    onSuccess: (_data, vars) => {
+      toast({ title: vars.status === "APPROVED" ? "Listing approved and published!" : "Listing rejected. Seller notified." });
+      setRejectingId(null);
+      setRejectionReason("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/listings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/listings"] });
+    },
+    onError: (err: any) => toast({ title: "Action failed", description: err.message, variant: "destructive" }),
+  });
+
   const handleCreateListing = () => {
     const facilities = newFacilitiesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
     const amenities = newAmenitiesInput.split("\n").map((s: string) => s.trim()).filter(Boolean);
@@ -375,15 +392,111 @@ function AdminListingsTab({ toast, queryClient, apiRequest }: { toast: any; quer
   };
 
   const listings = (allListings as any[]) || [];
+  const pendingListings = listings.filter((l: any) => l.approvalStatus === 'PENDING' || (!l.approvalStatus && !l.isActive));
+  const approvedListings = listings.filter((l: any) => l.approvalStatus === 'APPROVED');
+  const rejectedListings = listings.filter((l: any) => l.approvalStatus === 'REJECTED');
 
   return (
     <div className="space-y-6">
+
+      {/* ── Pending Approval Queue ─────────────────────────────────────── */}
+      {pendingListings.length > 0 && (
+        <Card className="border-yellow-300 shadow-md">
+          <CardHeader className="pb-3 bg-yellow-50 rounded-t-xl">
+            <CardTitle className="flex items-center gap-2 text-yellow-800">
+              <Clock className="w-5 h-5" />
+              Listings Awaiting Approval ({pendingListings.length})
+            </CardTitle>
+            <p className="text-sm text-yellow-700">Review and approve or reject seller-submitted listings before they appear in the marketplace.</p>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            {pendingListings.map((listing: any) => (
+              <div key={listing.id} className="border border-yellow-200 rounded-lg p-4 bg-white" data-testid={`pending-listing-${listing.id}`}>
+                <div className="flex items-start gap-3 flex-wrap">
+                  {listing.images?.[0] && (
+                    <img src={listing.images[0]} alt={listing.title} className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <h4 className="font-semibold text-slate-900">{listing.title}</h4>
+                      <Badge variant="outline" className="text-xs">{listing.type?.replace('_', ' ')}</Badge>
+                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-medium">⏳ Pending Review</span>
+                    </div>
+                    <p className="text-sm text-slate-600 mb-1">{listing.location}</p>
+                    <p className="text-sm font-semibold text-slate-700">{listing.currency} {parseFloat(listing.priceCrypto || 0).toLocaleString()}</p>
+                    {listing.description && (
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{listing.description}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rejection reason input */}
+                {rejectingId === listing.id && (
+                  <div className="mt-3 space-y-2">
+                    <label className="text-xs font-medium text-slate-600">Rejection reason (optional — will be sent to seller)</label>
+                    <textarea
+                      className="w-full border rounded-lg p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-300"
+                      rows={2}
+                      placeholder="e.g. Incomplete details, invalid photos, pricing issue..."
+                      value={rejectionReason}
+                      onChange={e => setRejectionReason(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => { setRejectingId(null); setRejectionReason(""); }}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                        disabled={approveListingMutation.isPending}
+                        onClick={() => approveListingMutation.mutate({ id: listing.id, status: "REJECTED", reason: rejectionReason })}
+                        data-testid={`button-confirm-reject-${listing.id}`}
+                      >
+                        {approveListingMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
+                        Confirm Rejection
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {rejectingId !== listing.id && (
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                      disabled={approveListingMutation.isPending}
+                      onClick={() => approveListingMutation.mutate({ id: listing.id, status: "APPROVED" })}
+                      data-testid={`button-approve-listing-${listing.id}`}
+                    >
+                      {approveListingMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                      Approve & Publish
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50 gap-1"
+                      onClick={() => { setRejectingId(listing.id); setRejectionReason(""); }}
+                      data-testid={`button-reject-listing-${listing.id}`}
+                    >
+                      <XCircle className="w-3 h-3" /> Reject
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => openEditDialog(listing)} className="gap-1">
+                      <Eye className="w-3 h-3" /> Review Details
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between flex-wrap gap-3">
             <span className="flex items-center gap-2">
               <Package className="w-5 h-5 text-emerald-600" />
-              Property Listings ({listings.length})
+              All Listings ({listings.length})
+              {approvedListings.length > 0 && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{approvedListings.length} live</span>}
+              {rejectedListings.length > 0 && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{rejectedListings.length} rejected</span>}
             </span>
             <div className="flex gap-2 flex-wrap">
               <Button

@@ -80,6 +80,8 @@ export interface IStorage {
   updateListing(id: string, listing: Partial<InsertListing>): Promise<Listing>;
   deleteListing(id: string): Promise<void>;
   getUserListings(userId: string): Promise<Listing[]>;
+  getAllListingsAdmin(): Promise<Listing[]>;
+  getAdminUsers(): Promise<User[]>;
   
   // Review operations
   getListingReviews(listingId: string): Promise<(Review & { reviewer: User })[]>;
@@ -206,6 +208,10 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getAdminUsers(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, 'ADMIN'));
+  }
+
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
@@ -249,6 +255,7 @@ export class DatabaseStorage implements IStorage {
         images: listings.images,
         location: listings.location,
         isActive: listings.isActive,
+        approvalStatus: listings.approvalStatus,
         createdAt: listings.createdAt,
         updatedAt: listings.updatedAt,
         metadata: listings.metadata,
@@ -273,7 +280,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(reviews, eq(listings.id, reviews.listingId))
       .groupBy(listings.id, users.id);
 
-    const conditions = [eq(listings.isActive, true)];
+    const conditions = [eq(listings.isActive, true), eq(listings.approvalStatus, 'APPROVED')];
     
     if (filters?.type) {
       conditions.push(eq(listings.type, filters.type as any));
@@ -473,6 +480,10 @@ export class DatabaseStorage implements IStorage {
 
   async getUserListings(userId: string): Promise<Listing[]> {
     return await db.select().from(listings).where(eq(listings.sellerId, userId)).orderBy(desc(listings.createdAt));
+  }
+
+  async getAllListingsAdmin(): Promise<Listing[]> {
+    return await db.select().from(listings).orderBy(desc(listings.createdAt));
   }
 
   // Review operations

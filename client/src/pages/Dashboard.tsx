@@ -450,14 +450,25 @@ export default function Dashboard() {
                     {userListings.map((listing: any) => (
                       <div key={listing.id} className="flex items-center space-x-4 p-4 border rounded-lg hover:shadow-md transition-shadow" data-testid={`listing-detail-${listing.id}`}>
                         <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
+                          <div className="flex items-center space-x-2 mb-1 flex-wrap gap-1">
                             <h4 className="font-medium text-slate-dark">{listing.title}</h4>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              listing.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {listing.isActive ? 'Active' : 'Inactive'}
-                            </span>
+                            {/* Approval status badge */}
+                            {listing.approvalStatus === 'PENDING' && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 font-medium">⏳ Pending Review</span>
+                            )}
+                            {listing.approvalStatus === 'APPROVED' && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">✓ Approved</span>
+                            )}
+                            {listing.approvalStatus === 'REJECTED' && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">✗ Not Approved</span>
+                            )}
                           </div>
+                          {listing.approvalStatus === 'PENDING' && (
+                            <p className="text-xs text-yellow-600 mb-1">Your listing is under review and will appear in the marketplace once approved.</p>
+                          )}
+                          {listing.approvalStatus === 'REJECTED' && (
+                            <p className="text-xs text-red-600 mb-1">This listing was not approved. Check your notifications for details.</p>
+                          )}
                           <p className="text-sm text-slate-medium mb-2">{listing.type.replace('_', ' ')} • {listing.location}</p>
                           <p className="text-xs text-slate-400">Created {new Date(listing.createdAt).toLocaleDateString()}</p>
                         </div>
