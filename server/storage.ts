@@ -569,26 +569,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEscrow(id: string) {
-    const [result] = await db
-      .select({
-        escrow: escrows,
-        listing: listings,
-        buyer: users,
-        seller: users,
-      })
-      .from(escrows)
-      .leftJoin(listings, eq(escrows.listingId, listings.id))
-      .leftJoin(users, eq(escrows.buyerId, users.id))
-      .leftJoin(users, eq(escrows.sellerId, users.id))
-      .where(eq(escrows.id, id));
+    const [escrow] = await db.select().from(escrows).where(eq(escrows.id, id));
+    if (!escrow) return undefined;
 
-    if (!result) return undefined;
+    const [listing] = await db.select().from(listings).where(eq(listings.id, escrow.listingId));
+    const [buyer] = await db.select().from(users).where(eq(users.id, escrow.buyerId));
+    const [seller] = await db.select().from(users).where(eq(users.id, escrow.sellerId));
 
     return {
-      ...result.escrow,
-      listing: result.listing!,
-      buyer: result.buyer!,
-      seller: result.seller!,
+      ...escrow,
+      listing: listing ?? null,
+      buyer: buyer ?? null,
+      seller: seller ?? null,
     };
   }
 

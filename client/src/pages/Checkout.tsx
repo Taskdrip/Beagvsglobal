@@ -142,7 +142,7 @@ export default function Checkout() {
   const [, params] = useRoute("/checkout/:escrowId");
   const escrowId = params?.escrowId;
   const { toast } = useToast();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [timeRemaining, setTimeRemaining] = useState(1800);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
@@ -153,10 +153,11 @@ export default function Checkout() {
     city: "", country: "", postalCode: "",
   });
 
-  const { data: escrow, isLoading } = useQuery<any>({
+  const { data: escrow, isLoading: escrowLoading, isError: escrowError } = useQuery<any>({
     queryKey: ["/api/escrows", escrowId],
     enabled: !!escrowId && isAuthenticated,
     refetchInterval: 30000,
+    retry: 1,
   });
 
   const { data: paymentMethods } = useQuery<any[]>({
@@ -207,7 +208,18 @@ export default function Checkout() {
 
   // ─── Auth guard (inline — no bounce) ─────────────────────────────────────
 
-  if (!isAuthenticated && !isLoading) {
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-600 font-medium">Checking session…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
         <div className="max-w-xl mx-auto pt-10 pb-16">
@@ -254,12 +266,34 @@ export default function Checkout() {
 
   const isFiatCurrency = ["USD", "EUR", "GBP", "CAD", "NGN"].includes(escrow?.currency || "");
 
-  if (isLoading || !escrow) {
+  if (escrowLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-slate-600 font-medium">Loading checkout…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (escrowError || !escrow) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Checkout Not Found</h2>
+          <p className="text-slate-500 text-sm mb-6">
+            This checkout session could not be loaded. It may have expired or you may not have access to it.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="outline" onClick={() => window.history.back()}>← Go Back</Button>
+            <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
+              <RefreshCw className="w-4 h-4 mr-2" /> Retry
+            </Button>
+          </div>
         </div>
       </div>
     );
