@@ -87,11 +87,19 @@ function CountdownTimer({ seconds }: { seconds: number }) {
 
 // ─── Fee Breakdown Panel ──────────────────────────────────────────────────────
 
-function FeeBreakdown({ escrow, isSeller }: { escrow: any; isSeller?: boolean }) {
+function FeeBreakdown({ escrow, isSeller, selectedShippingRate }: { escrow: any; isSeller?: boolean; selectedShippingRate?: any }) {
   const amount = parseFloat(escrow.amount || "0");
   const feePct = parseFloat(escrow.platformFeePct || "10");
   const feeAmount = amount * (feePct / 100);
   const sellerReceives = amount - feeAmount;
+
+  // Shipping fee — from selected rate (live) or already-saved on escrow metadata
+  const savedShippingCost = parseFloat((escrow.metadata as any)?.shipping?.cost || escrow.shippingFee || "0");
+  const shippingFeeNGN = selectedShippingRate
+    ? parseFloat(selectedShippingRate.price || "0")
+    : savedShippingCost;
+  const shippingOption = selectedShippingRate?.option || (escrow.metadata as any)?.shipping?.option || escrow.shippingOption;
+  const hasShipping = shippingFeeNGN > 0 && shippingOption && shippingOption !== 'SELF_PICKUP';
 
   return (
     <div className="space-y-2.5">
@@ -104,6 +112,18 @@ function FeeBreakdown({ escrow, isSeller }: { escrow: any; isSeller?: boolean })
         </div>
       </div>
 
+      {/* Shipping fee line (NGN, paid separately in cash/transfer to agent on delivery or via escrow) */}
+      {hasShipping && (
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-500 flex items-center gap-1.5">
+            <Truck className="w-3.5 h-3.5 text-blue-500" />
+            Shipping Fee
+            <span className="text-xs text-slate-400">(held in escrow)</span>
+          </span>
+          <span className="font-semibold text-blue-700">₦{shippingFeeNGN.toLocaleString()} NGN</span>
+        </div>
+      )}
+
       <div className="flex justify-between items-center text-sm">
         <span className="text-slate-500 flex items-center gap-1.5">
           Platform Service Fee
@@ -115,15 +135,25 @@ function FeeBreakdown({ escrow, isSeller }: { escrow: any; isSeller?: boolean })
 
       <Separator />
 
-      {/* Buyer row */}
+      {/* Buyer row — crypto amount (item price) */}
       <div className="flex justify-between items-center">
         <span className="flex items-center gap-1.5 font-semibold text-blue-700 text-sm">
-          <User className="w-4 h-4" /> You Send
+          <User className="w-4 h-4" /> You Send (crypto)
         </span>
         <div className="flex items-center gap-1 font-bold text-blue-700 text-lg">
           {amount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
         </div>
       </div>
+
+      {/* Shipping fee reminder */}
+      {hasShipping && (
+        <div className="flex justify-between items-center bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          <span className="flex items-center gap-1.5 text-sm text-blue-700">
+            <Truck className="w-4 h-4" /> + Shipping Fee (NGN)
+          </span>
+          <span className="text-sm font-bold text-blue-800">₦{shippingFeeNGN.toLocaleString()}</span>
+        </div>
+      )}
 
       {/* Seller row */}
       <div className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
@@ -1065,7 +1095,10 @@ export default function Checkout() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <FeeBreakdown escrow={escrow} />
+            <FeeBreakdown
+            escrow={escrow}
+            selectedShippingRate={shippingRates?.find((r: any) => r.option === selectedShippingOption)}
+          />
           </CardContent>
         </Card>
 
@@ -1235,6 +1268,8 @@ export default function Checkout() {
                       await apiRequest("PATCH", `/api/escrows/${escrowId}`, {
                         shippingOption: selectedShippingOption,
                         shippingCost: selectedRate?.price || "0",
+                        shippingFee: selectedRate?.price || "0",
+                        shippingFeeCurrency: selectedRate?.currency || "NGN",
                       });
                     } catch { /* non-blocking */ }
                   }

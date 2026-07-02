@@ -309,11 +309,18 @@ export default function DeliveryAgentDashboard() {
                               {s.seller.location ? ` · ${s.seller.location}` : ""}
                             </p>
                           )}
-                          {s.specialInstructions && (
-                            <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-100">
-                              ⚠ {s.specialInstructions}
-                            </p>
-                          )}
+                          {s.specialInstructions && (() => {
+                            const feeMatch = s.specialInstructions.match(/Shipping fee: (₦[\d,]+ NGN)/);
+                            return feeMatch ? (
+                              <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded px-2 py-1">
+                                <span className="text-xs text-green-700 font-medium">💰 Your fee: {feeMatch[1]}</span>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-100">
+                                ⚠ {s.specialInstructions}
+                              </p>
+                            );
+                          })()}
                         </div>
                         <Button
                           size="sm"

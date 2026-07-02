@@ -588,11 +588,29 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   app.patch('/api/escrows/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      // Pull shipping fields out before schema parse (they live in metadata now)
+      // Pull out shipping sub-fields that live in metadata.shipping
       const { shippingOption, shippingCost, shippingAddress, ...restBody } = req.body;
+      // shippingFee / shippingFeeCurrency are proper DB columns — keep in restBody so they're parsed by schema
       const escrowData = insertEscrowSchema.partial().parse(restBody);
       const existing = await storage.getEscrow(req.params.id);
       if (!existing) return res.status(404).json({ message: "Escrow not found" });
+
+      // Persist shipping metadata from buyer's selection into escrow.metadata.shipping
+      const hasShippingUpdate = shippingOption !== undefined || shippingCost !== undefined || shippingAddress !== undefined;
+      if (hasShippingUpdate) {
+        const existingMeta = (existing.metadata as any) || {};
+        const existingShipping = existingMeta.shipping || {};
+        (escrowData as any).metadata = {
+          ...existingMeta,
+          ...(escrowData as any).metadata,
+          shipping: {
+            ...existingShipping,
+            ...(shippingOption !== undefined && { option: shippingOption }),
+            ...(shippingCost !== undefined && { cost: String(shippingCost) }),
+            ...(shippingAddress !== undefined && { address: shippingAddress }),
+          },
+        };
+      }
 
       // Authorisation: enforce who can trigger each status transition
       if (escrowData.status) {
@@ -729,6 +747,43 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
             action: 'payment_approved',
           },
         });
+      }
+
+      // Auto-create a shipment record so delivery agents can see and claim the order
+      if (escrowData.status === 'FUNDED' && existing.status === 'PAYMENT_SUBMITTED') {
+        try {
+          const meta = (existing.metadata as any) || {};
+          const shippingMeta = meta.shipping || {};
+          const shippingOpt = shippingMeta.option;
+          const shippingCostNGN = shippingMeta.cost;
+          if (shippingOpt && shippingOpt !== 'SELF_PICKUP') {
+            const { db } = await import('./db');
+            const { shipments: shipmentsTable } = await import('@shared/schema');
+            const { eq: eqFn } = await import('drizzle-orm');
+            const existingShipments = await db.select({ id: shipmentsTable.id })
+              .from(shipmentsTable).where(eqFn(shipmentsTable.escrowId, existing.id));
+            if (existingShipments.length === 0) {
+              const addrMeta = meta.shippingAddress || shippingMeta.address || {};
+              const sellerUser = await storage.getUser(existing.sellerId);
+              const trackingNum = `BG-${Date.now().toString(36).toUpperCase()}`;
+              const destParts = [addrMeta.addressLine1, addrMeta.city, addrMeta.country].filter(Boolean);
+              await storage.createShipment({
+                escrowId: existing.id,
+                sellerId: existing.sellerId,
+                buyerId: existing.buyerId,
+                trackingNumber: trackingNum,
+                carrier: 'Beagvs Logistics',
+                serviceType: shippingOpt,
+                origin: sellerUser?.location || 'Seller location TBD',
+                destination: destParts.length > 0 ? destParts.join(', ') : 'Delivery address pending',
+                recipientName: addrMeta.recipientName || '',
+                recipientPhone: addrMeta.recipientPhone || '',
+                specialInstructions: shippingCostNGN && parseFloat(shippingCostNGN) > 0
+                  ? `Shipping fee: ₦${parseFloat(shippingCostNGN).toLocaleString()} NGN` : undefined,
+              } as any);
+            }
+          }
+        } catch (e) { console.warn('Could not auto-create shipment for escrow:', e); }
       }
 
       // When admin rejects (back to CREATED) — notify buyer
@@ -3091,6 +3146,43 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         if (msgs) {
           await storage.createNotification({ userId: existing.buyerId, type: 'ESCROW_UPDATE', data: { escrowId: existing.id, listingTitle, message: msgs.buyer, action: `admin_${status.toLowerCase()}` } });
           await storage.createNotification({ userId: existing.sellerId, type: 'ESCROW_UPDATE', data: { escrowId: existing.id, listingTitle, message: msgs.seller, action: `admin_${status.toLowerCase()}` } });
+        }
+
+        // Auto-create a shipment record so delivery agents can see and claim the order
+        if (status === 'FUNDED' && existing.status === 'PAYMENT_SUBMITTED') {
+          try {
+            const meta = (existing.metadata as any) || {};
+            const shippingMeta = meta.shipping || {};
+            const shippingOpt = shippingMeta.option;
+            const shippingCostNGN = shippingMeta.cost;
+            if (shippingOpt && shippingOpt !== 'SELF_PICKUP') {
+              const { db: dbInst } = await import('./db');
+              const { shipments: shipmentsTable } = await import('@shared/schema');
+              const { eq: eqFn } = await import('drizzle-orm');
+              const existingShipments = await dbInst.select({ id: shipmentsTable.id })
+                .from(shipmentsTable).where(eqFn(shipmentsTable.escrowId, existing.id));
+              if (existingShipments.length === 0) {
+                const addrMeta = meta.shippingAddress || shippingMeta.address || {};
+                const sellerUser = await storage.getUser(existing.sellerId);
+                const trackingNum = `BG-${Date.now().toString(36).toUpperCase()}`;
+                const destParts = [addrMeta.addressLine1, addrMeta.city, addrMeta.country].filter(Boolean);
+                await storage.createShipment({
+                  escrowId: existing.id,
+                  sellerId: existing.sellerId,
+                  buyerId: existing.buyerId,
+                  trackingNumber: trackingNum,
+                  carrier: 'Beagvs Logistics',
+                  serviceType: shippingOpt,
+                  origin: sellerUser?.location || 'Seller location TBD',
+                  destination: destParts.length > 0 ? destParts.join(', ') : 'Delivery address pending',
+                  recipientName: addrMeta.recipientName || '',
+                  recipientPhone: addrMeta.recipientPhone || '',
+                  specialInstructions: shippingCostNGN && parseFloat(shippingCostNGN) > 0
+                    ? `Shipping fee: ₦${parseFloat(shippingCostNGN).toLocaleString()} NGN` : undefined,
+                } as any);
+              }
+            }
+          } catch (e) { console.warn('Could not auto-create shipment for admin-funded escrow:', e); }
         }
       }
 
