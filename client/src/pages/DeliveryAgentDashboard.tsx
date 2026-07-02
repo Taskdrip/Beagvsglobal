@@ -75,6 +75,16 @@ export default function DeliveryAgentDashboard() {
     refetchInterval: 60_000,
   });
 
+  // Platform settings — used to show agent payout % breakdown
+  const { data: platformSettings = [] } = useQuery<any[]>({
+    queryKey: ["/api/platform-settings"],
+    enabled: !!user,
+  });
+  const agentPayoutPct: number = (() => {
+    const s = (platformSettings as any[]).find((x: any) => x.key === "fee_agent_payout");
+    return s?.value?.percentage ?? 75;
+  })();
+
   const updateStatusMutation = useMutation({
     mutationFn: ({ shipmentId, status, location }: { shipmentId: string; status: string; location?: string }) =>
       apiRequest("POST", `/api/agent/shipments/${shipmentId}/status`, { status, location }),

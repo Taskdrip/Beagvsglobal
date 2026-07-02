@@ -1664,6 +1664,7 @@ export default function Admin() {
     { key: "fee_real_estate",      label: "Real Estate",            description: "Platform fee % on real estate escrows",      defaultPct: 5  },
     { key: "fee_shipping_service", label: "Shipping Services",      description: "Platform fee % on shipping service escrows", defaultPct: 8  },
     { key: "fee_service",          label: "General Services",       description: "Platform fee % on service escrows",          defaultPct: 10 },
+    { key: "fee_agent_payout",     label: "Shipping Agent Payout",  description: "% of shipping fee paid to the delivery agent (remainder goes to platform)", defaultPct: 75 },
   ];
 
   const getSettingValue = (key: string) => {

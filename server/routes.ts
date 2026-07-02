@@ -81,24 +81,34 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     try {
       const { email, password } = req.body;
       
-      // Find user by email
       const user = await storage.getUserByEmail(email);
       if (!user || !user.passwordHash) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
-      // Verify password
       const isValidPassword = await bcrypt.compare(password, user.passwordHash);
       if (!isValidPassword) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
-      // Create session
-      (req as any).session.userId = user.id;
-      (req as any).session.isCustomAuth = true;
-
-      // Remove sensitive data
       const { passwordHash: _, ...publicUser } = user;
+
+      // Regenerate session to prevent session fixation, then save explicitly
+      await new Promise<void>((resolve) => {
+        (req as any).session.regenerate((regenErr: any) => {
+          if (regenErr) {
+            console.error('[login] session.regenerate error (non-fatal):', regenErr);
+            return resolve();
+          }
+          (req as any).session.userId = user.id;
+          (req as any).session.isCustomAuth = true;
+          (req as any).session.save((saveErr: any) => {
+            if (saveErr) console.error('[login] session.save error (non-fatal):', saveErr);
+            resolve();
+          });
+        });
+      });
+
       res.json(publicUser);
     } catch (error: any) {
       console.error("Login error:", error);
@@ -928,7 +938,8 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const followerId = req.user.claims.sub;
       const followeeId = req.params.userId;
       const follow = await storage.getFollowStatus(followerId, followeeId);
-      res.json(follow);
+      // Return null explicitly (not undefined) so the client can distinguish "not following" from error
+      res.json(follow ?? null);
     } catch (error) {
       console.error("Error fetching follow status:", error);
       res.status(500).json({ message: "Failed to fetch follow status" });
@@ -1470,13 +1481,45 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
-      // Don't return sensitive information
       const { passwordHash, ...publicUser } = user;
       res.json(publicUser);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Public: get a profile user's accepted followers
+  app.get('/api/users/:id/followers', async (req, res) => {
+    try {
+      const followers = await storage.getUserFollowers(req.params.id);
+      res.json(followers);
+    } catch (error) {
+      console.error("Error fetching user followers:", error);
+      res.status(500).json({ message: "Failed to fetch followers" });
+    }
+  });
+
+  // Public: get who a profile user follows
+  app.get('/api/users/:id/following', async (req, res) => {
+    try {
+      const following = await storage.getUserFollowing(req.params.id);
+      res.json(following);
+    } catch (error) {
+      console.error("Error fetching user following:", error);
+      res.status(500).json({ message: "Failed to fetch following" });
+    }
+  });
+
+  // Cancel a pending follow request (the follower cancels their own request)
+  app.delete('/api/follows/cancel/:followeeId', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const followerId = req.user.claims.sub;
+      await storage.deleteFollow(followerId, req.params.followeeId);
+      res.json({ message: "Follow request cancelled" });
+    } catch (error: any) {
+      console.error("Error cancelling follow request:", error);
+      res.status(400).json({ message: error.message || "Failed to cancel follow request" });
     }
   });
 

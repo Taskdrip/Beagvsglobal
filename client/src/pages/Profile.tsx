@@ -113,15 +113,14 @@ export default function Profile() {
     },
   });
 
+  // Fetch the PROFILE USER's followers and following (public endpoints, no auth required)
   const { data: followers } = useQuery({
-    queryKey: ["/api/user/followers"],
-    select: (data) => Array.isArray(data) ? data.filter((follow: any) => follow.followeeId === id) : [],
+    queryKey: ["/api/users", id, "followers"],
     enabled: !!id,
   });
 
   const { data: following } = useQuery({
-    queryKey: ["/api/user/following"],
-    select: (data) => Array.isArray(data) ? data.filter((follow: any) => follow.followerId === id) : [],
+    queryKey: ["/api/users", id, "following"],
     enabled: !!id,
   });
 
@@ -132,25 +131,18 @@ export default function Profile() {
       await apiRequest("POST", "/api/follows", { followeeId });
     },
     onSuccess: (_data, targetId) => {
-      const isFollowBack = !!targetId && targetId !== id;
       toast({
-        title: isFollowBack ? "Follow request sent" : "Follow request sent",
+        title: "Follow request sent",
         description: "The user will be notified of your follow request",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/follows/status", id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/followers"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/following"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users", id, "followers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users", id, "following"] });
     },
     onError: (error: any) => {
       if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
+        toast({ title: "Please log in to follow users", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({
@@ -170,11 +162,27 @@ export default function Profile() {
     onSuccess: () => {
       toast({ title: "Unfollowed", description: "You are no longer following this user" });
       queryClient.invalidateQueries({ queryKey: ["/api/follows/status", id] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/followers"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/following"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users", id, "followers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users", id, "following"] });
     },
     onError: (error: any) => {
       toast({ title: "Failed to unfollow", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Cancel a pending follow request
+  const cancelFollowMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+      await apiRequest("DELETE", `/api/follows/cancel/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Follow request cancelled" });
+      queryClient.invalidateQueries({ queryKey: ["/api/follows/status", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users", id, "followers"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to cancel request", description: error.message, variant: "destructive" });
     },
   });
 
@@ -334,10 +342,26 @@ export default function Profile() {
                           <UserPlus className="w-4 h-4 mr-2" />
                           {unfollowMutation.isPending ? "Unfollowing..." : "Following ✓"}
                         </Button>
+                      ) : followStatus.status === 'PENDING' ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => cancelFollowMutation.mutate()}
+                          disabled={cancelFollowMutation.isPending}
+                          className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                          data-testid="button-cancel-follow"
+                        >
+                          {cancelFollowMutation.isPending ? "Cancelling..." : "Request Sent · Cancel"}
+                        </Button>
                       ) : (
-                        <Badge variant="secondary" className="flex items-center space-x-1">
-                          {followStatus.status === 'PENDING' ? 'Follow request sent' : 'Follow request rejected'}
-                        </Badge>
+                        <Button
+                          onClick={handleFollow}
+                          disabled={followMutation.isPending}
+                          variant="outline"
+                          data-testid="button-follow-retry"
+                        >
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          {followMutation.isPending ? "Sending..." : "Follow Again"}
+                        </Button>
                       )}
                     </div>
                   )}

@@ -60,14 +60,8 @@ export default function MessageThread({ recipientId, recipientName, onClose }: M
     refetchInterval: 5000, // Poll every 5 seconds for new messages
     retry: (failureCount, error) => {
       if (isUnauthorizedError(error as Error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
+        toast({ title: "Please log in to send messages", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return false;
       }
       return failureCount < 3;
@@ -84,19 +78,13 @@ export default function MessageThread({ recipientId, recipientName, onClose }: M
     },
     onSuccess: () => {
       form.reset();
-      refetch(); // Immediately fetch new messages
+      refetch();
       queryClient.invalidateQueries({ queryKey: ["/api/user/threads"] });
     },
     onError: (error: any) => {
       if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
+        toast({ title: "Please log in to send messages", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({
