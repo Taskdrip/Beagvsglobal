@@ -60,11 +60,22 @@ export default function Chat() {
     refetchInterval: 5000,
   });
 
-  const selectedThread = (threads as any[]).find((t: any) => t.id === selectedThreadId);
+  // Match by thread ID first, then fall back to listing ID (for links from listing/checkout pages)
+  // Match by thread ID first, then fall back to listing ID (for links from listing/checkout pages)
+  const selectedThread = (threads as any[]).find((t: any) => t.id === selectedThreadId || t.listingId === selectedThreadId);
+
+  // If we matched by listing ID, sync selectedThreadId to the real thread ID so messages load correctly
+  useEffect(() => {
+    if (selectedThread && selectedThread.id !== selectedThreadId) {
+      setSelectedThreadId(selectedThread.id);
+    }
+  }, [selectedThread?.id]);
+
+  const activeThreadId = selectedThread?.id ?? selectedThreadId;
 
   const { data: messages = [], refetch: refetchMessages } = useQuery<any[]>({
-    queryKey: ["/api/chat/threads", selectedThreadId, "messages"],
-    enabled: !!selectedThreadId,
+    queryKey: ["/api/chat/threads", activeThreadId, "messages"],
+    enabled: !!activeThreadId,
     refetchInterval: 3000,
   });
 
@@ -80,19 +91,19 @@ export default function Chat() {
 
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
-      if (!selectedThreadId || !selectedThread) throw new Error("No active thread");
+      if (!activeThreadId || !selectedThread) throw new Error("No active thread");
       const recipientId =
-        user?.id === selectedThread.buyerId
+        (user as any)?.id === selectedThread.buyerId
           ? selectedThread.sellerId
           : selectedThread.buyerId;
-      await apiRequest("POST", `/api/chat/threads/${selectedThreadId}/messages`, {
+      await apiRequest("POST", `/api/chat/threads/${activeThreadId}/messages`, {
         content,
         recipientId,
       });
     },
     onSuccess: () => {
       setMessage("");
-      queryClient.invalidateQueries({ queryKey: ["/api/chat/threads", selectedThreadId, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/threads", activeThreadId, "messages"] });
       queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/chat/threads"] });
     },

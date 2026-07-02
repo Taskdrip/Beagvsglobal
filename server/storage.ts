@@ -99,6 +99,7 @@ export interface IStorage {
   getFollowStatus(followerId: string, followeeId: string): Promise<Follow | undefined>;
   createFollow(follow: InsertFollow): Promise<Follow>;
   updateFollow(id: string, status: string): Promise<Follow>;
+  deleteFollow(followerId: string, followeeId: string): Promise<void>;
   getUserFollowers(userId: string): Promise<(Follow & { follower: User })[]>;
   getUserFollowing(userId: string): Promise<(Follow & { followee: User })[]>;
   getFollowRequests(userId: string): Promise<(Follow & { follower: User })[]>;
@@ -638,6 +639,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(follows.id, id))
       .returning();
     return updatedFollow;
+  }
+
+  async deleteFollow(followerId: string, followeeId: string): Promise<void> {
+    await db
+      .delete(follows)
+      .where(and(
+        eq(follows.followerId, followerId),
+        eq(follows.followeeId, followeeId)
+      ));
   }
 
   async getUserFollowers(userId: string) {

@@ -592,21 +592,79 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const existing = await storage.getEscrow(req.params.id);
       if (!existing) return res.status(404).json({ message: "Escrow not found" });
 
+      // Authorisation: enforce who can trigger each status transition
+      if (escrowData.status) {
+        const currentUser = await storage.getUser(userId);
+        const isAdmin = currentUser?.role === 'ADMIN';
+        const isBuyer = existing.buyerId === userId;
+        const isSeller = existing.sellerId === userId;
+        const newStatus = escrowData.status;
+        const oldStatus = existing.status;
+
+        const transitions: Record<string, { from: string[]; actors: string[] }> = {
+          PAYMENT_SUBMITTED: { from: ['CREATED'],            actors: ['buyer'] },
+          FUNDED:            { from: ['PAYMENT_SUBMITTED'],  actors: ['admin'] },
+          CREATED:           { from: ['PAYMENT_SUBMITTED'],  actors: ['admin'] }, // admin rejection
+          SHIPPED:           { from: ['FUNDED'],             actors: ['seller', 'admin'] },
+          DELIVERED:         { from: ['SHIPPED'],            actors: ['buyer', 'admin'] },
+          RELEASED:          { from: ['FUNDED', 'SHIPPED', 'DELIVERED'], actors: ['admin'] },
+          DISPUTED:          { from: ['FUNDED', 'SHIPPED', 'DELIVERED'], actors: ['buyer', 'seller', 'admin'] },
+          CANCELLED:         { from: ['CREATED', 'PAYMENT_SUBMITTED'],   actors: ['buyer', 'seller', 'admin'] },
+        };
+
+        const rule = transitions[newStatus];
+        if (rule) {
+          if (!rule.from.includes(oldStatus)) {
+            return res.status(400).json({ message: `Cannot change status from ${oldStatus} to ${newStatus}` });
+          }
+          const allowed = rule.actors.some(a =>
+            (a === 'admin' && isAdmin) ||
+            (a === 'buyer' && isBuyer) ||
+            (a === 'seller' && isSeller)
+          );
+          if (!allowed) {
+            return res.status(403).json({ message: `You are not authorised to set status to ${newStatus}` });
+          }
+        }
+      }
+
       // Calculate fees if status is being updated to RELEASED
       if (escrowData.status === 'RELEASED') {
         const platformFeeAmount = Number(existing.amount) * (Number(existing.platformFeePct) / 100);
         const sellerNetAmount = Number(existing.amount) - platformFeeAmount;
         escrowData.platformFeeAmount = platformFeeAmount.toString();
         escrowData.sellerNetAmount = sellerNetAmount.toString();
-        // Mark the listing as SOLD OUT so buyers know it's no longer available
+        // Mark the listing as inactive and sold out so it disappears from marketplace
         try {
           const listingRecord = await storage.getListing(existing.listingId);
           if (listingRecord) {
             await storage.updateListing(existing.listingId, {
+              isActive: false,
               metadata: { ...(listingRecord.metadata as any || {}), soldOut: true, soldAt: new Date().toISOString() },
             } as any);
           }
         } catch (e) { console.warn('Could not mark listing as sold:', e); }
+        // Notify buyer and seller that funds have been released
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your listing',
+            message: 'Funds have been released to you! Transaction complete.',
+            action: 'funds_released',
+          },
+        });
+        await storage.createNotification({
+          userId: existing.buyerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your purchase',
+            message: 'Transaction complete. Funds have been released to the seller.',
+            action: 'transaction_complete',
+          },
+        });
       }
 
       // When buyer submits payment — move to PAYMENT_SUBMITTED, notify seller + admins
@@ -685,6 +743,64 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
             action: 'payment_rejected',
           },
         });
+      }
+
+      // When seller marks as shipped (FUNDED → SHIPPED)
+      if (escrowData.status === 'SHIPPED' && existing.status === 'FUNDED') {
+        await storage.createNotification({
+          userId: existing.buyerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your purchase',
+            message: 'Your order has been shipped! Please confirm delivery once you receive it.',
+            action: 'order_shipped',
+          },
+        });
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your listing',
+            message: 'You marked this order as shipped. Awaiting buyer delivery confirmation.',
+            action: 'order_shipped_seller',
+          },
+        });
+      }
+
+      // When buyer confirms delivery (SHIPPED → DELIVERED)
+      if (escrowData.status === 'DELIVERED' && existing.status === 'SHIPPED') {
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            escrowId: existing.id,
+            listingTitle: (existing as any).listing?.title ?? 'your listing',
+            message: 'Buyer confirmed delivery! Funds will be released to you shortly.',
+            action: 'delivery_confirmed',
+          },
+        });
+        // Notify admins to release funds
+        try {
+          const { db } = await import('./db');
+          const { users: usersTable } = await import('@shared/schema');
+          const { eq: eqOp } = await import('drizzle-orm');
+          const admins = await db.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
+          for (const admin of admins) {
+            await storage.createNotification({
+              userId: admin.id,
+              type: 'ESCROW_UPDATE',
+              data: {
+                escrowId: existing.id,
+                listingTitle: (existing as any).listing?.title ?? 'a listing',
+                buyerUsername: (existing as any).buyer?.username ?? 'a buyer',
+                message: 'Buyer confirmed delivery. Please release funds to the seller.',
+                action: 'release_funds_needed',
+              },
+            });
+          }
+        } catch (e) { console.warn('Could not notify admins of delivery:', e); }
       }
 
       const escrow = await storage.updateEscrow(req.params.id, escrowData);
@@ -774,6 +890,18 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     } catch (error: any) {
       console.error("Error updating follow:", error);
       res.status(400).json({ message: error.message || "Failed to update follow" });
+    }
+  });
+
+  app.delete('/api/follows/:followeeId', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const followerId = req.user.claims.sub;
+      const followeeId = req.params.followeeId;
+      await storage.deleteFollow(followerId, followeeId);
+      res.json({ message: "Unfollowed successfully" });
+    } catch (error: any) {
+      console.error("Error deleting follow:", error);
+      res.status(400).json({ message: error.message || "Failed to unfollow" });
     }
   });
 

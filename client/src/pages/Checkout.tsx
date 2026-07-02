@@ -210,6 +210,19 @@ export default function Checkout() {
 
   const [chatThreadId, setChatThreadId] = useState<string | null>(null);
 
+  const updateStatusMutation = useMutation({
+    mutationFn: async (status: string) => {
+      await apiRequest("PATCH", `/api/escrows/${escrowId}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/escrows", escrowId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
+    },
+  });
+
   const confirmPaymentMutation = useMutation({
     mutationFn: async () => {
       // Submit payment proof
@@ -421,7 +434,7 @@ export default function Checkout() {
     );
   }
 
-  // Escrow is funded (admin approved) — show active escrow state
+  // Escrow is funded (admin approved) — seller ships, buyer waits
   if (escrow.status === 'FUNDED') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
@@ -432,11 +445,11 @@ export default function Checkout() {
                 <ShieldCheck className="w-9 h-9 text-emerald-500" />
               </div>
               <h1 className="text-2xl font-bold text-emerald-700 mb-2">Payment Approved!</h1>
-              <p className="text-slate-600 mb-1">Your payment has been verified and the escrow is now active.</p>
+              <p className="text-slate-600 mb-1">Payment verified — escrow is now active.</p>
               <p className="text-slate-500 text-sm mb-6">
-                {isBuyer
-                  ? "You can now communicate with the seller to coordinate delivery."
-                  : "The buyer's payment is verified. Proceed with fulfilling the order."}
+                {isSeller
+                  ? "Fulfil the order, then mark it as shipped below so the buyer can confirm receipt."
+                  : "The seller has been notified. They will ship your order and you'll be able to confirm delivery."}
               </p>
 
               <div className="grid grid-cols-3 gap-3 mb-6">
@@ -453,6 +466,17 @@ export default function Checkout() {
               </div>
 
               <div className="flex flex-col gap-3">
+                {isSeller && (
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700 gap-2"
+                    onClick={() => updateStatusMutation.mutate('SHIPPED')}
+                    disabled={updateStatusMutation.isPending}
+                    data-testid="button-mark-shipped"
+                  >
+                    <Truck className="w-4 h-4" />
+                    {updateStatusMutation.isPending ? "Updating…" : "Mark as Shipped"}
+                  </Button>
+                )}
                 <Link href={`/chat/${escrow.listingId}`}>
                   <Button className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2" data-testid="button-open-chat-funded">
                     <MessageCircle className="w-4 h-4" /> Open Escrow Chat
@@ -462,6 +486,115 @@ export default function Checkout() {
                   <Button variant="outline" className="w-full" data-testid="button-go-dashboard-funded">
                     View My Transactions
                   </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Order shipped — buyer confirms delivery
+  if (escrow.status === 'SHIPPED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10 space-y-5">
+          <Card className="shadow-lg border-cyan-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Truck className="w-9 h-9 text-cyan-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-cyan-700 mb-2">Order Shipped!</h1>
+              <p className="text-slate-600 mb-1">
+                {isBuyer ? "Your order is on its way." : "You marked this order as shipped."}
+              </p>
+              <p className="text-slate-500 text-sm mb-6">
+                {isBuyer
+                  ? "Once you receive your item, click 'Confirm Delivery' below to release funds to the seller."
+                  : "Waiting for the buyer to confirm they received the item. Funds will be released after confirmation."}
+              </p>
+
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {[
+                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
+                  { label: "Status", value: "Shipped" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="font-semibold text-slate-800 text-sm mt-0.5 break-all">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {isBuyer && (
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700 gap-2 font-semibold"
+                    onClick={() => updateStatusMutation.mutate('DELIVERED')}
+                    disabled={updateStatusMutation.isPending}
+                    data-testid="button-confirm-delivery"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {updateStatusMutation.isPending ? "Confirming…" : "Confirm I Received This ✓"}
+                  </Button>
+                )}
+                <Link href={`/chat/${escrow.listingId}`}>
+                  <Button variant="outline" className="w-full gap-2" data-testid="button-chat-shipped">
+                    <MessageCircle className="w-4 h-4" /> Open Escrow Chat
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline" className="w-full" data-testid="button-dashboard-shipped">
+                    View My Transactions
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Buyer confirmed delivery — pending fund release
+  if (escrow.status === 'DELIVERED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10">
+          <Card className="shadow-lg border-purple-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-9 h-9 text-purple-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-purple-700 mb-2">Delivery Confirmed!</h1>
+              <p className="text-slate-600 mb-1">
+                {isBuyer
+                  ? "You confirmed receiving the item."
+                  : "The buyer confirmed delivery of your item."}
+              </p>
+              <p className="text-slate-500 text-sm mb-6">
+                {isSeller
+                  ? "Funds will be released to your wallet by our team shortly."
+                  : "Admin will release the funds to the seller. The transaction is almost complete."}
+              </p>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 flex gap-2 text-left">
+                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700">
+                  Our team has been notified and will release the escrow funds within 1–24 hours.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <Link href={`/chat/${escrow.listingId}`}>
+                  <Button variant="outline" className="w-full gap-2">
+                    <MessageCircle className="w-4 h-4" /> Open Escrow Chat
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button className="w-full" data-testid="button-dashboard-delivered">View Dashboard</Button>
                 </Link>
               </div>
             </CardContent>

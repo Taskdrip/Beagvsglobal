@@ -28,6 +28,52 @@ import {
   DollarSign
 } from "lucide-react";
 
+function FollowerRow({
+  follow, isOwnProfile, isAlreadyFollowing, onFollowBack, onUnfollow, isPending,
+}: {
+  follow: any; isOwnProfile: boolean; isAlreadyFollowing: boolean;
+  onFollowBack: (id: string) => void; onUnfollow: (id: string) => void; isPending: boolean;
+}) {
+  return (
+    <div className="flex items-center space-x-3" data-testid={`follower-${follow.follower?.id}`}>
+      <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center font-semibold text-slate-600">
+        {follow.follower?.username?.[0]?.toUpperCase() || '?'}
+      </div>
+      <div className="flex-1 min-w-0">
+        <Link href={`/profile/${follow.follower?.id}`}>
+          <p className="font-medium text-slate-dark hover:text-crypto-blue cursor-pointer truncate">
+            {follow.follower?.username}
+          </p>
+        </Link>
+        <p className="text-sm text-slate-medium truncate">
+          {follow.follower?.firstName} {follow.follower?.lastName}
+        </p>
+      </div>
+      {isOwnProfile && (
+        isAlreadyFollowing ? (
+          <Button
+            size="sm" variant="outline"
+            onClick={() => onUnfollow(follow.follower?.id)}
+            disabled={isPending}
+            className="text-xs shrink-0"
+          >
+            Following ✓
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => onFollowBack(follow.follower?.id)}
+            disabled={isPending}
+            className="text-xs shrink-0"
+          >
+            <UserPlus className="w-3 h-3 mr-1" /> Follow Back
+          </Button>
+        )
+      )}
+    </div>
+  );
+}
+
 export default function Profile() {
   const { id } = useParams();
   const { user, isAuthenticated } = useAuth();
@@ -80,18 +126,20 @@ export default function Profile() {
   });
 
   const followMutation = useMutation({
-    mutationFn: async () => {
-      if (!id) return;
-      await apiRequest("POST", "/api/follows", {
-        followeeId: id,
-      });
+    mutationFn: async (targetId?: string) => {
+      const followeeId = targetId || id;
+      if (!followeeId) return;
+      await apiRequest("POST", "/api/follows", { followeeId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, targetId) => {
+      const isFollowBack = !!targetId && targetId !== id;
       toast({
-        title: "Follow request sent",
+        title: isFollowBack ? "Follow request sent" : "Follow request sent",
         description: "The user will be notified of your follow request",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/follows/status", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/followers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/following"] });
     },
     onError: (error: any) => {
       if (isUnauthorizedError(error)) {
@@ -113,6 +161,23 @@ export default function Profile() {
     },
   });
 
+  const unfollowMutation = useMutation({
+    mutationFn: async (targetId?: string) => {
+      const followeeId = targetId || id;
+      if (!followeeId) return;
+      await apiRequest("DELETE", `/api/follows/${followeeId}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Unfollowed", description: "You are no longer following this user" });
+      queryClient.invalidateQueries({ queryKey: ["/api/follows/status", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/followers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/following"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to unfollow", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleFollow = () => {
     if (!isAuthenticated) {
       toast({
@@ -122,7 +187,7 @@ export default function Profile() {
       });
       return;
     }
-    followMutation.mutate();
+    followMutation.mutate(undefined);
   };
 
   const generateWhatsAppLink = () => {
@@ -259,11 +324,19 @@ export default function Profile() {
                           <UserPlus className="w-4 h-4 mr-2" />
                           {followMutation.isPending ? "Sending..." : "Follow"}
                         </Button>
+                      ) : followStatus.status === 'ACCEPTED' ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => unfollowMutation.mutate(undefined)}
+                          disabled={unfollowMutation.isPending}
+                          data-testid="button-unfollow"
+                        >
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          {unfollowMutation.isPending ? "Unfollowing..." : "Following ✓"}
+                        </Button>
                       ) : (
                         <Badge variant="secondary" className="flex items-center space-x-1">
-                          {followStatus.status === 'PENDING' ? 'Follow request sent' : 
-                           followStatus.status === 'ACCEPTED' ? 'Following' : 
-                           'Follow request rejected'}
+                          {followStatus.status === 'PENDING' ? 'Follow request sent' : 'Follow request rejected'}
                         </Badge>
                       )}
                     </div>
@@ -460,26 +533,25 @@ export default function Profile() {
                 <CardContent>
                   {followers && followers.length > 0 ? (
                     <div className="space-y-3">
-                      {followers.slice(0, 5).map((follow: any) => (
-                        <div key={follow.id} className="flex items-center space-x-3" data-testid={`follower-${follow.follower.id}`}>
-                          <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
-                            {follow.follower.username?.[0]?.toUpperCase() || '?'}
-                          </div>
-                          <div className="flex-1">
-                            <Link href={`/profile/${follow.follower.id}`}>
-                              <p className="font-medium text-slate-dark hover:text-crypto-blue cursor-pointer">
-                                {follow.follower.username}
-                              </p>
-                            </Link>
-                            <p className="text-sm text-slate-medium">
-                              {follow.follower.firstName} {follow.follower.lastName}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                      {followers.length > 5 && (
+                      {followers.slice(0, 10).map((follow: any) => {
+                        const isAlreadyFollowing = !!following?.some(
+                          (f: any) => f.followeeId === follow.follower?.id
+                        );
+                        return (
+                          <FollowerRow
+                            key={follow.id}
+                            follow={follow}
+                            isOwnProfile={!!isOwnProfile}
+                            isAlreadyFollowing={isAlreadyFollowing}
+                            onFollowBack={(targetId) => followMutation.mutate(targetId)}
+                            onUnfollow={(targetId) => unfollowMutation.mutate(targetId)}
+                            isPending={followMutation.isPending || unfollowMutation.isPending}
+                          />
+                        );
+                      })}
+                      {followers.length > 10 && (
                         <p className="text-sm text-slate-medium text-center">
-                          And {followers.length - 5} more followers...
+                          And {followers.length - 10} more followers...
                         </p>
                       )}
                     </div>
