@@ -133,12 +133,8 @@ export const escrows = pgTable("escrows", {
   platformFeePct: decimal("platform_fee_pct", { precision: 5, scale: 2 }).default('10.00'),
   platformFeeAmount: decimal("platform_fee_amount", { precision: 18, scale: 8 }),
   sellerNetAmount: decimal("seller_net_amount", { precision: 18, scale: 8 }),
-  // Shipping fields (only for PRODUCT listing types)
-  shippingOption: varchar("shipping_option"),
-  shippingCost: decimal("shipping_cost", { precision: 18, scale: 4 }),
-  shippingAddress: text("shipping_address"),
-  shippingTrackingNumber: varchar("shipping_tracking_number"),
-  shippingCarrier: varchar("shipping_carrier"),
+  // Shipping fields are stored in metadata.shipping (JSONB) for DB compatibility
+  // metadata.shipping = { option, cost, address, trackingNumber, carrier, adminNote }
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

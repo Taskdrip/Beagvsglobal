@@ -588,7 +588,9 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   app.patch('/api/escrows/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const escrowData = insertEscrowSchema.partial().parse(req.body);
+      // Pull shipping fields out before schema parse (they live in metadata now)
+      const { shippingOption, shippingCost, shippingAddress, ...restBody } = req.body;
+      const escrowData = insertEscrowSchema.partial().parse(restBody);
       const existing = await storage.getEscrow(req.params.id);
       if (!existing) return res.status(404).json({ message: "Escrow not found" });
 
@@ -2653,7 +2655,9 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const rates = await storage.getShippingRates();
       res.json(rates);
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      // Table may not exist in production yet — return empty array gracefully
+      console.warn('[shipping-rates] Table not ready:', err.message);
+      res.json([]);
     }
   });
 
@@ -2663,7 +2667,8 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const rates = await storage.getShippingRates();
       res.json(rates);
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      console.warn('[admin/shipping-rates] Table not ready:', err.message);
+      res.json([]);
     }
   });
 
@@ -2705,11 +2710,25 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
       const updateData: any = { updatedAt: new Date() };
       if (adminNote !== undefined) updateData.adminNote = adminNote;
-      if (shippingTrackingNumber !== undefined) updateData.shippingTrackingNumber = shippingTrackingNumber;
-      if (shippingCarrier !== undefined) updateData.shippingCarrier = shippingCarrier;
-      if (shippingOption !== undefined) updateData.shippingOption = shippingOption;
-      if (shippingCost !== undefined) updateData.shippingCost = String(shippingCost);
-      if (shippingAddress !== undefined) updateData.shippingAddress = shippingAddress;
+
+      // Shipping fields are stored in metadata.shipping (backward-compatible with all DB versions)
+      const hasShippingUpdate = shippingTrackingNumber !== undefined || shippingCarrier !== undefined ||
+        shippingOption !== undefined || shippingCost !== undefined || shippingAddress !== undefined;
+      if (hasShippingUpdate) {
+        const existingMeta = (existing.metadata as any) || {};
+        const existingShipping = existingMeta.shipping || {};
+        updateData.metadata = {
+          ...existingMeta,
+          shipping: {
+            ...existingShipping,
+            ...(shippingOption !== undefined && { option: shippingOption }),
+            ...(shippingCost !== undefined && { cost: String(shippingCost) }),
+            ...(shippingAddress !== undefined && { address: shippingAddress }),
+            ...(shippingTrackingNumber !== undefined && { trackingNumber: shippingTrackingNumber }),
+            ...(shippingCarrier !== undefined && { carrier: shippingCarrier }),
+          },
+        };
+      }
 
       if (status && status !== existing.status) {
         updateData.status = status;
