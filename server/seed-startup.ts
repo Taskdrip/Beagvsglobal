@@ -11,19 +11,26 @@ const ADMIN_EMAIL = "admin@beagvsglobal.com";
 const WHATSAPP = "+2348037232210";
 
 export async function seedAdmin() {
-  const passwordHash = await bcrypt.hash("Admin@2025!", 12);
   const existing = await db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).limit(1);
 
   let adminId: string;
   if (existing.length > 0) {
-    await db.update(users).set({ passwordHash, role: "ADMIN", accountType: "BOTH", mustChangePassword: false })
+    // Only ensure role/accountType are correct — never overwrite an existing password
+    await db.update(users).set({ role: "ADMIN", accountType: "BOTH" })
       .where(eq(users.email, ADMIN_EMAIL));
     adminId = existing[0].id;
     console.log("[startup-seed] Admin user verified.");
   } else {
+    // First-run only: use ADMIN_PASSWORD env var, or a strong generated default
+    const rawPassword = process.env.ADMIN_PASSWORD || `Beagvs-${Math.random().toString(36).slice(2, 10)}!`;
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn(`[startup-seed] ADMIN_PASSWORD not set — generated one-time password: ${rawPassword}`);
+      console.warn("[startup-seed] Set ADMIN_PASSWORD env var before next deploy to use a fixed password.");
+    }
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
     const [u] = await db.insert(users).values({
       email: ADMIN_EMAIL, username: "admin", firstName: "Super", lastName: "Admin",
-      passwordHash, role: "ADMIN", accountType: "BOTH", mustChangePassword: false,
+      passwordHash, role: "ADMIN", accountType: "BOTH", mustChangePassword: true,
     }).returning();
     adminId = u.id;
     console.log("[startup-seed] Admin user created.");
