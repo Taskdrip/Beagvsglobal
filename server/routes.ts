@@ -2647,6 +2647,110 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ─── Shipping Rates (public) ────────────────────────────────────────────────
+  app.get('/api/shipping-rates', async (_req, res) => {
+    try {
+      const rates = await storage.getShippingRates();
+      res.json(rates);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Admin: Shipping Rates Management ───────────────────────────────────────
+  app.get('/api/admin/shipping-rates', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const rates = await storage.getShippingRates();
+      res.json(rates);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post('/api/admin/shipping-rates/seed', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      await storage.seedDefaultShippingRates();
+      const rates = await storage.getShippingRates();
+      res.json({ success: true, rates });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch('/api/admin/shipping-rates/:id', isAuthenticatedEnhanced, isAdmin, async (req, res) => {
+    try {
+      const { price, name, description, estimatedDays, isActive, currency } = req.body;
+      const updated = await storage.updateShippingRate(req.params.id, {
+        ...(price !== undefined && { price: String(price) }),
+        ...(name !== undefined && { name }),
+        ...(description !== undefined && { description }),
+        ...(estimatedDays !== undefined && { estimatedDays }),
+        ...(isActive !== undefined && { isActive }),
+        ...(currency !== undefined && { currency }),
+      });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── Admin: Update escrow with real-time broadcast ──────────────────────────
+  app.patch('/api/admin/escrows/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.session?.userId;
+      const { status, adminNote, shippingTrackingNumber, shippingCarrier, shippingOption, shippingCost, shippingAddress } = req.body;
+
+      const existing = await storage.getEscrow(req.params.id);
+      if (!existing) return res.status(404).json({ message: 'Escrow not found' });
+
+      const updateData: any = { updatedAt: new Date() };
+      if (adminNote !== undefined) updateData.adminNote = adminNote;
+      if (shippingTrackingNumber !== undefined) updateData.shippingTrackingNumber = shippingTrackingNumber;
+      if (shippingCarrier !== undefined) updateData.shippingCarrier = shippingCarrier;
+      if (shippingOption !== undefined) updateData.shippingOption = shippingOption;
+      if (shippingCost !== undefined) updateData.shippingCost = String(shippingCost);
+      if (shippingAddress !== undefined) updateData.shippingAddress = shippingAddress;
+
+      if (status && status !== existing.status) {
+        updateData.status = status;
+        updateData.adminReviewedAt = new Date();
+        updateData.adminReviewedBy = userId;
+
+        // Calculate fees on RELEASED
+        if (status === 'RELEASED') {
+          const platformFeeAmount = Number(existing.amount) * (Number(existing.platformFeePct) / 100);
+          updateData.platformFeeAmount = String(platformFeeAmount);
+          updateData.sellerNetAmount = String(Number(existing.amount) - platformFeeAmount);
+        }
+
+        // Notify buyer and seller of the status change
+        const listingTitle = (existing as any).listing?.title ?? 'your order';
+        const statusMessages: Record<string, { buyer: string; seller: string }> = {
+          FUNDED: { buyer: 'Your payment has been verified and approved! The escrow is now active.', seller: 'Payment has been verified. You can now proceed with the order.' },
+          SHIPPED: { buyer: 'Great news! Your order has been shipped. Track it in your dashboard.', seller: 'Order marked as shipped. Awaiting buyer confirmation.' },
+          DELIVERED: { buyer: 'Your order has been marked as delivered. Funds will be released shortly.', seller: 'Order confirmed as delivered. Funds will be released to you.' },
+          RELEASED: { buyer: 'Transaction complete. Funds have been released to the seller.', seller: 'Funds have been released to you! Transaction complete.' },
+          DISPUTED: { buyer: 'A dispute has been opened on this transaction. Our team will review it.', seller: 'A dispute has been opened on this transaction. Our team will review it.' },
+          REFUNDED: { buyer: 'Your funds have been refunded. Please check your wallet.', seller: 'This transaction has been refunded to the buyer.' },
+          CANCELLED: { buyer: 'This transaction has been cancelled.', seller: 'This transaction has been cancelled.' },
+          CREATED: { buyer: `Your payment submission was reviewed. ${adminNote ? 'Note: ' + adminNote : 'Please resubmit if needed.'}`, seller: 'Admin has updated this transaction status.' },
+        };
+
+        const msgs = statusMessages[status];
+        if (msgs) {
+          await storage.createNotification({ userId: existing.buyerId, type: 'ESCROW_UPDATE', data: { escrowId: existing.id, listingTitle, message: msgs.buyer, action: `admin_${status.toLowerCase()}` } });
+          await storage.createNotification({ userId: existing.sellerId, type: 'ESCROW_UPDATE', data: { escrowId: existing.id, listingTitle, message: msgs.seller, action: `admin_${status.toLowerCase()}` } });
+        }
+      }
+
+      const updated = await storage.updateEscrow(req.params.id, updateData);
+      res.json(updated);
+    } catch (err: any) {
+      console.error('Admin escrow update error:', err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Health check — used by Railway to verify the app is alive
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

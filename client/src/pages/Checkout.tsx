@@ -184,7 +184,17 @@ export default function Checkout() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [receiptUrl, setReceiptUrl] = useState("");
   const [receiptUploading, setReceiptUploading] = useState(false);
+  const [selectedShippingOption, setSelectedShippingOption] = useState<string>(
+    () => escrow?.shippingOption || ""
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isProductListing = escrow?.listing?.listingType === 'PRODUCT' || escrow?.listing?.type === 'PRODUCT';
+
+  const { data: shippingRates } = useQuery<any[]>({
+    queryKey: ["/api/shipping-rates"],
+    enabled: isProductListing,
+  });
 
   const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -985,6 +995,68 @@ export default function Checkout() {
           </CardContent>
         </Card>
 
+        {/* Shipping option selector — PRODUCT listings only */}
+        {isProductListing && isBuyer && (
+          <Card className="mb-4 shadow-sm border-blue-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Truck className="w-4 h-4 text-blue-600" /> Select Delivery Option
+              </CardTitle>
+              <p className="text-xs text-slate-500 mt-0.5">Choose how you'd like to receive your item</p>
+            </CardHeader>
+            <CardContent>
+              {!shippingRates || shippingRates.length === 0 ? (
+                <p className="text-sm text-slate-400">Loading shipping options…</p>
+              ) : (
+                <div className="space-y-2">
+                  {shippingRates.filter((r: any) => r.isActive).map((rate: any) => {
+                    const isSelected = selectedShippingOption === rate.option;
+                    return (
+                      <button
+                        key={rate.id}
+                        type="button"
+                        onClick={() => setSelectedShippingOption(rate.option)}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${
+                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-200'
+                        }`}
+                        data-testid={`shipping-option-${rate.option}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-white m-auto mt-0.5" />}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>{rate.name}</p>
+                            {rate.description && <p className="text-xs text-slate-500">{rate.description}</p>}
+                            {rate.estimatedDays && <p className="text-xs text-blue-600">{rate.estimatedDays}</p>}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                            {parseFloat(rate.price) === 0 ? 'Free' : `₦${parseFloat(rate.price).toLocaleString()}`}
+                          </p>
+                          {parseFloat(rate.price) > 0 && <p className="text-xs text-slate-400">{rate.currency}</p>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {selectedShippingOption && (
+                    <div className="mt-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <p className="text-xs text-green-700">
+                        <strong>{shippingRates.find((r: any) => r.option === selectedShippingOption)?.name}</strong> selected.
+                        {selectedShippingOption !== 'SELF_PICKUP'
+                          ? ' Our team will handle logistics after payment is confirmed.'
+                          : ' Coordinate pickup location via the escrow chat after payment.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Fee breakdown */}
         <Card className="mb-4 shadow-sm">
           <CardHeader className="pb-2">
@@ -1156,13 +1228,27 @@ export default function Checkout() {
 
               <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700 font-semibold py-3 text-base"
-                onClick={() => setStep(2)}
-                disabled={timeRemaining === 0}
+                onClick={async () => {
+                  if (selectedShippingOption && selectedShippingOption !== escrow?.shippingOption) {
+                    try {
+                      const selectedRate = shippingRates?.find((r: any) => r.option === selectedShippingOption);
+                      await apiRequest("PATCH", `/api/escrows/${escrowId}`, {
+                        shippingOption: selectedShippingOption,
+                        shippingCost: selectedRate?.price || "0",
+                      });
+                    } catch { /* non-blocking */ }
+                  }
+                  setStep(2);
+                }}
+                disabled={timeRemaining === 0 || (isProductListing && isBuyer && !!shippingRates?.length && !selectedShippingOption)}
                 data-testid="button-i-have-paid"
               >
                 <ArrowRight className="w-5 h-5 mr-2" />
                 I've Completed the Payment →
               </Button>
+              {isProductListing && isBuyer && !!shippingRates?.length && !selectedShippingOption && (
+                <p className="text-xs text-orange-600 text-center mt-1">Please select a delivery option above to continue.</p>
+              )}
 
               {timeRemaining === 0 && (
                 <p className="text-xs text-red-500 text-center mt-2">

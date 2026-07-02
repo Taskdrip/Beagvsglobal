@@ -18,6 +18,7 @@ import {
   aiSupportMessages,
   competitors,
   competitorContent,
+  shippingRates,
   type User,
   type UpsertUser,
   type InsertWallet,
@@ -54,6 +55,8 @@ import {
   type InsertCompetitor,
   type CompetitorContent,
   type InsertCompetitorContent,
+  type ShippingRate,
+  type InsertShippingRate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, sql, count } from "drizzle-orm";
@@ -181,6 +184,14 @@ export interface IStorage {
   updateCompetitorContent(id: string, data: Partial<InsertCompetitorContent>): Promise<CompetitorContent>;
   deleteCompetitorContent(id: string): Promise<void>;
   getCompetitorAnalytics(): Promise<any>;
+
+  // Shipping rates operations
+  getShippingRates(): Promise<ShippingRate[]>;
+  getShippingRate(id: string): Promise<ShippingRate | undefined>;
+  upsertShippingRate(option: string, data: Partial<InsertShippingRate>): Promise<ShippingRate>;
+  updateShippingRate(id: string, data: Partial<InsertShippingRate>): Promise<ShippingRate>;
+  deleteShippingRate(id: string): Promise<void>;
+  seedDefaultShippingRates(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1383,6 +1394,90 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCompetitorContent(id: string): Promise<void> {
     await db.delete(competitorContent).where(eq(competitorContent.id, id));
+  }
+
+  // Shipping rates operations
+  async getShippingRates(): Promise<ShippingRate[]> {
+    return await db.select().from(shippingRates).orderBy(shippingRates.option);
+  }
+
+  async getShippingRate(id: string): Promise<ShippingRate | undefined> {
+    const [rate] = await db.select().from(shippingRates).where(eq(shippingRates.id, id));
+    return rate;
+  }
+
+  async upsertShippingRate(option: string, data: Partial<InsertShippingRate>): Promise<ShippingRate> {
+    const existing = await db.select().from(shippingRates).where(eq(shippingRates.option, option));
+    if (existing.length > 0) {
+      const [updated] = await db.update(shippingRates)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(shippingRates.option, option))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(shippingRates)
+      .values({ option, ...data } as InsertShippingRate)
+      .returning();
+    return created;
+  }
+
+  async updateShippingRate(id: string, data: Partial<InsertShippingRate>): Promise<ShippingRate> {
+    const [updated] = await db.update(shippingRates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(shippingRates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteShippingRate(id: string): Promise<void> {
+    await db.delete(shippingRates).where(eq(shippingRates.id, id));
+  }
+
+  async seedDefaultShippingRates(): Promise<void> {
+    const defaults = [
+      {
+        option: 'SELF_PICKUP',
+        name: 'Self Pickup',
+        description: 'Buyer picks up from seller location directly',
+        price: '0',
+        currency: 'NGN',
+        estimatedDays: 'Same day',
+        isActive: true,
+      },
+      {
+        option: 'BEAGVS_WITHIN_STATE',
+        name: 'Beagvs Delivery — Within State',
+        description: 'Delivery within the same state in Nigeria',
+        price: '1500',
+        currency: 'NGN',
+        estimatedDays: '1–2 business days',
+        isActive: true,
+      },
+      {
+        option: 'BEAGVS_OUT_OF_STATE_NIGERIA',
+        name: 'Beagvs Delivery — Out of State (Nigeria)',
+        description: 'Delivery to any state across Nigeria',
+        price: '3500',
+        currency: 'NGN',
+        estimatedDays: '2–5 business days',
+        isActive: true,
+      },
+      {
+        option: 'BEAGVS_INTERNATIONAL',
+        name: 'Beagvs International Shipping',
+        description: 'International delivery to 180+ countries',
+        price: '15000',
+        currency: 'NGN',
+        estimatedDays: '7–21 business days',
+        isActive: true,
+      },
+    ];
+    for (const d of defaults) {
+      const existing = await db.select().from(shippingRates).where(eq(shippingRates.option, d.option));
+      if (existing.length === 0) {
+        await db.insert(shippingRates).values(d as InsertShippingRate);
+      }
+    }
   }
 
   async getCompetitorAnalytics(): Promise<any> {

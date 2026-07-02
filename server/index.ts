@@ -108,6 +108,13 @@ async function runAutoSeed() {
     console.error("Auto-seed failed (non-fatal):", err);
   }
   try {
+    const { storage } = await import("./storage");
+    await storage.seedDefaultShippingRates();
+    console.log("[startup-seed] Shipping rates seeded.");
+  } catch (err) {
+    console.error("Shipping rates seed failed (non-fatal):", err);
+  }
+  try {
     const { seedBlogPosts } = await import("./seed-blog");
     const result = await seedBlogPosts();
     if (result.success) {

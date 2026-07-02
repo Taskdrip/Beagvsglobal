@@ -133,6 +133,12 @@ export const escrows = pgTable("escrows", {
   platformFeePct: decimal("platform_fee_pct", { precision: 5, scale: 2 }).default('10.00'),
   platformFeeAmount: decimal("platform_fee_amount", { precision: 18, scale: 8 }),
   sellerNetAmount: decimal("seller_net_amount", { precision: 18, scale: 8 }),
+  // Shipping fields (only for PRODUCT listing types)
+  shippingOption: varchar("shipping_option"),
+  shippingCost: decimal("shipping_cost", { precision: 18, scale: 4 }),
+  shippingAddress: text("shipping_address"),
+  shippingTrackingNumber: varchar("shipping_tracking_number"),
+  shippingCarrier: varchar("shipping_carrier"),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -272,6 +278,32 @@ export const platformSettings = pgTable("platform_settings", {
   updatedBy: varchar("updated_by").references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Shipping option enum (for product/goods orders)
+export const shippingOptionEnum = pgEnum('shipping_option', [
+  'SELF_PICKUP',
+  'BEAGVS_WITHIN_STATE',
+  'BEAGVS_OUT_OF_STATE_NIGERIA',
+  'BEAGVS_INTERNATIONAL',
+]);
+
+// Admin-configurable shipping rates for product delivery
+export const shippingRates = pgTable("shipping_rates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  option: varchar("option").notNull().unique(), // SELF_PICKUP | BEAGVS_WITHIN_STATE | BEAGVS_OUT_OF_STATE_NIGERIA | BEAGVS_INTERNATIONAL
+  name: varchar("name").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 18, scale: 2 }).notNull().default('0'),
+  currency: varchar("currency").notNull().default('NGN'),
+  estimatedDays: varchar("estimated_days"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertShippingRateSchema = createInsertSchema(shippingRates).omit({ id: true, createdAt: true, updatedAt: true });
+export type ShippingRate = typeof shippingRates.$inferSelect;
+export type InsertShippingRate = z.infer<typeof insertShippingRateSchema>;
 
 // Shipment tracking enums
 export const shipmentStatusEnum = pgEnum('shipment_status', [

@@ -66,6 +66,11 @@ import {
   CheckCheck,
   Upload,
   ImagePlus,
+  ToggleLeft,
+  ToggleRight,
+  Box,
+  Navigation as NavIcon,
+  Building2,
 } from "lucide-react";
 
 const platformWalletSchema = z.object({
@@ -202,6 +207,235 @@ function AdminSecurityTab({ adminUser }: { adminUser: any }) {
             <div className="flex items-center justify-between py-2">
               <span className="text-slate-500">Default Credentials</span>
               <code className="text-xs bg-slate-100 px-2 py-1 rounded">admin@beagvsglobal.com / Admin@2025!</code>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Admin Shipping Management Tab ────────────────────────────────────────────
+function AdminShippingTab({ toast, queryClient }: { toast: any; queryClient: any }) {
+  const SHIPPING_META: Record<string, { icon: any; label: string; color: string }> = {
+    SELF_PICKUP:               { icon: MapPin,      label: "Self Pickup",                       color: "text-slate-600"  },
+    BEAGVS_WITHIN_STATE:      { icon: Truck,       label: "Beagvs — Within State",             color: "text-blue-600"   },
+    BEAGVS_OUT_OF_STATE_NIGERIA: { icon: NavIcon, label: "Beagvs — Out of State (Nigeria)", color: "text-orange-600" },
+    BEAGVS_INTERNATIONAL:     { icon: Globe,       label: "Beagvs — International",            color: "text-purple-600" },
+  };
+
+  const { data: rates, isLoading, refetch } = useQuery<any[]>({ queryKey: ["/api/admin/shipping-rates"] });
+
+  const seedMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/shipping-rates/seed"),
+    onSuccess: () => { toast({ title: "Shipping rates seeded!" }); queryClient.invalidateQueries({ queryKey: ["/api/admin/shipping-rates"] }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateRateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => apiRequest("PATCH", `/api/admin/shipping-rates/${id}`, data),
+    onSuccess: () => { toast({ title: "Rate updated" }); queryClient.invalidateQueries({ queryKey: ["/api/admin/shipping-rates"] }); },
+    onError: (e: any) => toast({ title: "Failed to update", description: e.message, variant: "destructive" }),
+  });
+
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, any>>({});
+
+  const startEdit = (rate: any) => {
+    setEditing(rate.id);
+    setEditValues({ price: rate.price, name: rate.name, description: rate.description, estimatedDays: rate.estimatedDays, currency: rate.currency });
+  };
+
+  const saveEdit = (id: string) => {
+    updateRateMutation.mutate({ id, data: editValues });
+    setEditing(null);
+  };
+
+  const toggleActive = (rate: any) => {
+    updateRateMutation.mutate({ id: rate.id, data: { isActive: !rate.isActive } });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header card */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-blue-900">
+            <Truck className="w-5 h-5" />
+            Shipping Management
+          </CardTitle>
+          <p className="text-sm text-blue-700">
+            Configure delivery options and fees for <strong>Products & Goods</strong> orders only.
+            Shipping is <strong>disabled</strong> for Real Estate and Service listings.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-full text-sm">
+              <Building2 className="w-4 h-4" /> Real Estate — No Shipping
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-full text-sm">
+              <Settings className="w-4 h-4" /> Services — No Shipping
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm">
+              <Package className="w-4 h-4" /> Products & Goods — Shipping Enabled
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Shipping Rates */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between flex-wrap gap-3">
+            <span className="flex items-center gap-2">
+              <Box className="w-5 h-5 text-slate-600" />
+              Shipping Options & Rates
+            </span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => refetch()} data-testid="button-refresh-rates">
+                <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+              </Button>
+              {(!rates || rates.length === 0) && (
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending} data-testid="button-seed-rates">
+                  {seedMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                  Seed Default Rates
+                </Button>
+              )}
+            </div>
+          </CardTitle>
+          <p className="text-sm text-slate-500">Toggle options on/off or edit prices. Changes take effect immediately for new orders.</p>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+            </div>
+          ) : !rates || rates.length === 0 ? (
+            <div className="text-center py-10">
+              <Truck className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500 mb-4">No shipping rates configured yet.</p>
+              <Button onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending} data-testid="button-seed-rates-empty">
+                {seedMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                Set Up Default Rates
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {rates.map((rate: any) => {
+                const meta = SHIPPING_META[rate.option] || { icon: Package, label: rate.option, color: "text-slate-600" };
+                const Icon = meta.icon;
+                const isEditingThis = editing === rate.id;
+                return (
+                  <div key={rate.id} className={`border rounded-xl p-4 transition-all ${rate.isActive ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-200 opacity-60'}`} data-testid={`shipping-rate-${rate.option}`}>
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${rate.isActive ? 'bg-slate-100' : 'bg-slate-200'}`}>
+                          <Icon className={`w-5 h-5 ${meta.color}`} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-slate-900">{isEditingThis ? editValues.name : rate.name}</h4>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${rate.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                              {rate.isActive ? 'Active' : 'Disabled'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-500">{rate.option.replace(/_/g, ' ')}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleActive(rate)}
+                          disabled={updateRateMutation.isPending}
+                          className="flex items-center gap-1.5 text-sm font-medium"
+                          data-testid={`toggle-rate-${rate.option}`}
+                        >
+                          {rate.isActive
+                            ? <ToggleRight className="w-8 h-8 text-green-500" />
+                            : <ToggleLeft className="w-8 h-8 text-slate-400" />}
+                        </button>
+                        {!isEditingThis && (
+                          <Button size="sm" variant="outline" onClick={() => startEdit(rate)} data-testid={`edit-rate-${rate.option}`}>
+                            <Edit className="w-3 h-3 mr-1" /> Edit
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isEditingThis ? (
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600">Display Name</label>
+                          <Input value={editValues.name || ''} onChange={e => setEditValues((p: any) => ({ ...p, name: e.target.value }))} className="mt-1 text-sm" data-testid="input-rate-name" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600">Price (flat fee)</label>
+                          <div className="flex mt-1">
+                            <Input type="number" min="0" value={editValues.price || ''} onChange={e => setEditValues((p: any) => ({ ...p, price: e.target.value }))} className="rounded-r-none text-sm" data-testid="input-rate-price" />
+                            <select className="border border-l-0 rounded-r-lg px-2 text-sm bg-slate-50" value={editValues.currency || 'NGN'} onChange={e => setEditValues((p: any) => ({ ...p, currency: e.target.value }))} data-testid="select-rate-currency">
+                              <option value="NGN">NGN</option>
+                              <option value="USD">USD</option>
+                              <option value="USDT">USDT</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600">Estimated Delivery</label>
+                          <Input value={editValues.estimatedDays || ''} onChange={e => setEditValues((p: any) => ({ ...p, estimatedDays: e.target.value }))} placeholder="e.g. 1–2 business days" className="mt-1 text-sm" data-testid="input-rate-days" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600">Description</label>
+                          <Input value={editValues.description || ''} onChange={e => setEditValues((p: any) => ({ ...p, description: e.target.value }))} className="mt-1 text-sm" data-testid="input-rate-desc" />
+                        </div>
+                        <div className="sm:col-span-2 flex gap-2 justify-end">
+                          <Button size="sm" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+                          <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => saveEdit(rate.id)} disabled={updateRateMutation.isPending} data-testid={`save-rate-${rate.option}`}>
+                            {updateRateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Save className="w-3 h-3 mr-1" />}
+                            Save Changes
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                        <div>
+                          <span className="text-slate-500">Fee: </span>
+                          <span className="font-semibold text-slate-900">
+                            {parseFloat(rate.price) === 0 ? 'Free' : `${parseFloat(rate.price).toLocaleString()} ${rate.currency}`}
+                          </span>
+                        </div>
+                        {rate.estimatedDays && (
+                          <div>
+                            <span className="text-slate-500">Delivery: </span>
+                            <span className="font-medium text-slate-700">{rate.estimatedDays}</span>
+                          </div>
+                        )}
+                        {rate.description && (
+                          <div className="w-full text-slate-500 text-xs">{rate.description}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Info card */}
+      <Card className="border-yellow-200 bg-yellow-50">
+        <CardContent className="pt-4">
+          <div className="flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-yellow-800">
+              <p className="font-semibold mb-1">How Shipping Works</p>
+              <ul className="space-y-1 text-yellow-700">
+                <li>• Buyers select a shipping option during checkout for <strong>Product</strong> listings.</li>
+                <li>• The shipping cost is added to the escrow amount automatically.</li>
+                <li>• Admin can update tracking numbers and carrier in the <strong>Transactions</strong> tab once shipped.</li>
+                <li>• Self Pickup is always free — buyer collects from seller's location.</li>
+                <li>• Beagvs handles logistics for Within State, Out of State Nigeria, and International options.</li>
+              </ul>
             </div>
           </div>
         </CardContent>
@@ -1216,6 +1450,9 @@ export default function Admin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedEscrow, setSelectedEscrow] = useState<any>(null);
+  const [editingEscrowTracking, setEditingEscrowTracking] = useState<string | null>(null);
+  const [trackingValues, setTrackingValues] = useState<Record<string, any>>({});
+  const [escrowStatusFilter, setEscrowStatusFilter] = useState<string>("ALL");
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [resetPasswordTarget, setResetPasswordTarget] = useState<any>(null);
   const [newTempPassword, setNewTempPassword] = useState("");
@@ -1227,9 +1464,10 @@ export default function Admin() {
 
   // All data queries — always called (hooks must not be conditional).
   // enabled: isAdminUser prevents actual network requests until access is confirmed.
-  const { data: escrows } = useQuery({
+  const { data: escrows, refetch: refetchEscrows } = useQuery({
     queryKey: ["/api/escrows", { admin: true }],
     enabled: isAdminUser,
+    refetchInterval: 15000,
     retry: (failureCount, error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({
@@ -1297,32 +1535,21 @@ export default function Admin() {
   // Mutations — always called
   const updateEscrowMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      await apiRequest("PATCH", `/api/escrows/${id}`, data);
+      await apiRequest("PATCH", `/api/admin/escrows/${id}`, data);
     },
     onSuccess: () => {
-      toast({
-        title: "Escrow updated successfully",
-      });
+      toast({ title: "Escrow updated successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
       setSelectedEscrow(null);
+      setEditingEscrowTracking(null);
     },
     onError: (error: any) => {
       if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
+        toast({ title: "Unauthorized", description: "You are logged out. Logging in again...", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
         return;
       }
-      toast({
-        title: "Failed to update escrow",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Failed to update escrow", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1591,6 +1818,9 @@ export default function Admin() {
             <TabsTrigger value="fees" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-fees">
               Fees &amp; Rates
             </TabsTrigger>
+            <TabsTrigger value="shipping-mgmt" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-shipping-mgmt">
+              🚚 Shipping
+            </TabsTrigger>
             <TabsTrigger value="shipments" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-shipments">
               Shipments
             </TabsTrigger>
@@ -1622,6 +1852,11 @@ export default function Admin() {
               🔍 SEO & Indexing
             </TabsTrigger>
           </TabsList>
+
+          {/* ── Shipping Management Tab ── */}
+          <TabsContent value="shipping-mgmt" className="space-y-4">
+            <AdminShippingTab toast={toast} queryClient={queryClient} />
+          </TabsContent>
 
           <TabsContent value="escrows" className="space-y-4">
             {/* ── PAYMENT_SUBMITTED Priority Queue ── */}
@@ -1711,88 +1946,213 @@ export default function Admin() {
 
             <Card>
               <CardHeader>
-                <CardTitle>All Escrow Transactions</CardTitle>
+                <CardTitle className="flex items-center justify-between flex-wrap gap-3">
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-slate-600" />
+                    All Escrow Transactions
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={escrowStatusFilter}
+                      onChange={e => setEscrowStatusFilter(e.target.value)}
+                      className="border rounded-lg px-3 py-1.5 text-sm bg-white"
+                      data-testid="select-escrow-filter"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="CREATED">Created</option>
+                      <option value="PAYMENT_SUBMITTED">Payment Submitted</option>
+                      <option value="FUNDED">Funded</option>
+                      <option value="SHIPPED">Shipped</option>
+                      <option value="DELIVERED">Delivered</option>
+                      <option value="RELEASED">Released</option>
+                      <option value="DISPUTED">Disputed</option>
+                      <option value="REFUNDED">Refunded</option>
+                      <option value="CANCELLED">Cancelled</option>
+                    </select>
+                    <Button size="sm" variant="outline" onClick={() => refetchEscrows()} data-testid="button-refresh-escrows">
+                      <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+                    </Button>
+                    <span className="text-xs text-slate-400">Auto-refreshes every 15s</span>
+                  </div>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                {escrows && escrows.length > 0 ? (
-                  <div className="space-y-4">
-                    {escrows.map((escrow: any) => (
-                      <div key={escrow.id} className="p-4 border rounded-lg" data-testid={`escrow-${escrow.id}`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h4 className="font-semibold text-slate-dark">{escrow.listing?.title}</h4>
-                            <p className="text-sm text-slate-medium">
-                              {escrow.buyer?.username} ↔ {escrow.seller?.username}
-                            </p>
-                          </div>
-                          <Badge className={getStatusBadge(escrow.status)}>
-                            {escrow.status}
-                          </Badge>
-                        </div>
+                {escrows && escrows.length > 0 ? (() => {
+                  const filtered = escrowStatusFilter === "ALL" ? escrows : escrows.filter((e: any) => e.status === escrowStatusFilter);
+                  return filtered.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">No transactions with status "{escrowStatusFilter}"</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {filtered.map((escrow: any) => {
+                        const isProduct = escrow.listing?.listingType === 'PRODUCT';
+                        const isEditingTracking = editingEscrowTracking === escrow.id;
+                        return (
+                          <div key={escrow.id} className="border rounded-xl overflow-hidden" data-testid={`escrow-${escrow.id}`}>
+                            {/* Header */}
+                            <div className="p-4 bg-white">
+                              <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="font-semibold text-slate-900">{escrow.listing?.title || "Unnamed Listing"}</h4>
+                                    <Badge className={getStatusBadge(escrow.status)}>{escrow.status}</Badge>
+                                    {isProduct && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">Product</span>}
+                                  </div>
+                                  <p className="text-sm text-slate-500 mt-0.5">
+                                    Buyer: <strong>{escrow.buyer?.username || escrow.buyerId?.slice(0,8)}</strong> → Seller: <strong>{escrow.seller?.username || escrow.sellerId?.slice(0,8)}</strong>
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-lg font-bold text-slate-900">{escrow.amount} {escrow.currency}</p>
+                                  {escrow.shippingCost && parseFloat(escrow.shippingCost) > 0 && (
+                                    <p className="text-xs text-slate-500">incl. shipping: {escrow.shippingCost} NGN</p>
+                                  )}
+                                  <p className="text-xs text-slate-400">{escrow.network} · {new Date(escrow.createdAt).toLocaleDateString()}</p>
+                                </div>
+                              </div>
 
-                        <div className="grid grid-cols-3 gap-4 mb-4">
-                          <div>
-                            <p className="text-sm text-slate-medium">Amount</p>
-                            <p className="font-semibold">{escrow.amount} {escrow.currency}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-slate-medium">Network</p>
-                            <p className="font-medium">{escrow.network}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-slate-medium">Created</p>
-                            <p className="font-medium">{new Date(escrow.createdAt).toLocaleDateString()}</p>
-                          </div>
-                        </div>
+                              <EscrowProgress status={escrow.status} className="mb-3" />
 
-                        <EscrowProgress status={escrow.status} className="mb-4" />
+                              {/* Shipping info (product only) */}
+                              {isProduct && (escrow.shippingOption || escrow.shippingTrackingNumber || escrow.shippingAddress) && (
+                                <div className="bg-slate-50 rounded-lg p-3 mb-3 text-sm space-y-1">
+                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Shipping Details</p>
+                                  {escrow.shippingOption && <div className="flex gap-2"><Truck className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" /><span className="text-slate-700">{escrow.shippingOption.replace(/_/g,' ')}</span></div>}
+                                  {escrow.shippingAddress && <div className="flex gap-2"><MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" /><span className="text-slate-600">{escrow.shippingAddress}</span></div>}
+                                  {escrow.shippingTrackingNumber && (
+                                    <div className="flex gap-2 items-center">
+                                      <Package className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                      <span className="font-mono text-xs text-slate-700">{escrow.shippingTrackingNumber}</span>
+                                      {escrow.shippingCarrier && <span className="text-slate-500 text-xs">via {escrow.shippingCarrier}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
 
-                        <div className="flex space-x-2">
-                          {escrow.status === 'CREATED' && (
-                            <Button 
-                              size="sm" 
-                              className="bg-blue-600 hover:bg-blue-700"
-                              onClick={() => handleEscrowAction(escrow, 'FUNDED')}
-                              data-testid={`button-verify-${escrow.id}`}
-                            >
-                              Verify & Fund
-                            </Button>
-                          )}
-                          {escrow.status === 'DELIVERED' && (
-                            <Button 
-                              size="sm" 
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() => handleEscrowAction(escrow, 'RELEASED')}
-                              data-testid={`button-release-${escrow.id}`}
-                            >
-                              Release
-                            </Button>
-                          )}
-                          {['FUNDED', 'SHIPPED', 'DELIVERED'].includes(escrow.status) && (
-                            <Button 
-                              size="sm" 
-                              variant="destructive"
-                              onClick={() => handleEscrowAction(escrow, 'DISPUTED')}
-                              data-testid={`button-dispute-${escrow.id}`}
-                            >
-                              Dispute
-                            </Button>
-                          )}
-                          {escrow.status === 'DISPUTED' && (
-                            <Button 
-                              size="sm" 
-                              className="bg-orange-600 hover:bg-orange-700"
-                              onClick={() => handleEscrowAction(escrow, 'REFUNDED')}
-                              data-testid={`button-refund-${escrow.id}`}
-                            >
-                              Refund
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
+                              {escrow.adminNote && (
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 mb-3 text-xs text-yellow-800">
+                                  <strong>Admin Note:</strong> {escrow.adminNote}
+                                </div>
+                              )}
+
+                              {/* Admin action buttons */}
+                              <div className="flex flex-wrap gap-2">
+                                {['CREATED', 'PAYMENT_SUBMITTED'].includes(escrow.status) && (
+                                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleEscrowAction(escrow, 'FUNDED')} data-testid={`button-fund-${escrow.id}`}>
+                                    ✓ Verify & Fund
+                                  </Button>
+                                )}
+                                {escrow.status === 'FUNDED' && isProduct && (
+                                  <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700 text-white" onClick={() => handleEscrowAction(escrow, 'SHIPPED')} data-testid={`button-ship-${escrow.id}`}>
+                                    📦 Mark Shipped
+                                  </Button>
+                                )}
+                                {escrow.status === 'FUNDED' && !isProduct && (
+                                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleEscrowAction(escrow, 'DELIVERED')} data-testid={`button-deliver-${escrow.id}`}>
+                                    ✓ Mark Delivered
+                                  </Button>
+                                )}
+                                {escrow.status === 'SHIPPED' && (
+                                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => handleEscrowAction(escrow, 'DELIVERED')} data-testid={`button-delivered-${escrow.id}`}>
+                                    ✓ Mark Delivered
+                                  </Button>
+                                )}
+                                {['DELIVERED', 'FUNDED'].includes(escrow.status) && (
+                                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleEscrowAction(escrow, 'RELEASED')} data-testid={`button-release-${escrow.id}`}>
+                                    💰 Release Funds
+                                  </Button>
+                                )}
+                                {['FUNDED', 'SHIPPED', 'DELIVERED'].includes(escrow.status) && (
+                                  <Button size="sm" variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-50" onClick={() => handleEscrowAction(escrow, 'REFUNDED')} data-testid={`button-refund-${escrow.id}`}>
+                                    ↩ Refund
+                                  </Button>
+                                )}
+                                {!['RELEASED', 'REFUNDED', 'CANCELLED', 'DISPUTED'].includes(escrow.status) && (
+                                  <Button size="sm" variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => handleEscrowAction(escrow, 'DISPUTED')} data-testid={`button-dispute-${escrow.id}`}>
+                                    ⚠ Dispute
+                                  </Button>
+                                )}
+                                {escrow.status === 'DISPUTED' && (
+                                  <Button size="sm" className="bg-orange-600 hover:bg-orange-700 text-white" onClick={() => handleEscrowAction(escrow, 'REFUNDED')} data-testid={`button-resolve-dispute-${escrow.id}`}>
+                                    ↩ Refund (Resolve)
+                                  </Button>
+                                )}
+                                {!['RELEASED', 'REFUNDED', 'CANCELLED'].includes(escrow.status) && (
+                                  <Button size="sm" variant="outline" className="border-slate-300 text-slate-600 hover:bg-slate-50" onClick={() => handleEscrowAction(escrow, 'CANCELLED')} data-testid={`button-cancel-${escrow.id}`}>
+                                    ✕ Cancel
+                                  </Button>
+                                )}
+                                {/* Tracking button — product only, once funded or shipped */}
+                                {isProduct && ['FUNDED', 'SHIPPED', 'DELIVERED'].includes(escrow.status) && (
+                                  <Button size="sm" variant="outline" className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                                    onClick={() => {
+                                      setEditingEscrowTracking(escrow.id);
+                                      setTrackingValues({ shippingTrackingNumber: escrow.shippingTrackingNumber || '', shippingCarrier: escrow.shippingCarrier || '', adminNote: escrow.adminNote || '' });
+                                    }}
+                                    data-testid={`button-tracking-${escrow.id}`}
+                                  >
+                                    <Truck className="w-3.5 h-3.5 mr-1" /> Tracking
+                                  </Button>
+                                )}
+                              </div>
+
+                              {/* Tracking inline editor */}
+                              {isEditingTracking && (
+                                <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                                  <p className="text-sm font-semibold text-blue-900">Update Shipping Tracking</p>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-xs font-medium text-blue-800">Tracking Number</label>
+                                      <Input
+                                        value={trackingValues.shippingTrackingNumber || ''}
+                                        onChange={e => setTrackingValues((p: any) => ({ ...p, shippingTrackingNumber: e.target.value }))}
+                                        placeholder="e.g. 1Z999AA10123456784"
+                                        className="mt-1 text-sm"
+                                        data-testid={`input-tracking-number-${escrow.id}`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-xs font-medium text-blue-800">Carrier / Courier</label>
+                                      <Input
+                                        value={trackingValues.shippingCarrier || ''}
+                                        onChange={e => setTrackingValues((p: any) => ({ ...p, shippingCarrier: e.target.value }))}
+                                        placeholder="e.g. GIG Logistics, DHL, GIGL"
+                                        className="mt-1 text-sm"
+                                        data-testid={`input-carrier-${escrow.id}`}
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <label className="text-xs font-medium text-blue-800">Admin Note (shown to buyer & seller)</label>
+                                      <Input
+                                        value={trackingValues.adminNote || ''}
+                                        onChange={e => setTrackingValues((p: any) => ({ ...p, adminNote: e.target.value }))}
+                                        placeholder="Optional note about this shipment..."
+                                        className="mt-1 text-sm"
+                                        data-testid={`input-admin-note-${escrow.id}`}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button size="sm" variant="outline" onClick={() => setEditingEscrowTracking(null)}>Cancel</Button>
+                                    <Button
+                                      size="sm"
+                                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                                      disabled={updateEscrowMutation.isPending}
+                                      onClick={() => updateEscrowMutation.mutate({ id: escrow.id, data: trackingValues })}
+                                      data-testid={`button-save-tracking-${escrow.id}`}
+                                    >
+                                      {updateEscrowMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Save className="w-3 h-3 mr-1" />}
+                                      Save Tracking
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })() : (
                   <div className="text-center py-8">
                     <DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-medium">No escrow transactions found</p>
