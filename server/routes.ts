@@ -598,6 +598,15 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         const sellerNetAmount = Number(existing.amount) - platformFeeAmount;
         escrowData.platformFeeAmount = platformFeeAmount.toString();
         escrowData.sellerNetAmount = sellerNetAmount.toString();
+        // Mark the listing as SOLD OUT so buyers know it's no longer available
+        try {
+          const listingRecord = await storage.getListing(existing.listingId);
+          if (listingRecord) {
+            await storage.updateListing(existing.listingId, {
+              metadata: { ...(listingRecord.metadata as any || {}), soldOut: true, soldAt: new Date().toISOString() },
+            } as any);
+          }
+        } catch (e) { console.warn('Could not mark listing as sold:', e); }
       }
 
       // When buyer submits payment — move to PAYMENT_SUBMITTED, notify seller + admins
@@ -873,6 +882,15 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     } catch (error) {
       console.error("Error marking notification as read:", error);
       res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  app.delete('/api/notifications/:id', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      await storage.deleteNotification(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete notification" });
     }
   });
 

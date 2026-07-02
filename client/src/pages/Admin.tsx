@@ -2115,6 +2115,7 @@ export default function Admin() {
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <Select
+                                key={`${s.id}-${s.status}`}
                                 defaultValue={s.status}
                                 onValueChange={val => updateShipmentStatusMutation.mutate({ id: s.id, status: val })}
                               >

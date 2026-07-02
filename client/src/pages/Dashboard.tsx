@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,7 @@ import {
   ReceiptText,
   RefreshCw,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 // ── Shipments Tab ─────────────────────────────────────────────────────────────
@@ -140,7 +142,18 @@ const ESCROW_STATUS_CFG: Record<string, { label: string; color: string; bg: stri
 
 export default function Dashboard() {
   const [currentMode, setCurrentMode] = useState<"buyer" | "seller">("buyer");
+  const [location] = useLocation();
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") || "overview";
+  });
   const { toast } = useToast();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab) setActiveTab(tab);
+  }, [location]);
   
   const { data: user } = useQuery({
     queryKey: ["/api/auth/user"],
@@ -188,6 +201,20 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       toast({ title: "All notifications marked as read" });
     },
+  });
+
+  const deleteNotifMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/notifications/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  const deleteListingMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/listings/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/listings"] });
+      toast({ title: "Listing deleted" });
+    },
+    onError: (err: any) => toast({ title: "Failed to delete listing", description: err.message, variant: "destructive" }),
   });
 
   const activeListings = Array.isArray(userListings) ? userListings.filter((listing: any) => listing.isActive)?.length : 0;
@@ -264,61 +291,53 @@ export default function Dashboard() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card data-testid="card-active-listings">
+          <Card data-testid="card-active-listings" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("listings")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Listings</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="stat-active-listings">{activeListings}</div>
-              <p className="text-xs text-muted-foreground">
-                Items for sale
-              </p>
+              <p className="text-xs text-muted-foreground">Click to manage listings</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-pending-escrows">
+          <Card data-testid="card-pending-escrows" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("escrows")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pending Escrows</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="stat-pending-escrows">{pendingEscrows}</div>
-              <p className="text-xs text-muted-foreground">
-                Transactions in progress
-              </p>
+              <p className="text-xs text-muted-foreground">Click to view transactions</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-total-followers">
+          <Card data-testid="card-total-followers" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("social")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Followers</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="stat-followers">{followers?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Following you
-              </p>
+              <div className="text-2xl font-bold" data-testid="stat-followers">{(followers as any[])?.length || 0}</div>
+              <p className="text-xs text-muted-foreground">Click to view social</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-notifications">
+          <Card data-testid="card-notifications" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("notifications")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Notifications</CardTitle>
               <Bell className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="stat-notifications">{unreadNotifications}</div>
-              <p className="text-xs text-muted-foreground">
-                Unread updates
-              </p>
+              <p className="text-xs text-muted-foreground">Click to view updates</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Dashboard Tabs */}
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex w-full overflow-x-auto gap-0.5 h-auto flex-wrap">
             <TabsTrigger value="overview" className="flex-1 min-w-fit" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="transactions" className="flex-1 min-w-fit" data-testid="tab-transactions">Transactions</TabsTrigger>
@@ -340,8 +359,8 @@ export default function Dashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>Recent Listings</span>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="#listings" data-testid="button-view-all-listings">View All</Link>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab("listings")} data-testid="button-view-all-listings">
+                      View All
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -384,8 +403,8 @@ export default function Dashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>Recent Escrows</span>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="#escrows" data-testid="button-view-all-escrows">View All</Link>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab("escrows")} data-testid="button-view-all-escrows">
+                      View All
                     </Button>
                   </CardTitle>
                 </CardHeader>
@@ -485,6 +504,20 @@ export default function Dashboard() {
                           <Link href={`/sell/${listing.id}/edit`}>
                             <Button variant="outline" size="sm" data-testid={`button-edit-${listing.id}`}>Edit</Button>
                           </Link>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                            data-testid={`button-delete-${listing.id}`}
+                            disabled={deleteListingMutation.isPending}
+                            onClick={() => {
+                              if (confirm("Delete this listing? This cannot be undone.")) {
+                                deleteListingMutation.mutate(listing.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -846,6 +879,13 @@ export default function Dashboard() {
                             {isUnread && (
                               <button onClick={() => markReadMutation.mutate(n.id)} className="text-xs text-slate-400 hover:text-blue-600" data-testid={`button-notif-read-${n.id}`}>✓</button>
                             )}
+                            <button
+                              onClick={() => deleteNotifMutation.mutate(n.id)}
+                              className="text-xs text-slate-300 hover:text-red-500 transition-colors"
+                              data-testid={`button-notif-delete-${n.id}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
                         </div>
                       );

@@ -182,6 +182,13 @@ export default function Marketplace() {
                       {formatListingType(listing.type)}
                     </span>
                   </div>
+                  {listing.metadata?.soldOut && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-t-lg">
+                      <span className="px-3 py-1.5 bg-red-600 text-white text-sm font-bold rounded-full tracking-wide">
+                        SOLD OUT
+                      </span>
+                    </div>
+                  )}
                   <div className="absolute top-3 right-3">
                     <Button
                       variant="ghost"
