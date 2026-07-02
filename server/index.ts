@@ -132,19 +132,31 @@ async function runAutoSeed() {
 }
 
 (async () => {
+  let migrateModule: { runMigrations: () => Promise<void>; runSafetySQL: () => Promise<void> } | null = null;
   try {
-    // Run DB migrations first (uses drizzle-orm — no drizzle-kit needed at runtime)
-    const { runMigrations, runSafetySQL } = await import("./migrate");
-    await runMigrations();
-    // Always run the safety patch — idempotently adds any columns that may be
-    // missing on existing Railway DBs where an older migration was already
-    // recorded as applied (e.g. listings.metadata, code 42703 crash fix).
-    await runSafetySQL();
+    migrateModule = await import("./migrate");
   } catch (err) {
-    console.error(
-      "Migration failed — server will continue but DB may be missing tables:",
-      err
-    );
+    console.error("Failed to load migrate module (non-fatal):", err);
+  }
+
+  if (migrateModule) {
+    try {
+      // Run DB migrations first (uses drizzle-orm — no drizzle-kit needed at runtime)
+      await migrateModule.runMigrations();
+    } catch (err) {
+      console.error(
+        "Migration failed — server will continue but DB may be missing tables:",
+        err
+      );
+    }
+    // Always run the safety patch — idempotently adds any columns/tables that may
+    // be missing. Runs even when the migration step fails so a partial-schema DB
+    // still gets all required tables (e.g. shipping_rates, competitors).
+    try {
+      await migrateModule.runSafetySQL();
+    } catch (err) {
+      console.error("Safety SQL failed (non-fatal):", err);
+    }
   }
 
   try {

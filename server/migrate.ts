@@ -159,6 +159,20 @@ export async function runSafetySQL(): Promise<void> {
       "created_at" timestamp DEFAULT now()
     )`,
 
+    // ── shipping_rates (entire table — not in initial migration SQL) ──────
+    `CREATE TABLE IF NOT EXISTS "shipping_rates" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "option" varchar NOT NULL UNIQUE,
+      "name" varchar NOT NULL,
+      "description" text,
+      "price" numeric(18, 2) DEFAULT '0' NOT NULL,
+      "currency" varchar DEFAULT 'NGN' NOT NULL,
+      "estimated_days" varchar,
+      "is_active" boolean DEFAULT true,
+      "created_at" timestamp DEFAULT now(),
+      "updated_at" timestamp DEFAULT now()
+    )`,
+
     // ── index (safe) ───────────────────────────────────────────────────────
     `CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "sessions" USING btree ("expire")`,
 
