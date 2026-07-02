@@ -90,6 +90,7 @@ function CountdownTimer({ seconds }: { seconds: number }) {
 function FeeBreakdown({ escrow, isSeller, selectedShippingRate }: { escrow: any; isSeller?: boolean; selectedShippingRate?: any }) {
   const amount = parseFloat(escrow.amount || "0");
   const feePct = parseFloat(escrow.platformFeePct || "10");
+  // Platform fee is deducted from the product price only (not from shipping)
   const feeAmount = amount * (feePct / 100);
   const sellerReceives = amount - feeAmount;
 
@@ -103,59 +104,59 @@ function FeeBreakdown({ escrow, isSeller, selectedShippingRate }: { escrow: any;
 
   return (
     <div className="space-y-2.5">
+      {/* Item price line */}
       <div className="flex justify-between items-center text-sm">
-        <span className="text-slate-600">
-          Item Price {!isSeller && <span className="text-xs text-slate-400">(what you pay)</span>}
-        </span>
+        <span className="text-slate-600">Item Price</span>
         <div className="flex items-center gap-1 font-semibold text-slate-800">
           {amount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
         </div>
       </div>
 
-      {/* Shipping fee line (NGN, paid separately in cash/transfer to agent on delivery or via escrow) */}
+      {/* Shipping fee line */}
       {hasShipping && (
         <div className="flex justify-between items-center text-sm">
           <span className="text-slate-500 flex items-center gap-1.5">
             <Truck className="w-3.5 h-3.5 text-blue-500" />
             Shipping Fee
-            <span className="text-xs text-slate-400">(held in escrow)</span>
           </span>
-          <span className="font-semibold text-blue-700">₦{shippingFeeNGN.toLocaleString()} NGN</span>
+          <span className="font-semibold text-blue-700">+ ₦{shippingFeeNGN.toLocaleString()} NGN</span>
         </div>
       )}
 
+      {/* Platform fee line — shown only in seller context or for transparency */}
       <div className="flex justify-between items-center text-sm">
         <span className="text-slate-500 flex items-center gap-1.5">
           Platform Service Fee
           <Badge variant="outline" className="text-xs font-medium text-orange-700 border-orange-200 bg-orange-50 py-0">{feePct}%</Badge>
-          <span className="text-xs text-slate-400">(deducted from seller)</span>
+          <span className="text-xs text-slate-400">(on item price only)</span>
         </span>
         <span className="text-slate-500">− {feeAmount.toLocaleString(undefined, { maximumFractionDigits: 8 })} {escrow.currency}</span>
       </div>
 
       <Separator />
 
-      {/* Buyer row — crypto amount (item price) */}
-      <div className="flex justify-between items-center">
-        <span className="flex items-center gap-1.5 font-semibold text-blue-700 text-sm">
-          <User className="w-4 h-4" /> You Send (crypto)
-        </span>
-        <div className="flex items-center gap-1 font-bold text-blue-700 text-lg">
-          {amount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
+      {/* Buyer total — item price + shipping fee */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 space-y-1.5">
+        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide flex items-center gap-1.5">
+          <User className="w-3.5 h-3.5" /> Buyer Total
+        </p>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-blue-700">Crypto Payment</span>
+          <div className="flex items-center gap-1 font-bold text-blue-800 text-base">
+            {amount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
+          </div>
         </div>
+        {hasShipping && (
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-blue-700 flex items-center gap-1.5">
+              <Truck className="w-3.5 h-3.5" /> Shipping Fee (NGN)
+            </span>
+            <span className="font-bold text-blue-800 text-base">₦{shippingFeeNGN.toLocaleString()}</span>
+          </div>
+        )}
       </div>
 
-      {/* Shipping fee reminder */}
-      {hasShipping && (
-        <div className="flex justify-between items-center bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-          <span className="flex items-center gap-1.5 text-sm text-blue-700">
-            <Truck className="w-4 h-4" /> + Shipping Fee (NGN)
-          </span>
-          <span className="text-sm font-bold text-blue-800">₦{shippingFeeNGN.toLocaleString()}</span>
-        </div>
-      )}
-
-      {/* Seller row */}
+      {/* Seller row — platform fee deducted from item price only */}
       <div className="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
         <span className="flex items-center gap-1.5 text-sm text-slate-500">
           <Building2 className="w-4 h-4" /> Seller Receives

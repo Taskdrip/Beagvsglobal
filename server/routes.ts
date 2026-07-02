@@ -3486,6 +3486,13 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       res.status(201).json(publicUser);
     } catch (error: any) {
       console.error('Agent signup error:', error);
+      // Handle unique constraint violations from the DB (email or username conflict)
+      const msg: string = error?.message || '';
+      if (msg.includes('unique') || msg.includes('duplicate') || error?.code === '23505') {
+        if (msg.includes('email')) return res.status(400).json({ message: 'An account with this email already exists' });
+        if (msg.includes('username')) return res.status(400).json({ message: 'Username is already taken' });
+        return res.status(400).json({ message: 'Account already exists with this email or username' });
+      }
       res.status(500).json({ message: 'Failed to create agent account' });
     }
   });

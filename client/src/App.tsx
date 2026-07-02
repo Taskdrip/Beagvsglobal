@@ -69,6 +69,7 @@ function Router() {
           <Route path="/blog/:slug" component={BlogPost} />
           <Route path="/about" component={About} />
           <Route path="/contact" component={Contact} />
+          <Route path="/profile/:id" component={Profile} />
           <Route path="/checkout/:escrowId" component={Checkout} />
           <Route path="/buy/:slug" component={GuestCheckout} />
           <Route path="/tracking" component={ShippingTracker} />
