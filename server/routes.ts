@@ -47,15 +47,32 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         role: 'USER'
       });
 
-      // Create session
-      (req as any).session.userId = user.id;
-      (req as any).session.isCustomAuth = true;
-
-      // Remove sensitive data
+      // Create session with explicit save
       const { passwordHash: _, ...publicUser } = user;
+      await new Promise<void>((resolve) => {
+        (req as any).session.regenerate((regenErr: any) => {
+          if (regenErr) {
+            console.error('[signup] session.regenerate error (non-fatal):', regenErr);
+            return resolve();
+          }
+          (req as any).session.userId = user.id;
+          (req as any).session.isCustomAuth = true;
+          (req as any).session.save((saveErr: any) => {
+            if (saveErr) console.error('[signup] session.save error (non-fatal):', saveErr);
+            resolve();
+          });
+        });
+      });
+
       res.status(201).json(publicUser);
     } catch (error: any) {
       console.error("Signup error:", error);
+      const msg: string = error?.message || '';
+      if (msg.includes('unique') || msg.includes('duplicate') || (error as any)?.code === '23505') {
+        if (msg.includes('email')) return res.status(400).json({ message: 'An account with this email already exists' });
+        if (msg.includes('username')) return res.status(400).json({ message: 'Username is already taken' });
+        return res.status(400).json({ message: 'Account already exists with this email or username' });
+      }
       res.status(500).json({ message: "Failed to create account" });
     }
   });
@@ -3459,6 +3476,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       if (!['INDIVIDUAL', 'COMPANY'].includes(agentType)) {
         return res.status(400).json({ message: 'agentType must be INDIVIDUAL or COMPANY' });
       }
+
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) return res.status(400).json({ message: 'An account with this email already exists' });
       const existingUsername = await storage.getUserByUsername(username);
@@ -3475,25 +3493,39 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         role: 'DELIVERY_AGENT',
         agentType,
         companyName: agentType === 'COMPANY' ? companyName : undefined,
-        whatsapp,
-        location,
+        whatsapp: whatsapp || null,
+        location: location || null,
       });
 
-      (req as any).session.userId = user.id;
-      (req as any).session.isCustomAuth = true;
-
       const { passwordHash: _, ...publicUser } = user;
+
+      // Set session — use regenerate() to avoid session fixation, then save explicitly.
+      // Session failure is non-fatal: user was created and can log in manually.
+      await new Promise<void>((resolve) => {
+        req.session.regenerate((regenErr: any) => {
+          if (regenErr) {
+            console.error('[agent-signup] session.regenerate error (non-fatal):', regenErr);
+            return resolve();
+          }
+          req.session.userId = user.id;
+          req.session.isCustomAuth = true;
+          req.session.save((saveErr: any) => {
+            if (saveErr) console.error('[agent-signup] session.save error (non-fatal):', saveErr);
+            resolve();
+          });
+        });
+      });
+
       res.status(201).json(publicUser);
     } catch (error: any) {
       console.error('Agent signup error:', error);
-      // Handle unique constraint violations from the DB (email or username conflict)
       const msg: string = error?.message || '';
       if (msg.includes('unique') || msg.includes('duplicate') || error?.code === '23505') {
         if (msg.includes('email')) return res.status(400).json({ message: 'An account with this email already exists' });
         if (msg.includes('username')) return res.status(400).json({ message: 'Username is already taken' });
         return res.status(400).json({ message: 'Account already exists with this email or username' });
       }
-      res.status(500).json({ message: 'Failed to create agent account' });
+      res.status(500).json({ message: `Failed to create agent account: ${msg || 'unknown error'}` });
     }
   });
 

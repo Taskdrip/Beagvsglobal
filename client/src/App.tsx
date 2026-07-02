@@ -51,10 +51,8 @@ function Router() {
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/change-password" component={ChangePassword} />
 
-      {/* Delivery agent portal — always accessible when authenticated */}
-      {isAuthenticated && (
-        <Route path="/agent/dashboard" component={DeliveryAgentDashboard} />
-      )}
+      {/* Delivery agent portal — always reachable (component handles auth guard internally) */}
+      <Route path="/agent/dashboard" component={DeliveryAgentDashboard} />
 
       {isLoading || !isAuthenticated ? (
         <>

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -41,7 +41,6 @@ const BENEFITS = [
 ];
 
 export default function AgentSignup() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -68,9 +67,9 @@ export default function AgentSignup() {
         location: data.location,
       };
       await apiRequest("POST", "/api/auth/signup/agent", payload);
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "Agent account created!", description: "Welcome! You can now start accepting deliveries." });
-      setLocation("/agent/dashboard");
+      // Full page reload so the new session cookie is picked up correctly
+      window.location.href = "/agent/dashboard";
     } catch (err: any) {
       toast({ title: "Signup failed", description: err.message || "Something went wrong.", variant: "destructive" });
     } finally {

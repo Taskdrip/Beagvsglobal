@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -89,7 +89,6 @@ const ACCOUNT_TYPES = [
 ];
 
 export default function Signup() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -145,8 +144,8 @@ export default function Signup() {
           title: "Agent account created!",
           description: "Welcome to Beagvs Global Logistics Network.",
         });
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-        setLocation("/agent/dashboard");
+        // Full page reload so the new session cookie is picked up correctly
+        window.location.href = "/agent/dashboard";
       } else {
         await apiRequest("POST", "/api/auth/signup", {
           firstName: data.firstName,
@@ -160,8 +159,8 @@ export default function Signup() {
           title: "Account created successfully!",
           description: "Welcome to Beagvs Global. You can now start trading.",
         });
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-        setLocation("/dashboard");
+        // Full page reload so the new session cookie is picked up correctly
+        window.location.href = "/dashboard";
       }
     } catch (error: any) {
       toast({
