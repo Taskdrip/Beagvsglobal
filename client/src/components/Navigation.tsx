@@ -119,6 +119,20 @@ export default function Navigation({ dark = false }: NavigationProps) {
                     </Link>
                   )}
 
+                  {user?.role === "DELIVERY_AGENT" && (
+                    <Link href="/agent/dashboard">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={isDark ? "text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10" : "text-slate-500 hover:text-blue-600"}
+                        data-testid="button-agent-dashboard"
+                      >
+                        <Package className="w-4 h-4 mr-1.5" />
+                        Agent Portal
+                      </Button>
+                    </Link>
+                  )}
+
                   <Link href="/notifications">
                     <Button
                       variant="ghost"
@@ -253,6 +267,20 @@ export default function Navigation({ dark = false }: NavigationProps) {
                               >
                                 <Settings className="w-4 h-4 mr-2" />
                                 Admin Panel
+                              </Button>
+                            </Link>
+                          )}
+
+                          {user?.role === "DELIVERY_AGENT" && (
+                            <Link href="/agent/dashboard">
+                              <Button
+                                variant="ghost"
+                                className={`w-full justify-start text-sm ${isDark ? "text-slate-300 hover:text-cyan-300" : "text-slate-600 hover:text-blue-600"}`}
+                                onClick={() => setMobileMenuOpen(false)}
+                                data-testid="mobile-button-agent"
+                              >
+                                <Package className="w-4 h-4 mr-2" />
+                                Agent Portal
                               </Button>
                             </Link>
                           )}

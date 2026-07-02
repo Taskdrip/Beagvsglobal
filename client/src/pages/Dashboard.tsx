@@ -143,7 +143,7 @@ const ESCROW_STATUS_CFG: Record<string, { label: string; color: string; bg: stri
 
 export default function Dashboard() {
   const [currentMode, setCurrentMode] = useState<"buyer" | "seller">("buyer");
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("tab") || "overview";
@@ -159,6 +159,13 @@ export default function Dashboard() {
   const { data: user } = useQuery({
     queryKey: ["/api/auth/user"],
   });
+
+  // Redirect delivery agents to their specialized portal
+  useEffect(() => {
+    if (user && (user as any).role === 'DELIVERY_AGENT') {
+      navigate('/agent/dashboard');
+    }
+  }, [user]);
 
   const { data: userListings } = useQuery({
     queryKey: ["/api/user/listings"],

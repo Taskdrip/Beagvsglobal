@@ -27,7 +27,7 @@ export const sessions = pgTable(
 
 // Enums
 export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN', 'DELIVERY_AGENT']);
-export const accountTypeEnum = pgEnum('account_type', ['BUYER', 'SELLER', 'BOTH']);
+export const accountTypeEnum = pgEnum('account_type', ['BUYER', 'SELLER', 'BOTH', 'SHIPPING_AGENT']);
 export const walletTypeEnum = pgEnum('wallet_type', ['PI', 'USDT_TRON', 'USDT_TON', 'USDT_BNB', 'USDT_SOL', 'USDT_AVAX']);
 export const listingTypeEnum = pgEnum('listing_type', ['REAL_ESTATE', 'SHIPPING_SERVICE', 'PRODUCT', 'SERVICE']);
 export const currencyEnum = pgEnum('currency', ['PI', 'USDT', 'USD', 'NGN', 'EUR', 'GBP', 'CAD']);
@@ -139,6 +139,9 @@ export const escrows = pgTable("escrows", {
   // Shipping fields are stored in metadata.shipping (JSONB) for DB compatibility
   // metadata.shipping = { option, cost, address, trackingNumber, carrier, adminNote }
   metadata: jsonb("metadata"),
+  shippingFee: decimal("shipping_fee", { precision: 18, scale: 4 }),
+  shippingFeeCurrency: varchar("shipping_fee_currency").default('NGN'),
+  shippingAgentId: varchar("shipping_agent_id").references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

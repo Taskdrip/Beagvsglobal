@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User, Settings, ShoppingBag, Store, Users, Shield, Key, QrCode, CheckCircle, XCircle, Eye, EyeOff } from "lucide-react";
+import { User, Settings, ShoppingBag, Store, Users, Shield, Key, QrCode, CheckCircle, XCircle, Eye, EyeOff, Wallet, Truck } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Link } from "wouter";
 import BankAccountManager from "@/components/BankAccountManager";
+import WalletManager from "@/components/WalletManager";
 
 function TwoFactorSection() {
   const { toast } = useToast();
@@ -321,6 +322,7 @@ export default function AccountSettings() {
       case 'BUYER': return 'You can browse and purchase products/services from sellers.';
       case 'SELLER': return 'You can list and sell products/services to buyers.';
       case 'BOTH': return 'You have full access to both buying and selling features.';
+      case 'SHIPPING_AGENT': return 'You are a verified shipping/delivery agent.';
       default: return 'Unknown account type.';
     }
   };
@@ -330,6 +332,7 @@ export default function AccountSettings() {
       case 'BUYER': return <ShoppingBag className="w-5 h-5" />;
       case 'SELLER': return <Store className="w-5 h-5" />;
       case 'BOTH': return <Users className="w-5 h-5" />;
+      case 'SHIPPING_AGENT': return <Truck className="w-5 h-5" />;
       default: return <User className="w-5 h-5" />;
     }
   };
@@ -410,8 +413,59 @@ export default function AccountSettings() {
             </CardContent>
           </Card>
 
+          {/* Crypto Wallets */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-crypto-blue" />
+                Crypto Wallets
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <WalletManager />
+            </CardContent>
+          </Card>
+
           {/* Bank Accounts */}
           <BankAccountManager />
+
+          {/* Shipping Agent Info (only if agent) */}
+          {(user as any).role === 'DELIVERY_AGENT' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-green-600" />
+                  Shipping Agent Profile
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Agent Type</p>
+                    <Badge variant="outline" className="mt-1">{(user as any).agentType || 'INDIVIDUAL'}</Badge>
+                  </div>
+                  {(user as any).companyName && (
+                    <div>
+                      <p className="text-sm text-gray-500">Company Name</p>
+                      <p className="font-medium">{(user as any).companyName}</p>
+                    </div>
+                  )}
+                  {(user as any).location && (
+                    <div>
+                      <p className="text-sm text-gray-500">Operating Location</p>
+                      <p className="font-medium">{(user as any).location}</p>
+                    </div>
+                  )}
+                </div>
+                <Link href="/agent/dashboard">
+                  <Button variant="outline" className="mt-2" data-testid="button-go-to-agent-dashboard">
+                    <Truck className="w-4 h-4 mr-2" />
+                    Go to Agent Dashboard
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Change Password */}
           <ChangePasswordSection />

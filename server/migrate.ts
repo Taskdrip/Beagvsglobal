@@ -184,6 +184,59 @@ export async function runSafetySQL(): Promise<void> {
 
     // ── Auto-approve existing active listings (seeded by admin before approval flow existed) ──
     `UPDATE "listings" SET "approval_status" = 'APPROVED' WHERE "is_active" = true AND ("approval_status" = 'PENDING' OR "approval_status" IS NULL)`,
+
+    // ── users: agent fields (FIX: missing columns cause Drizzle SELECT to fail → admin login 500) ──
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "agent_type" varchar`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "company_name" varchar`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "location" varchar`,
+
+    // ── account_type enum: add SHIPPING_AGENT value ────────────────────────────
+    `DO $$ BEGIN ALTER TYPE "public"."account_type" ADD VALUE IF NOT EXISTS 'SHIPPING_AGENT'; EXCEPTION WHEN others THEN NULL; END $$`,
+
+    // ── payout_status enum ─────────────────────────────────────────────────────
+    `DO $$ BEGIN CREATE TYPE "public"."payout_status" AS ENUM('PENDING','APPROVED','REJECTED','PAID'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+
+    // ── bank_accounts table ────────────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS "bank_accounts" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "bank_name" varchar NOT NULL,
+      "account_name" varchar NOT NULL,
+      "account_number" varchar NOT NULL,
+      "routing_number" varchar,
+      "swift_code" varchar,
+      "bank_address" text,
+      "currency" varchar DEFAULT 'NGN',
+      "country" varchar DEFAULT 'Nigeria',
+      "is_default" boolean DEFAULT false,
+      "created_at" timestamp DEFAULT now()
+    )`,
+
+    // ── seller_payout_requests table ───────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS "seller_payout_requests" (
+      "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "escrow_id" varchar NOT NULL REFERENCES "escrows"("id") ON DELETE CASCADE,
+      "seller_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "amount" numeric(22,4) NOT NULL,
+      "currency" varchar NOT NULL,
+      "status" varchar DEFAULT 'PENDING',
+      "payment_method" varchar,
+      "wallet_id" varchar REFERENCES "wallets"("id") ON DELETE SET NULL,
+      "bank_account_id" varchar REFERENCES "bank_accounts"("id") ON DELETE SET NULL,
+      "notes" text,
+      "admin_note" text,
+      "reviewed_by" varchar REFERENCES "users"("id") ON DELETE SET NULL,
+      "reviewed_at" timestamp,
+      "paid_at" timestamp,
+      "tx_hash" varchar,
+      "created_at" timestamp DEFAULT now(),
+      "updated_at" timestamp DEFAULT now()
+    )`,
+
+    // ── escrows: shipping fee & agent tracking ─────────────────────────────────
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "shipping_fee" numeric(18,4)`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "shipping_fee_currency" varchar DEFAULT 'NGN'`,
+    `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "shipping_agent_id" varchar REFERENCES "users"("id") ON DELETE SET NULL`,
   ];
 
   let applied = 0;
