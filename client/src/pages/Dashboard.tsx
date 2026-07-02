@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import WalletManager from "@/components/WalletManager";
+import { SellerPayoutManager } from "@/components/PayoutRequestManager";
 import EscrowProgress from "@/components/EscrowProgress";
 import { KycStatus } from "@/components/KycStatus";
 import CryptoIcon from "@/components/CryptoIcon";
@@ -350,6 +351,7 @@ export default function Dashboard() {
               Notifications {unreadNotifications > 0 && <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5">{unreadNotifications}</span>}
             </TabsTrigger>
             <TabsTrigger value="social" className="flex-1 min-w-fit" data-testid="tab-social">Social</TabsTrigger>
+            <TabsTrigger value="payouts" className="flex-1 min-w-fit" data-testid="tab-payouts">Payouts</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -894,6 +896,10 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="payouts" className="space-y-4">
+            <SellerPayoutManager escrows={userEscrows as any[]} />
           </TabsContent>
 
           <TabsContent value="social" className="space-y-4">

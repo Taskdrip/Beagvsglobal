@@ -40,6 +40,7 @@ import Terms from "@/pages/Terms";
 import Careers from "@/pages/Careers";
 import Notifications from "@/pages/Notifications";
 import DeliveryAgentDashboard from "@/pages/DeliveryAgentDashboard";
+import AgentSignup from "@/pages/AgentSignup";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -60,6 +61,7 @@ function Router() {
           <Route path="/" component={Landing} />
           <Route path="/login" component={Login} />
           <Route path="/signup" component={Signup} />
+          <Route path="/signup/agent" component={AgentSignup} />
           <Route path="/welcome" component={Welcome} />
           <Route path="/marketplace" component={Marketplace} />
           <Route path="/listing/:slug" component={ListingDetail} />

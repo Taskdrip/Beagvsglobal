@@ -19,6 +19,8 @@ import {
   competitors,
   competitorContent,
   shippingRates,
+  bankAccounts,
+  sellerPayoutRequests,
   type User,
   type UpsertUser,
   type InsertWallet,
@@ -57,6 +59,10 @@ import {
   type InsertCompetitorContent,
   type ShippingRate,
   type InsertShippingRate,
+  type BankAccount,
+  type InsertBankAccount,
+  type SellerPayoutRequest,
+  type InsertSellerPayoutRequest,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, sql, count } from "drizzle-orm";
@@ -194,6 +200,22 @@ export interface IStorage {
   updateShippingRate(id: string, data: Partial<InsertShippingRate>): Promise<ShippingRate>;
   deleteShippingRate(id: string): Promise<void>;
   seedDefaultShippingRates(): Promise<void>;
+
+  // Available shipments for agents to claim
+  getAvailableShipments(): Promise<(Shipment & { seller: User; buyer: User })[]>;
+  claimShipment(shipmentId: string, agentId: string): Promise<Shipment>;
+
+  // Bank account operations
+  getBankAccounts(userId: string): Promise<BankAccount[]>;
+  createBankAccount(data: InsertBankAccount): Promise<BankAccount>;
+  updateBankAccount(id: string, data: Partial<InsertBankAccount>): Promise<BankAccount>;
+  deleteBankAccount(id: string): Promise<void>;
+
+  // Seller payout request operations
+  createPayoutRequest(data: InsertSellerPayoutRequest): Promise<SellerPayoutRequest>;
+  getPayoutRequests(filters?: { sellerId?: string; status?: string }): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null })[]>;
+  getPayoutRequest(id: string): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null }) | undefined>;
+  updatePayoutRequest(id: string, data: Partial<SellerPayoutRequest>): Promise<SellerPayoutRequest>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1503,6 +1525,100 @@ export class DatabaseStorage implements IStorage {
         await db.insert(shippingRates).values(d as InsertShippingRate);
       }
     }
+  }
+
+  // ─── Available Shipments (for agents to browse and claim) ─────────────────────
+
+  async getAvailableShipments(): Promise<(Shipment & { seller: User; buyer: User })[]> {
+    const rows = await db
+      .select()
+      .from(shipments)
+      .where(and(eq(shipments.status, 'PENDING' as any), sql`${(shipments as any).agentId} IS NULL`))
+      .orderBy(desc(shipments.createdAt));
+    return Promise.all(rows.map(async (s) => {
+      const [seller] = await db.select().from(users).where(eq(users.id, s.sellerId));
+      const [buyer] = await db.select().from(users).where(eq(users.id, s.buyerId));
+      return { ...s, seller, buyer };
+    }));
+  }
+
+  async claimShipment(shipmentId: string, agentId: string): Promise<Shipment> {
+    const [s] = await db
+      .update(shipments)
+      .set({ agentId, updatedAt: new Date() } as any)
+      .where(and(eq(shipments.id, shipmentId), sql`"agent_id" IS NULL`))
+      .returning();
+    if (!s) throw new Error('Shipment already claimed or not found');
+    return s;
+  }
+
+  // ─── Bank Accounts ─────────────────────────────────────────────────────────
+
+  async getBankAccounts(userId: string): Promise<BankAccount[]> {
+    return db.select().from(bankAccounts).where(eq(bankAccounts.userId, userId)).orderBy(desc(bankAccounts.createdAt));
+  }
+
+  async createBankAccount(data: InsertBankAccount): Promise<BankAccount> {
+    const [account] = await db.insert(bankAccounts).values(data).returning();
+    return account;
+  }
+
+  async updateBankAccount(id: string, data: Partial<InsertBankAccount>): Promise<BankAccount> {
+    const [account] = await db.update(bankAccounts).set(data).where(eq(bankAccounts.id, id)).returning();
+    return account;
+  }
+
+  async deleteBankAccount(id: string): Promise<void> {
+    await db.delete(bankAccounts).where(eq(bankAccounts.id, id));
+  }
+
+  // ─── Seller Payout Requests ────────────────────────────────────────────────
+
+  async createPayoutRequest(data: InsertSellerPayoutRequest): Promise<SellerPayoutRequest> {
+    const [req] = await db.insert(sellerPayoutRequests).values(data).returning();
+    return req;
+  }
+
+  async getPayoutRequests(filters?: { sellerId?: string; status?: string }): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null })[]> {
+    const rows = await db
+      .select()
+      .from(sellerPayoutRequests)
+      .where(
+        and(
+          filters?.sellerId ? eq(sellerPayoutRequests.sellerId, filters.sellerId) : undefined,
+          filters?.status ? eq(sellerPayoutRequests.status, filters.status as any) : undefined,
+        )
+      )
+      .orderBy(desc(sellerPayoutRequests.createdAt));
+    return Promise.all(rows.map(async (r) => {
+      const [seller] = await db.select().from(users).where(eq(users.id, r.sellerId));
+      const [escrow] = await db.select().from(escrows).where(eq(escrows.id, r.escrowId));
+      let wallet: any = null;
+      if (r.walletId) {
+        const [w] = await db.select().from(wallets).where(eq(wallets.id, r.walletId));
+        wallet = w ?? null;
+      }
+      let bankAccount: BankAccount | null = null;
+      if (r.bankAccountId) {
+        const [b] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, r.bankAccountId));
+        bankAccount = b ?? null;
+      }
+      return { ...r, seller, escrow, wallet, bankAccount };
+    }));
+  }
+
+  async getPayoutRequest(id: string): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null }) | undefined> {
+    const rows = await this.getPayoutRequests();
+    return rows.find(r => r.id === id);
+  }
+
+  async updatePayoutRequest(id: string, data: Partial<SellerPayoutRequest>): Promise<SellerPayoutRequest> {
+    const [req] = await db
+      .update(sellerPayoutRequests)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(sellerPayoutRequests.id, id))
+      .returning();
+    return req;
   }
 
   async getCompetitorAnalytics(): Promise<any> {

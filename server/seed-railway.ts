@@ -15,8 +15,13 @@ import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@beagvsglobal.com";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@2025!";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "beagvsadmin";
+
+if (!process.env.ADMIN_PASSWORD) {
+  console.error("❌ ADMIN_PASSWORD environment variable is required. Aborting seed.");
+  process.exit(1);
+}
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 async function seed() {
   console.log("🌱 Starting Railway seed...\n");

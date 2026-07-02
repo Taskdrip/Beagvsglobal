@@ -8,9 +8,10 @@ import Footer from "@/components/Footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Package, Truck, CheckCircle2, Clock, MapPin,
-  AlertCircle, LogOut, User2, RefreshCw, ChevronRight,
+  AlertCircle, LogOut, User2, RefreshCw, ChevronRight, Search, Loader2,
 } from "lucide-react";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -35,7 +36,6 @@ const STATUS_COLORS: Record<string, string> = {
   RETURNED: "bg-orange-100 text-orange-800 border-orange-200",
 };
 
-/** The next logical status transitions an agent can make */
 const NEXT_STATUS: Record<string, { status: string; label: string; color: string }[]> = {
   PENDING: [{ status: "PICKED_UP", label: "Mark as Picked Up", color: "bg-blue-600 hover:bg-blue-700" }],
   PICKED_UP: [
@@ -66,7 +66,13 @@ export default function DeliveryAgentDashboard() {
   const { data: shipments = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ["/api/agent/shipments"],
     enabled: !!user,
-    refetchInterval: 30_000, // auto-refresh every 30 s
+    refetchInterval: 30_000,
+  });
+
+  const { data: availableShipments = [], isLoading: loadingAvailable, refetch: refetchAvailable } = useQuery<any[]>({
+    queryKey: ["/api/agent/available-shipments"],
+    enabled: !!user,
+    refetchInterval: 60_000,
   });
 
   const updateStatusMutation = useMutation({
@@ -77,6 +83,16 @@ export default function DeliveryAgentDashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/shipments"] });
     },
     onError: (err: any) => toast({ title: "Failed to update status", description: err.message, variant: "destructive" }),
+  });
+
+  const claimMutation = useMutation({
+    mutationFn: (shipmentId: string) => apiRequest("POST", `/api/agent/shipments/${shipmentId}/claim`),
+    onSuccess: () => {
+      toast({ title: "Shipment claimed!", description: "It's now in your assigned deliveries." });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/shipments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/available-shipments"] });
+    },
+    onError: (err: any) => toast({ title: "Failed to claim shipment", description: err.message, variant: "destructive" }),
   });
 
   const handleLogout = async () => {
@@ -138,20 +154,10 @@ export default function DeliveryAgentDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => refetch()}
-              className="text-slate-500 hover:text-slate-700"
-            >
+            <Button variant="ghost" size="sm" onClick={() => { refetch(); refetchAvailable(); }} className="text-slate-500 hover:text-slate-700">
               <RefreshCw className="w-4 h-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="text-slate-500 hover:text-red-600"
-            >
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-slate-500 hover:text-red-600">
               <LogOut className="w-4 h-4 mr-1" />
               Logout
             </Button>
@@ -160,7 +166,6 @@ export default function DeliveryAgentDashboard() {
       </header>
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
-
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
@@ -183,56 +188,149 @@ export default function DeliveryAgentDashboard() {
           ))}
         </div>
 
-        {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Loading your shipments…</p>
-          </div>
-        ) : shipments.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="text-center py-14">
-              <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">No shipments assigned yet</p>
-              <p className="text-slate-400 text-sm mt-1">You'll be notified when a delivery is assigned to you.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {/* Awaiting Pickup */}
-            {pendingShipments.length > 0 && (
-              <ShipmentSection
-                title="Awaiting Pickup"
-                icon={<Clock className="w-4 h-4 text-yellow-600" />}
-                shipments={pendingShipments}
-                onUpdateStatus={updateStatusMutation.mutate}
-                isUpdating={updateStatusMutation.isPending}
-              />
-            )}
+        {/* Tabs: My Deliveries / Available Pickups */}
+        <Tabs defaultValue="my-deliveries" className="space-y-4">
+          <TabsList className="w-full">
+            <TabsTrigger value="my-deliveries" className="flex-1">
+              My Deliveries
+              {total > 0 && <Badge className="ml-2 bg-blue-600 text-white text-xs">{total}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="available" className="flex-1">
+              Available Pickups
+              {availableShipments.length > 0 && (
+                <Badge className="ml-2 bg-green-600 text-white text-xs">{availableShipments.length}</Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Active Deliveries */}
-            {activeShipments.length > 0 && (
-              <ShipmentSection
-                title="Active Deliveries"
-                icon={<Truck className="w-4 h-4 text-blue-600" />}
-                shipments={activeShipments}
-                onUpdateStatus={updateStatusMutation.mutate}
-                isUpdating={updateStatusMutation.isPending}
-              />
+          {/* My Deliveries */}
+          <TabsContent value="my-deliveries" className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3" />
+                <p className="text-slate-400 text-sm">Loading your shipments…</p>
+              </div>
+            ) : shipments.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="text-center py-14">
+                  <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 font-medium">No shipments assigned yet</p>
+                  <p className="text-slate-400 text-sm mt-1">Browse "Available Pickups" to self-assign deliveries.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {pendingShipments.length > 0 && (
+                  <ShipmentSection
+                    title="Awaiting Pickup"
+                    icon={<Clock className="w-4 h-4 text-yellow-600" />}
+                    shipments={pendingShipments}
+                    onUpdateStatus={updateStatusMutation.mutate}
+                    isUpdating={updateStatusMutation.isPending}
+                  />
+                )}
+                {activeShipments.length > 0 && (
+                  <ShipmentSection
+                    title="Active Deliveries"
+                    icon={<Truck className="w-4 h-4 text-blue-600" />}
+                    shipments={activeShipments}
+                    onUpdateStatus={updateStatusMutation.mutate}
+                    isUpdating={updateStatusMutation.isPending}
+                  />
+                )}
+                {completedShipments.length > 0 && (
+                  <ShipmentSection
+                    title="Completed"
+                    icon={<CheckCircle2 className="w-4 h-4 text-green-600" />}
+                    shipments={completedShipments}
+                    onUpdateStatus={updateStatusMutation.mutate}
+                    isUpdating={updateStatusMutation.isPending}
+                    muted
+                  />
+                )}
+              </>
             )}
+          </TabsContent>
 
-            {/* Completed */}
-            {completedShipments.length > 0 && (
-              <ShipmentSection
-                title="Completed"
-                icon={<CheckCircle2 className="w-4 h-4 text-green-600" />}
-                shipments={completedShipments}
-                onUpdateStatus={updateStatusMutation.mutate}
-                isUpdating={updateStatusMutation.isPending}
-                muted
-              />
+          {/* Available Pickups */}
+          <TabsContent value="available" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-900">Available Pickups</h3>
+                <p className="text-sm text-slate-500">Unclaimed shipments you can self-assign</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => refetchAvailable()} disabled={loadingAvailable}>
+                <RefreshCw className={`w-4 h-4 mr-1 ${loadingAvailable ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+            </div>
+
+            {loadingAvailable ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+              </div>
+            ) : availableShipments.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="text-center py-14">
+                  <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 font-medium">No available pickups right now</p>
+                  <p className="text-slate-400 text-sm mt-1">New orders will appear here once created by sellers.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(availableShipments as any[]).map((s) => (
+                  <Card key={s.id} className="border shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-slate-900 text-sm">{s.trackingNumber}</span>
+                            <Badge className="text-xs border bg-yellow-100 text-yellow-800 border-yellow-200">Unclaimed</Badge>
+                          </div>
+                          {(s.origin || s.destination) && (
+                            <div className="flex items-center gap-1 text-xs text-slate-500">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{s.origin && s.destination ? `${s.origin} → ${s.destination}` : s.origin || s.destination}</span>
+                            </div>
+                          )}
+                          {s.recipientName && (
+                            <div className="flex items-center gap-1 text-xs text-slate-500">
+                              <User2 className="w-3 h-3 flex-shrink-0" />
+                              <span>{s.recipientName}</span>
+                            </div>
+                          )}
+                          <p className="text-xs text-slate-400">
+                            {s.carrier}{s.serviceType ? ` · ${s.serviceType}` : ""}
+                            {s.weightKg ? ` · ${s.weightKg} kg` : ""}
+                          </p>
+                          {s.seller && (
+                            <p className="text-xs text-slate-500">
+                              Seller: <span className="font-medium">{s.seller.firstName || s.seller.username}</span>
+                              {s.seller.location ? ` · ${s.seller.location}` : ""}
+                            </p>
+                          )}
+                          {s.specialInstructions && (
+                            <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-100">
+                              ⚠ {s.specialInstructions}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white flex-shrink-0"
+                          disabled={claimMutation.isPending}
+                          onClick={() => claimMutation.mutate(s.id)}
+                        >
+                          {claimMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Claim <ChevronRight className="w-3.5 h-3.5 ml-1" /></>}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
-          </>
-        )}
+          </TabsContent>
+        </Tabs>
       </main>
 
       <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-400 bg-white">
@@ -301,56 +399,41 @@ function ShipmentCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
-            {/* Tracking + status */}
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="font-mono font-bold text-slate-900 text-sm">{s.trackingNumber}</span>
               <Badge className={`text-xs border ${STATUS_COLORS[s.status] || "bg-slate-100 text-slate-700 border-slate-200"}`}>
                 {STATUS_LABELS[s.status] || s.status}
               </Badge>
             </div>
-
-            {/* Route */}
             {(s.origin || s.destination) && (
               <div className="flex items-center gap-1 text-xs text-slate-500 mb-1">
                 <MapPin className="w-3 h-3 flex-shrink-0" />
                 <span className="truncate">
-                  {s.origin && s.destination
-                    ? `${s.origin} → ${s.destination}`
-                    : s.origin || s.destination}
+                  {s.origin && s.destination ? `${s.origin} → ${s.destination}` : s.origin || s.destination}
                 </span>
               </div>
             )}
-
-            {/* Recipient */}
             {s.recipientName && (
               <div className="flex items-center gap-1 text-xs text-slate-500 mb-1">
                 <User2 className="w-3 h-3 flex-shrink-0" />
                 <span>{s.recipientName}{s.recipientPhone ? ` · ${s.recipientPhone}` : ""}</span>
               </div>
             )}
-
-            {/* Carrier + weight */}
             <p className="text-xs text-slate-400">
               {s.carrier}{s.serviceType ? ` · ${s.serviceType}` : ""}
               {s.weightKg ? ` · ${s.weightKg} kg` : ""}
             </p>
-
-            {/* Special instructions */}
             {s.specialInstructions && (
               <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-2 border border-amber-100">
                 ⚠ {s.specialInstructions}
               </p>
             )}
-
-            {/* Latest event */}
             {s.events?.length > 0 && (
               <p className="text-xs text-slate-400 mt-1.5 italic">
                 Last update: {s.events[0].description}
               </p>
             )}
           </div>
-
-          {/* Action buttons — primary action + secondary (FAILED/RETURNED) */}
           {actions.length > 0 && (
             <div className="flex flex-col gap-1.5 flex-shrink-0">
               {actions.map((action) => (

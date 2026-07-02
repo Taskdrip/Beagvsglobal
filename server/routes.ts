@@ -3102,6 +3102,302 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // ─── Bank Account Routes ────────────────────────────────────────────────────
+
+  app.get('/api/bank-accounts', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accounts = await storage.getBankAccounts(userId);
+      res.json(accounts);
+    } catch (e: any) {
+      res.status(500).json({ message: 'Failed to fetch bank accounts' });
+    }
+  });
+
+  app.post('/api/bank-accounts', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { bankName, accountName, accountNumber, routingNumber, swiftCode, bankAddress, currency, country, isDefault } = req.body;
+      if (!bankName || !accountName || !accountNumber) {
+        return res.status(400).json({ message: 'bankName, accountName, and accountNumber are required' });
+      }
+      // If setting as default, clear other defaults first
+      if (isDefault) {
+        const existing = await storage.getBankAccounts(userId);
+        for (const acc of existing) {
+          if (acc.isDefault) await storage.updateBankAccount(acc.id, { isDefault: false });
+        }
+      }
+      const account = await storage.createBankAccount({ userId, bankName, accountName, accountNumber, routingNumber, swiftCode, bankAddress, currency: currency || 'NGN', country: country || 'Nigeria', isDefault: !!isDefault });
+      res.status(201).json(account);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || 'Failed to create bank account' });
+    }
+  });
+
+  app.patch('/api/bank-accounts/:id', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const accounts = await storage.getBankAccounts(userId);
+      if (!accounts.find(a => a.id === id)) return res.status(403).json({ message: 'Not authorised' });
+      if (req.body.isDefault) {
+        for (const acc of accounts) {
+          if (acc.isDefault && acc.id !== id) await storage.updateBankAccount(acc.id, { isDefault: false });
+        }
+      }
+      const updated = await storage.updateBankAccount(id, req.body);
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || 'Failed to update bank account' });
+    }
+  });
+
+  app.delete('/api/bank-accounts/:id', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const accounts = await storage.getBankAccounts(userId);
+      if (!accounts.find(a => a.id === id)) return res.status(403).json({ message: 'Not authorised' });
+      await storage.deleteBankAccount(id);
+      res.status(204).send();
+    } catch (e: any) {
+      res.status(500).json({ message: 'Failed to delete bank account' });
+    }
+  });
+
+  // ─── Seller Payout Request Routes ───────────────────────────────────────────
+
+  // Seller: create a payout request for a released escrow
+  app.post('/api/payout-requests', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { escrowId, paymentMethod, walletId, bankAccountId, notes } = req.body;
+      if (!escrowId) return res.status(400).json({ message: 'escrowId is required' });
+
+      const escrow = await storage.getEscrow(escrowId);
+      if (!escrow) return res.status(404).json({ message: 'Escrow not found' });
+      if (escrow.sellerId !== userId) return res.status(403).json({ message: 'Only the seller can request a payout' });
+      if (!['RELEASED', 'DELIVERED'].includes(escrow.status ?? '')) {
+        return res.status(400).json({ message: 'Payout can only be requested after escrow is delivered or released' });
+      }
+
+      // Check for existing pending/approved request
+      const existing = await storage.getPayoutRequests({ sellerId: userId });
+      const duplicate = existing.find(r => r.escrowId === escrowId && ['PENDING', 'APPROVED'].includes(r.status ?? ''));
+      if (duplicate) return res.status(409).json({ message: 'A payout request already exists for this escrow' });
+
+      const amount = escrow.sellerNetAmount ?? escrow.amount;
+      const payout = await storage.createPayoutRequest({
+        escrowId,
+        sellerId: userId,
+        amount: String(amount),
+        currency: escrow.currency,
+        paymentMethod: paymentMethod || 'bank',
+        walletId: walletId || undefined,
+        bankAccountId: bankAccountId || undefined,
+        notes,
+      } as any);
+
+      // Notify admins
+      try {
+        const { db } = await import('./db');
+        const { users: usersTable } = await import('@shared/schema');
+        const { eq: eqOp } = await import('drizzle-orm');
+        const admins = await db.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
+        const seller = await storage.getUser(userId);
+        for (const admin of admins) {
+          await storage.createNotification({
+            userId: admin.id,
+            type: 'ESCROW_UPDATE',
+            data: {
+              payoutRequestId: payout.id,
+              escrowId,
+              sellerUsername: seller?.username ?? 'a seller',
+              amount: String(amount),
+              currency: escrow.currency,
+              message: `Seller ${seller?.username ?? ''} has requested a payout of ${amount} ${escrow.currency}. Please review.`,
+              action: 'payout_request_submitted',
+            },
+          });
+        }
+      } catch (e) { console.warn('Could not notify admins of payout request:', e); }
+
+      res.status(201).json(payout);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || 'Failed to create payout request' });
+    }
+  });
+
+  // Seller: view own payout requests
+  app.get('/api/payout-requests', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const requests = await storage.getPayoutRequests({ sellerId: userId });
+      res.json(requests);
+    } catch (e: any) {
+      res.status(500).json({ message: 'Failed to fetch payout requests' });
+    }
+  });
+
+  // Admin: list all payout requests
+  app.get('/api/admin/payout-requests', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const requests = await storage.getPayoutRequests();
+      res.json(requests);
+    } catch (e: any) {
+      res.status(500).json({ message: 'Failed to fetch payout requests' });
+    }
+  });
+
+  // Admin: approve / reject / mark paid
+  app.patch('/api/admin/payout-requests/:id', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const { id } = req.params;
+      const { status, adminNote, txHash } = req.body;
+
+      const existing = await storage.getPayoutRequest(id);
+      if (!existing) return res.status(404).json({ message: 'Payout request not found' });
+
+      const updateData: any = {
+        status,
+        adminNote,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+      };
+      if (status === 'PAID') updateData.paidAt = new Date();
+      if (txHash) updateData.txHash = txHash;
+
+      const updated = await storage.updatePayoutRequest(id, updateData);
+
+      // Notify seller
+      const statusMessages: Record<string, string> = {
+        APPROVED: `Your payout request of ${existing.amount} ${existing.currency} has been approved. Payment is being processed.`,
+        REJECTED: `Your payout request was not approved.${adminNote ? ` Reason: ${adminNote}` : ''}`,
+        PAID: `Your payout of ${existing.amount} ${existing.currency} has been completed!${txHash ? ` Transaction: ${txHash}` : ''}`,
+      };
+      if (statusMessages[status]) {
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            payoutRequestId: id,
+            escrowId: existing.escrowId,
+            message: statusMessages[status],
+            action: `payout_${status.toLowerCase()}`,
+          },
+        });
+      }
+
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || 'Failed to update payout request' });
+    }
+  });
+
+  // ─── Agent Available Shipments + Claim ──────────────────────────────────────
+
+  // Agent: see all unassigned PENDING shipments (available to claim)
+  app.get('/api/agent/available-shipments', isAuthenticatedEnhanced, isDeliveryAgent, async (_req, res) => {
+    try {
+      const available = await storage.getAvailableShipments();
+      res.json(available);
+    } catch (e: any) {
+      res.status(500).json({ message: 'Failed to fetch available shipments' });
+    }
+  });
+
+  // Agent: claim a shipment (self-assign)
+  app.post('/api/agent/shipments/:id/claim', isAuthenticatedEnhanced, isDeliveryAgent, async (req: any, res) => {
+    try {
+      const agentId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const existing = await storage.getShipment(id);
+      if (!existing) return res.status(404).json({ message: 'Shipment not found' });
+      if ((existing as any).agentId) return res.status(409).json({ message: 'This shipment has already been claimed' });
+
+      const updated = await storage.claimShipment(id, agentId);
+
+      // Notify seller that an agent has claimed the shipment
+      const agentUser = await storage.getUser(agentId);
+      const agentName = agentUser?.firstName ? `${agentUser.firstName} ${agentUser.lastName ?? ''}`.trim() : agentUser?.username ?? 'A delivery agent';
+      await storage.createNotification({
+        userId: existing.sellerId,
+        type: 'ESCROW_UPDATE',
+        data: {
+          shipmentId: id,
+          trackingNumber: existing.trackingNumber,
+          agentName,
+          message: `${agentName} has claimed your shipment ${existing.trackingNumber} for pickup.`,
+          action: 'agent_claimed',
+        },
+      });
+      // Notify admins
+      try {
+        const { db } = await import('./db');
+        const { users: usersTable } = await import('@shared/schema');
+        const { eq: eqOp } = await import('drizzle-orm');
+        const admins = await db.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
+        for (const admin of admins) {
+          await storage.createNotification({
+            userId: admin.id,
+            type: 'ESCROW_UPDATE',
+            data: { shipmentId: id, trackingNumber: existing.trackingNumber, agentName, message: `Agent ${agentName} self-assigned shipment ${existing.trackingNumber}.`, action: 'agent_self_assigned' },
+          });
+        }
+      } catch (e) { /* non-critical */ }
+
+      res.json(updated);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message || 'Failed to claim shipment' });
+    }
+  });
+
+  // ─── Shipping Agent Public Signup ────────────────────────────────────────────
+
+  // Public: register as a shipping/delivery agent (individual or company)
+  app.post('/api/auth/signup/agent', async (req: any, res) => {
+    try {
+      const { email, password, firstName, lastName, username, agentType, companyName, whatsapp, location } = req.body;
+      if (!email || !password || !username || !agentType) {
+        return res.status(400).json({ message: 'email, password, username, and agentType are required' });
+      }
+      if (!['INDIVIDUAL', 'COMPANY'].includes(agentType)) {
+        return res.status(400).json({ message: 'agentType must be INDIVIDUAL or COMPANY' });
+      }
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) return res.status(400).json({ message: 'An account with this email already exists' });
+      const existingUsername = await storage.getUserByUsername(username);
+      if (existingUsername) return res.status(400).json({ message: 'Username is already taken' });
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({
+        email,
+        firstName: firstName || companyName || username,
+        lastName: lastName || '',
+        username,
+        passwordHash,
+        accountType: 'BOTH',
+        role: 'DELIVERY_AGENT',
+        agentType,
+        companyName: agentType === 'COMPANY' ? companyName : undefined,
+        whatsapp,
+        location,
+      });
+
+      (req as any).session.userId = user.id;
+      (req as any).session.isCustomAuth = true;
+
+      const { passwordHash: _, ...publicUser } = user;
+      res.status(201).json(publicUser);
+    } catch (error: any) {
+      console.error('Agent signup error:', error);
+      res.status(500).json({ message: 'Failed to create agent account' });
+    }
+  });
+
   // Health check — used by Railway to verify the app is alive
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

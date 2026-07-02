@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Link } from "wouter";
+import BankAccountManager from "@/components/BankAccountManager";
 
 function TwoFactorSection() {
   const { toast } = useToast();
@@ -408,6 +409,9 @@ export default function AccountSettings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Bank Accounts */}
+          <BankAccountManager />
 
           {/* Change Password */}
           <ChangePasswordSection />

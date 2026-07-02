@@ -56,6 +56,9 @@ export const users = pgTable("users", {
   bio: text("bio"),
   role: userRoleEnum("role").default('USER'),
   accountType: accountTypeEnum("account_type").default('BUYER'),
+  // Shipping agent fields
+  agentType: varchar("agent_type"), // INDIVIDUAL | COMPANY
+  companyName: varchar("company_name"),
   // Admin fields
   mustChangePassword: boolean("must_change_password").default(false),
   // 2FA fields
@@ -683,6 +686,55 @@ export type InsertFacialVerification = z.infer<typeof insertFacialVerificationSc
 export type FacialVerification = typeof facialVerifications.$inferSelect;
 export type InsertPlatformSetting = z.infer<typeof insertPlatformSettingSchema>;
 export type PlatformSetting = typeof platformSettings.$inferSelect;
+
+// ─── Bank Accounts (for seller/user payout destinations) ─────────────────────
+
+export const bankAccounts = pgTable("bank_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  bankName: varchar("bank_name").notNull(),
+  accountName: varchar("account_name").notNull(),
+  accountNumber: varchar("account_number").notNull(),
+  routingNumber: varchar("routing_number"),
+  swiftCode: varchar("swift_code"),
+  bankAddress: text("bank_address"),
+  currency: varchar("currency").default('NGN'),
+  country: varchar("country").default('Nigeria'),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBankAccountSchema = createInsertSchema(bankAccounts).omit({ id: true, createdAt: true });
+export type BankAccount = typeof bankAccounts.$inferSelect;
+export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
+
+// ─── Seller Payout Requests ───────────────────────────────────────────────────
+
+export const payoutStatusEnum = pgEnum('payout_status', ['PENDING', 'APPROVED', 'REJECTED', 'PAID']);
+
+export const sellerPayoutRequests = pgTable("seller_payout_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  escrowId: varchar("escrow_id").notNull().references(() => escrows.id, { onDelete: 'cascade' }),
+  sellerId: varchar("seller_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amount: decimal("amount", { precision: 22, scale: 4 }).notNull(),
+  currency: varchar("currency").notNull(),
+  status: payoutStatusEnum("status").default('PENDING'),
+  paymentMethod: varchar("payment_method"), // 'crypto' | 'bank'
+  walletId: varchar("wallet_id").references(() => wallets.id, { onDelete: 'set null' }),
+  bankAccountId: varchar("bank_account_id").references(() => bankAccounts.id, { onDelete: 'set null' }),
+  notes: text("notes"),
+  adminNote: text("admin_note"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp("reviewed_at"),
+  paidAt: timestamp("paid_at"),
+  txHash: varchar("tx_hash"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSellerPayoutRequestSchema = createInsertSchema(sellerPayoutRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export type SellerPayoutRequest = typeof sellerPayoutRequests.$inferSelect;
+export type InsertSellerPayoutRequest = z.infer<typeof insertSellerPayoutRequestSchema>;
 
 // ─── Competitor Intelligence ──────────────────────────────────────────────────
 

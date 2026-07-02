@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminPayoutManager } from "@/components/PayoutRequestManager";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1866,6 +1867,9 @@ export default function Admin() {
             <TabsTrigger value="seo" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-seo">
               🔍 SEO & Indexing
             </TabsTrigger>
+            <TabsTrigger value="payouts" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-payouts">
+              💰 Payouts
+            </TabsTrigger>
           </TabsList>
 
           {/* ── Shipping Management Tab ── */}
@@ -2954,6 +2958,10 @@ export default function Admin() {
             <ErrorBoundary>
               <AdminSEOTab />
             </ErrorBoundary>
+          </TabsContent>
+
+          <TabsContent value="payouts" className="space-y-4">
+            <AdminPayoutManager />
           </TabsContent>
         </Tabs>
 
