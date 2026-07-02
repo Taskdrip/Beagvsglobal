@@ -48,6 +48,8 @@ export default function Login() {
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       if (user.role === "ADMIN") {
         setLocation("/admin");
+      } else if (user.role === "DELIVERY_AGENT") {
+        setLocation("/agent/dashboard");
       } else {
         setLocation("/dashboard");
       }

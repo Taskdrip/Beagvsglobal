@@ -1865,7 +1865,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  // Add a tracking event (seller or admin)
+  // Add a tracking event (seller, admin, or assigned delivery agent)
   app.post('/api/shipments/:id/events', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1874,7 +1874,8 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       if (!existing) return res.status(404).json({ message: "Shipment not found" });
 
       const user = await storage.getUser(userId);
-      if (existing.sellerId !== userId && user?.role !== 'ADMIN') {
+      const isAssignedAgent = user?.role === 'DELIVERY_AGENT' && (existing as any).agentId === userId;
+      if (existing.sellerId !== userId && user?.role !== 'ADMIN' && !isAssignedAgent) {
         return res.status(403).json({ message: "Not authorised" });
       }
 
@@ -1883,14 +1884,37 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         shipmentId: id,
         createdBy: userId,
       });
+
+      // Agents must obey the same state-machine transition rules as the dedicated agent endpoint
+      if (isAssignedAgent) {
+        const ALLOWED_FROM: Record<string, string[]> = {
+          PICKED_UP:        ['PENDING'],
+          IN_TRANSIT:       ['PICKED_UP'],
+          OUT_FOR_DELIVERY: ['IN_TRANSIT'],
+          DELIVERED:        ['OUT_FOR_DELIVERY'],
+          FAILED:           ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'],
+          RETURNED:         ['FAILED', 'OUT_FOR_DELIVERY'],
+        };
+        const currentStatus = existing.status ?? 'PENDING';
+        const allowed = ALLOWED_FROM[eventData.status] ?? [];
+        if (!allowed.includes(currentStatus)) {
+          return res.status(400).json({
+            message: `Cannot transition from ${currentStatus} to ${eventData.status}. Allowed from: ${allowed.join(', ')}.`,
+          });
+        }
+      }
+
       const event = await storage.addShipmentEvent(eventData);
 
       // Sync shipment status with the latest event status
       await storage.updateShipment(id, { status: eventData.status });
 
-      // If delivered, update escrow to DELIVERED
+      // If delivered, update escrow to DELIVERED — only when escrow is still in SHIPPED state
       if (eventData.status === 'DELIVERED' && existing.escrowId) {
-        await storage.updateEscrow(existing.escrowId, { status: 'DELIVERED' });
+        const currentEscrow = await storage.getEscrow(existing.escrowId);
+        if (currentEscrow?.status === 'SHIPPED') {
+          await storage.updateEscrow(existing.escrowId, { status: 'DELIVERED' });
+        }
         await storage.updateShipment(id, { actualDelivery: new Date() as any });
       }
 
@@ -1911,6 +1935,314 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       res.json(all);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch shipments" });
+    }
+  });
+
+  // ─── Delivery Agent Routes ────────────────────────────────────────────────────
+
+  // Delivery agent middleware
+  const isDeliveryAgent = async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== 'DELIVERY_AGENT' && user.role !== 'ADMIN')) {
+        return res.status(403).json({ message: "Delivery agent access required" });
+      }
+      next();
+    } catch (error) {
+      res.status(403).json({ message: "Delivery agent access required" });
+    }
+  };
+
+  // Agent: get my assigned shipments
+  app.get('/api/agent/shipments', isAuthenticatedEnhanced, isDeliveryAgent, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const shipments = await storage.getShipmentsByAgent(userId);
+      res.json(shipments);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch assigned shipments" });
+    }
+  });
+
+  // Agent: update shipment status (pickup, in-transit, out-for-delivery, delivered)
+  app.post('/api/agent/shipments/:id/status', isAuthenticatedEnhanced, isDeliveryAgent, async (req: any, res) => {
+    try {
+      const agentId = req.user.claims.sub;
+      const { id } = req.params;
+      const { status, location, description } = req.body;
+
+      const existing = await storage.getShipment(id);
+      if (!existing) return res.status(404).json({ message: "Shipment not found" });
+
+      // Agents can only update their own assigned shipments
+      const agent = await storage.getUser(agentId);
+      if ((existing as any).agentId !== agentId && agent?.role !== 'ADMIN') {
+        return res.status(403).json({ message: "This shipment is not assigned to you" });
+      }
+
+      const VALID_AGENT_STATUSES = ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'RETURNED'];
+      if (!VALID_AGENT_STATUSES.includes(status)) {
+        return res.status(400).json({ message: `Invalid status. Allowed: ${VALID_AGENT_STATUSES.join(', ')}` });
+      }
+
+      // Enforce forward-only state machine transitions
+      const ALLOWED_FROM: Record<string, string[]> = {
+        PICKED_UP:        ['PENDING'],
+        IN_TRANSIT:       ['PICKED_UP'],
+        OUT_FOR_DELIVERY: ['IN_TRANSIT'],
+        DELIVERED:        ['OUT_FOR_DELIVERY'],
+        FAILED:           ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'],
+        RETURNED:         ['FAILED', 'OUT_FOR_DELIVERY'],
+      };
+      const currentStatus = existing.status ?? 'PENDING';
+      const allowedFromStates = ALLOWED_FROM[status] ?? [];
+      if (!allowedFromStates.includes(currentStatus)) {
+        return res.status(400).json({
+          message: `Cannot transition from ${currentStatus} to ${status}. Allowed from: ${allowedFromStates.join(', ')}.`,
+        });
+      }
+
+      // Map status → readable description
+      const DEFAULT_DESCRIPTIONS: Record<string, string> = {
+        PICKED_UP: 'Package picked up by delivery agent',
+        IN_TRANSIT: 'Package is in transit',
+        OUT_FOR_DELIVERY: 'Package is out for delivery',
+        DELIVERED: 'Package delivered to recipient',
+        FAILED: 'Delivery attempt failed',
+        RETURNED: 'Package returned to sender',
+      };
+
+      // Add shipment event
+      await storage.addShipmentEvent({
+        shipmentId: id,
+        status,
+        location: location || undefined,
+        description: description || DEFAULT_DESCRIPTIONS[status],
+        createdBy: agentId,
+      });
+
+      // Update shipment status
+      const updateData: any = { status };
+      if (status === 'DELIVERED') updateData.actualDelivery = new Date();
+      await storage.updateShipment(id, updateData);
+
+      // ── Notifications ──────────────────────────────────────────────────────
+
+      const agentUser = await storage.getUser(agentId);
+      const agentName = agentUser?.firstName || agentUser?.username || 'Your delivery agent';
+      const listingTitle = (existing as any).listing?.title ?? 'your shipment';
+
+      if (status === 'PICKED_UP') {
+        // Notify seller
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            shipmentId: id,
+            trackingNumber: existing.trackingNumber,
+            message: `${agentName} has picked up the package. It is on its way!`,
+            action: 'agent_picked_up',
+          },
+        });
+        // Notify admins
+        try {
+          const { db } = await import('./db');
+          const { users: usersTable } = await import('@shared/schema');
+          const { eq: eqOp } = await import('drizzle-orm');
+          const admins = await db.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
+          for (const admin of admins) {
+            await storage.createNotification({
+              userId: admin.id,
+              type: 'ESCROW_UPDATE',
+              data: {
+                shipmentId: id,
+                trackingNumber: existing.trackingNumber,
+                agentName,
+                message: `Agent ${agentName} picked up shipment ${existing.trackingNumber}.`,
+                action: 'agent_picked_up',
+              },
+            });
+          }
+        } catch (e) { console.warn('Could not notify admins of pickup:', e); }
+      }
+
+      if (status === 'IN_TRANSIT' || status === 'OUT_FOR_DELIVERY') {
+        // Notify buyer
+        const statusMsg = status === 'IN_TRANSIT'
+          ? `Your package is in transit! Tracking: ${existing.trackingNumber}`
+          : `Your package is out for delivery and will arrive soon!`;
+        await storage.createNotification({
+          userId: existing.buyerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            shipmentId: id,
+            trackingNumber: existing.trackingNumber,
+            message: statusMsg,
+            action: status === 'IN_TRANSIT' ? 'shipment_in_transit' : 'out_for_delivery',
+          },
+        });
+      }
+
+      if (status === 'FAILED' || status === 'RETURNED') {
+        const failMsg = status === 'FAILED'
+          ? `Delivery failed for shipment ${existing.trackingNumber}. Please contact support.`
+          : `Shipment ${existing.trackingNumber} has been returned. Please contact support.`;
+        // Notify buyer
+        await storage.createNotification({
+          userId: existing.buyerId,
+          type: 'ESCROW_UPDATE',
+          data: { shipmentId: id, trackingNumber: existing.trackingNumber, message: failMsg, action: `shipment_${status.toLowerCase()}` },
+        });
+        // Notify seller
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: { shipmentId: id, trackingNumber: existing.trackingNumber, message: `Shipment ${existing.trackingNumber} marked as ${status}. Admin review may be required.`, action: `shipment_${status.toLowerCase()}` },
+        });
+        // Notify admins
+        try {
+          const { db: db2 } = await import('./db');
+          const { users: usersTable2 } = await import('@shared/schema');
+          const { eq: eqOp2 } = await import('drizzle-orm');
+          const admins2 = await db2.select().from(usersTable2).where(eqOp2(usersTable2.role, 'ADMIN'));
+          for (const admin of admins2) {
+            await storage.createNotification({
+              userId: admin.id,
+              type: 'ESCROW_UPDATE',
+              data: { shipmentId: id, trackingNumber: existing.trackingNumber, agentName, message: `Agent ${agentName} marked shipment ${existing.trackingNumber} as ${status}. Review required.`, action: `shipment_${status.toLowerCase()}` },
+            });
+          }
+        } catch (e) { console.warn('Could not notify admins of failure:', e); }
+      }
+
+      if (status === 'DELIVERED') {
+        // Only sync escrow if it is still in SHIPPED state (guard against double-advance)
+        if (existing.escrowId) {
+          const currentEscrow = await storage.getEscrow(existing.escrowId);
+          if (currentEscrow?.status === 'SHIPPED') {
+            await storage.updateEscrow(existing.escrowId, { status: 'DELIVERED' });
+          }
+        }
+
+        // Notify buyer
+        await storage.createNotification({
+          userId: existing.buyerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            shipmentId: id,
+            trackingNumber: existing.trackingNumber,
+            message: 'Your package has been delivered! Please confirm receipt in the escrow to release funds to the seller.',
+            action: 'agent_delivered',
+          },
+        });
+        // Notify seller
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            shipmentId: id,
+            trackingNumber: existing.trackingNumber,
+            message: `Package ${existing.trackingNumber} has been delivered. Awaiting buyer confirmation to release funds.`,
+            action: 'agent_delivered',
+          },
+        });
+        // Notify admins
+        try {
+          const { db } = await import('./db');
+          const { users: usersTable } = await import('@shared/schema');
+          const { eq: eqOp } = await import('drizzle-orm');
+          const admins = await db.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
+          for (const admin of admins) {
+            await storage.createNotification({
+              userId: admin.id,
+              type: 'ESCROW_UPDATE',
+              data: {
+                shipmentId: id,
+                trackingNumber: existing.trackingNumber,
+                agentName,
+                message: `Agent ${agentName} delivered shipment ${existing.trackingNumber}. Buyer must confirm to release funds.`,
+                action: 'agent_delivered',
+              },
+            });
+          }
+        } catch (e) { console.warn('Could not notify admins of delivery:', e); }
+      }
+
+      const updated = await storage.getShipment(id);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Agent status update error:", error);
+      res.status(400).json({ message: error.message || "Failed to update status" });
+    }
+  });
+
+  // Admin: list all delivery agents
+  app.get('/api/admin/delivery-agents', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const agents = await storage.getDeliveryAgents();
+      res.json(agents.map(({ passwordHash, ...a }) => a));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch delivery agents" });
+    }
+  });
+
+  // Admin: assign a delivery agent to a shipment
+  app.post('/api/admin/shipments/:id/assign-agent', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const { id } = req.params;
+      const { agentId } = req.body; // null to unassign
+
+      const existing = await storage.getShipment(id);
+      if (!existing) return res.status(404).json({ message: "Shipment not found" });
+
+      // Validate that the target user is actually a delivery agent (or allow null to unassign)
+      if (agentId) {
+        const targetUser = await storage.getUser(agentId);
+        if (!targetUser) return res.status(404).json({ message: "User not found" });
+        if (targetUser.role !== 'DELIVERY_AGENT') {
+          return res.status(400).json({ message: "The selected user is not a delivery agent" });
+        }
+      }
+
+      await storage.updateShipment(id, { agentId } as any);
+
+      // If assigning (not clearing), notify the agent
+      if (agentId) {
+        const agentUser = await storage.getUser(agentId);
+        if (agentUser) {
+          await storage.createNotification({
+            userId: agentId,
+            type: 'ESCROW_UPDATE',
+            data: {
+              shipmentId: id,
+              trackingNumber: existing.trackingNumber,
+              origin: existing.origin,
+              destination: existing.destination,
+              message: `You have been assigned a new shipment for pickup. Tracking: ${existing.trackingNumber}${existing.origin ? ` from ${existing.origin}` : ''}${existing.destination ? ` to ${existing.destination}` : ''}.`,
+              action: 'agent_assigned',
+            },
+          });
+        }
+        // Notify seller that an agent has been assigned
+        await storage.createNotification({
+          userId: existing.sellerId,
+          type: 'ESCROW_UPDATE',
+          data: {
+            shipmentId: id,
+            trackingNumber: existing.trackingNumber,
+            message: `A delivery agent has been assigned to pick up shipment ${existing.trackingNumber}.`,
+            action: 'agent_assigned_seller',
+          },
+        });
+      }
+
+      const updated = await storage.getShipment(id);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Assign agent error:", error);
+      res.status(400).json({ message: error.message || "Failed to assign agent" });
     }
   });
 

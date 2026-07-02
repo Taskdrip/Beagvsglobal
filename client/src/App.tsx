@@ -39,6 +39,7 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Careers from "@/pages/Careers";
 import Notifications from "@/pages/Notifications";
+import DeliveryAgentDashboard from "@/pages/DeliveryAgentDashboard";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -48,6 +49,11 @@ function Router() {
       {/* Admin login & change-password are always accessible */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/change-password" component={ChangePassword} />
+
+      {/* Delivery agent portal — always accessible when authenticated */}
+      {isAuthenticated && (
+        <Route path="/agent/dashboard" component={DeliveryAgentDashboard} />
+      )}
 
       {isLoading || !isAuthenticated ? (
         <>

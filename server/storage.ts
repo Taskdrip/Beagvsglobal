@@ -159,13 +159,15 @@ export interface IStorage {
 
   // Shipment operations
   createShipment(shipment: InsertShipment): Promise<Shipment>;
-  getShipment(id: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined>;
-  getShipmentByTrackingNumber(trackingNumber: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined>;
-  getShipmentByEscrowId(escrowId: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined>;
+  getShipment(id: string): Promise<(Shipment & { seller: User; buyer: User; agent?: User | null; events: ShipmentEvent[] }) | undefined>;
+  getShipmentByTrackingNumber(trackingNumber: string): Promise<(Shipment & { seller: User; buyer: User; agent?: User | null; events: ShipmentEvent[] }) | undefined>;
+  getShipmentByEscrowId(escrowId: string): Promise<(Shipment & { seller: User; buyer: User; agent?: User | null; events: ShipmentEvent[] }) | undefined>;
   getShipmentsByUser(userId: string): Promise<(Shipment & { seller: User; buyer: User })[]>;
+  getShipmentsByAgent(agentId: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] })[]>;
   updateShipment(id: string, data: Partial<InsertShipment>): Promise<Shipment>;
   addShipmentEvent(event: InsertShipmentEvent): Promise<ShipmentEvent>;
   getAllShipments(): Promise<(Shipment & { seller: User; buyer: User })[]>;
+  getDeliveryAgents(): Promise<User[]>;
 
   // Platform settings operations
   getPlatformSettings(): Promise<PlatformSetting[]>;
@@ -1220,7 +1222,7 @@ export class DatabaseStorage implements IStorage {
     return s;
   }
 
-  private async _enrichShipment(shipment: Shipment): Promise<Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }> {
+  private async _enrichShipment(shipment: Shipment): Promise<Shipment & { seller: User; buyer: User; agent?: User | null; events: ShipmentEvent[] }> {
     const [seller] = await db.select().from(users).where(eq(users.id, shipment.sellerId));
     const [buyer] = await db.select().from(users).where(eq(users.id, shipment.buyerId));
     const events = await db
@@ -1228,7 +1230,12 @@ export class DatabaseStorage implements IStorage {
       .from(shipmentEvents)
       .where(eq(shipmentEvents.shipmentId, shipment.id))
       .orderBy(desc(shipmentEvents.eventTimestamp));
-    return { ...shipment, seller, buyer, events };
+    let agent: User | null = null;
+    if ((shipment as any).agentId) {
+      const [a] = await db.select().from(users).where(eq(users.id, (shipment as any).agentId));
+      agent = a ?? null;
+    }
+    return { ...shipment, seller, buyer, agent, events };
   }
 
   async getShipment(id: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined> {
@@ -1276,13 +1283,31 @@ export class DatabaseStorage implements IStorage {
     return e;
   }
 
-  async getAllShipments(): Promise<(Shipment & { seller: User; buyer: User })[]> {
+  async getAllShipments(): Promise<(Shipment & { seller: User; buyer: User; agent?: User | null })[]> {
     const rows = await db.select().from(shipments).orderBy(desc(shipments.createdAt));
     return Promise.all(rows.map(async (s) => {
       const [seller] = await db.select().from(users).where(eq(users.id, s.sellerId));
       const [buyer] = await db.select().from(users).where(eq(users.id, s.buyerId));
-      return { ...s, seller, buyer };
+      let agent: User | null = null;
+      if ((s as any).agentId) {
+        const [a] = await db.select().from(users).where(eq(users.id, (s as any).agentId));
+        agent = a ?? null;
+      }
+      return { ...s, seller, buyer, agent };
     }));
+  }
+
+  async getShipmentsByAgent(agentId: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] })[]> {
+    const rows = await db
+      .select()
+      .from(shipments)
+      .where(eq((shipments as any).agentId, agentId))
+      .orderBy(desc(shipments.createdAt));
+    return Promise.all(rows.map(s => this._enrichShipment(s)));
+  }
+
+  async getDeliveryAgents(): Promise<User[]> {
+    return db.select().from(users).where(eq(users.role, 'DELIVERY_AGENT' as any));
   }
 
   // Platform settings

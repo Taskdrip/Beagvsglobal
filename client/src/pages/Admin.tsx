@@ -1508,8 +1508,13 @@ export default function Admin() {
     enabled: isAdminUser,
   });
 
-  const { data: allShipments } = useQuery({
+  const { data: allShipments, refetch: refetchShipments } = useQuery({
     queryKey: ["/api/admin/shipments"],
+    enabled: isAdminUser,
+  });
+
+  const { data: allDeliveryAgents } = useQuery({
+    queryKey: ["/api/admin/delivery-agents"],
     enabled: isAdminUser,
   });
 
@@ -1637,9 +1642,19 @@ export default function Admin() {
       apiRequest("PATCH", `/api/shipments/${id}`, { status }),
     onSuccess: () => {
       toast({ title: "Shipment status updated" });
-      queryClient.invalidateQueries({ queryKey: ["/api/shipments/all"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/shipments"] });
     },
     onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+  });
+
+  const assignAgentMutation = useMutation({
+    mutationFn: ({ shipmentId, agentId }: { shipmentId: string; agentId: string | null }) =>
+      apiRequest("POST", `/api/admin/shipments/${shipmentId}/assign-agent`, { agentId }),
+    onSuccess: () => {
+      toast({ title: "Delivery agent assigned", description: "The agent has been notified." });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/shipments"] });
+    },
+    onError: (err: any) => toast({ title: "Failed to assign agent", description: err.message, variant: "destructive" }),
   });
 
   // Helpers (pure functions, safe to define after hooks)
@@ -2472,8 +2487,33 @@ export default function Admin() {
                                 Seller: {s.seller?.username ?? "—"} · Buyer: {s.buyer?.username ?? "—"}
                                 {s.weightKg ? ` · ${s.weightKg}kg` : ""}
                               </p>
+                              <p className="text-xs mt-0.5">
+                                <span className="text-slate-400">Agent: </span>
+                                <span className={s.agentId ? "text-blue-600 font-medium" : "text-slate-400"}>
+                                  {s.agent?.username ?? s.agent?.firstName ?? "Unassigned"}
+                                </span>
+                              </p>
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
+                              {/* Assign delivery agent */}
+                              <Select
+                                key={`agent-${s.id}-${s.agentId ?? 'none'}`}
+                                defaultValue={s.agentId ?? "none"}
+                                onValueChange={val => assignAgentMutation.mutate({ shipmentId: s.id, agentId: val === "none" ? null : val })}
+                              >
+                                <SelectTrigger className="w-40 text-xs h-8 border-blue-200 text-blue-700">
+                                  <SelectValue placeholder="Assign agent…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none" className="text-xs text-slate-400">— No agent —</SelectItem>
+                                  {((allDeliveryAgents as any[]) ?? []).map((a: any) => (
+                                    <SelectItem key={a.id} value={a.id} className="text-xs">
+                                      {a.firstName || a.username || a.email}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {/* Shipment status */}
                               <Select
                                 key={`${s.id}-${s.status}`}
                                 defaultValue={s.status}
@@ -2547,8 +2587,8 @@ export default function Admin() {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-semibold text-slate-900 text-sm">{u.username || "—"}</span>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                                    {u.role}
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : u.role === 'DELIVERY_AGENT' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {u.role === 'DELIVERY_AGENT' ? 'Agent' : u.role}
                                   </span>
                                   {u.mustChangePassword && (
                                     <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Must Change PW</span>
@@ -2635,6 +2675,7 @@ export default function Admin() {
                         <SelectContent>
                           <SelectItem value="USER">User</SelectItem>
                           <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="DELIVERY_AGENT">Delivery Agent</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2800,8 +2841,8 @@ export default function Admin() {
                           <td className="py-2 pr-4 font-medium text-slate-900">{u.username || "—"}</td>
                           <td className="py-2 pr-4 text-slate-600">{u.email || "—"}</td>
                           <td className="py-2 pr-4">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                              {u.role}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : u.role === 'DELIVERY_AGENT' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {u.role === 'DELIVERY_AGENT' ? 'Agent' : u.role}
                             </span>
                           </td>
                           <td className="py-2 text-slate-400">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}</td>

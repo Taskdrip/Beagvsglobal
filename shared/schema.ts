@@ -26,7 +26,7 @@ export const sessions = pgTable(
 );
 
 // Enums
-export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN']);
+export const userRoleEnum = pgEnum('user_role', ['USER', 'ADMIN', 'DELIVERY_AGENT']);
 export const accountTypeEnum = pgEnum('account_type', ['BUYER', 'SELLER', 'BOTH']);
 export const walletTypeEnum = pgEnum('wallet_type', ['PI', 'USDT_TRON', 'USDT_TON', 'USDT_BNB', 'USDT_SOL', 'USDT_AVAX']);
 export const listingTypeEnum = pgEnum('listing_type', ['REAL_ESTATE', 'SHIPPING_SERVICE', 'PRODUCT', 'SERVICE']);
@@ -330,6 +330,7 @@ export const shipments = pgTable("shipments", {
   specialInstructions: text("special_instructions"),
   insuranceValue: decimal("insurance_value", { precision: 18, scale: 2 }),
   insuranceCurrency: varchar("insurance_currency"),
+  agentId: varchar("agent_id").references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
