@@ -1386,6 +1386,76 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
+  // Pi Network onboarding — saves name, email, phone, password and account type in one call.
+  // Strictly gated to Pi-authenticated users who have NOT yet set a password
+  // (i.e. first-time Pi sign-ups only). This prevents it from becoming an
+  // unauthenticated password-reset path for existing manual-auth accounts.
+  app.patch('/api/user/pi-profile', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+
+      // Load the current user record so we can enforce the Pi-onboarding gate.
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      // Only Pi-authenticated users who have never set a password may use this route.
+      if (!currentUser.piUid) {
+        return res.status(403).json({ message: "This endpoint is only for Pi Network accounts." });
+      }
+      if (currentUser.passwordHash) {
+        return res.status(403).json({ message: "Profile already set up. Use Account Settings to make changes." });
+      }
+
+      const { firstName, lastName, email, phone, password, accountType } = req.body;
+
+      // Server-side validation (client validation is UX-only; always validate here too).
+      const missing = ['firstName', 'lastName', 'email', 'phone', 'password', 'accountType']
+        .filter((k) => !req.body[k]?.toString().trim());
+      if (missing.length) {
+        return res.status(400).json({ message: `Missing required fields: ${missing.join(', ')}.` });
+      }
+
+      const validTypes = ['BUYER', 'SELLER', 'BOTH'];
+      if (!validTypes.includes(accountType)) {
+        return res.status(400).json({ message: "Invalid account type." });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        return res.status(400).json({ message: "Invalid email address." });
+      }
+      if (password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters." });
+      }
+
+      // Email uniqueness check.
+      const emailOwner = await storage.getUserByEmail(normalizedEmail);
+      if (emailOwner && emailOwner.id !== userId) {
+        return res.status(400).json({ message: "That email address is already in use." });
+      }
+
+      const bcrypt = await import('bcrypt');
+      const passwordHash = await bcrypt.hash(password, 12);
+
+      const updated = await storage.updateUser(userId, {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: normalizedEmail,
+        whatsapp: phone.trim(),
+        passwordHash,
+        accountType,
+      });
+
+      const { passwordHash: _, ...publicUser } = updated;
+      res.json(publicUser);
+    } catch (error: any) {
+      console.error("Error saving Pi profile:", error);
+      res.status(500).json({ message: error.message || "Failed to save profile." });
+    }
+  });
+
   // Blog routes
   app.get('/api/blog', async (req, res) => {
     try {
