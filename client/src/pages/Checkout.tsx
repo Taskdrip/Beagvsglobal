@@ -236,9 +236,14 @@ export default function Checkout() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [receiptUrl, setReceiptUrl] = useState("");
   const [receiptUploading, setReceiptUploading] = useState(false);
-  const [selectedShippingOption, setSelectedShippingOption] = useState<string>(
-    () => escrow?.shippingOption || ""
-  );
+  // shippingOption is stored in escrow.metadata.shipping.option (not a direct DB column).
+  // We sync it into local state once the escrow query resolves so the selector pre-selects
+  // the option the buyer chose on a previous visit.
+  const [selectedShippingOption, setSelectedShippingOption] = useState<string>("");
+  useEffect(() => {
+    const saved = (escrow?.metadata as any)?.shipping?.option;
+    if (saved && !selectedShippingOption) setSelectedShippingOption(saved);
+  }, [escrow?.metadata]); // eslint-disable-line react-hooks/exhaustive-deps
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isProductListing = escrow?.listing?.listingType === 'PRODUCT' || escrow?.listing?.type === 'PRODUCT';
@@ -287,12 +292,20 @@ export default function Checkout() {
 
   const confirmPaymentMutation = useMutation({
     mutationFn: async () => {
-      // Submit payment proof
+      // Persist the shipping selection alongside the payment submission so it is
+      // never lost even if the earlier non-blocking PATCH (from the CTA button) failed.
+      const selectedRate = shippingRates?.find((r: any) => r.option === selectedShippingOption);
       await apiRequest("PATCH", `/api/escrows/${escrowId}`, {
         status: "PAYMENT_SUBMITTED",
         buyerTxHash: txHash || undefined,
         paymentReceiptUrl: receiptUrl || undefined,
         paymentNotes: paymentNotes || undefined,
+        ...(selectedShippingOption && {
+          shippingOption: selectedShippingOption,
+          shippingCost: selectedRate?.price || "0",
+          shippingFee: selectedRate?.price || "0",
+          shippingFeeCurrency: selectedRate?.currency || "NGN",
+        }),
       });
       // Create/get escrow chat thread with seller
       try {
@@ -513,6 +526,98 @@ export default function Checkout() {
   const buyerTotal = sameCurrencyAsItem ? amount + shippingFeeNGN : amount;
 
   // ─── Status-aware screens (when returning to an existing escrow) ───────────
+
+  // Escrow disputed — both parties see a holding screen
+  if (escrow.status === 'DISPUTED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10">
+          <Card className="shadow-lg border-red-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-9 h-9 text-red-500" />
+              </div>
+              <h1 className="text-2xl font-bold text-red-700 mb-2">Dispute Raised</h1>
+              <p className="text-slate-600 mb-1">This escrow is currently under dispute review.</p>
+              <p className="text-slate-500 text-sm mb-6">Our admin team has been notified and will mediate. Funds are safely held in escrow until the dispute is resolved.</p>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 text-left flex gap-2">
+                <Info className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700">
+                  Please use the escrow chat to communicate with the other party and provide any relevant evidence to our support team.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <Link href={`/chat/${escrow.listingId}`}>
+                  <Button className="w-full bg-red-600 hover:bg-red-700 gap-2">
+                    <MessageCircle className="w-4 h-4" /> Open Escrow Chat
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline" className="w-full">View My Transactions</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Escrow refunded — buyer's payment returned
+  if (escrow.status === 'REFUNDED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10">
+          <Card className="shadow-lg border-orange-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <RefreshCw className="w-9 h-9 text-orange-500" />
+              </div>
+              <h1 className="text-2xl font-bold text-orange-700 mb-2">Payment Refunded</h1>
+              <p className="text-slate-600 mb-1">Your payment has been refunded.</p>
+              <p className="text-slate-500 text-sm mb-6">The escrow has been cancelled and your funds have been returned. Please check your wallet or bank account — refunds may take 1–5 business days depending on your payment method.</p>
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {[
+                  { label: "Amount", value: `${amount.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${escrow.currency}` },
+                  { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="font-semibold text-slate-800 text-sm mt-0.5 break-all">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <Link href="/dashboard">
+                <Button className="w-full">View My Transactions</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Escrow cancelled
+  if (escrow.status === 'CANCELLED') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="max-w-xl mx-auto pt-10">
+          <Card className="shadow-lg border-slate-200">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-9 h-9 text-slate-400" />
+              </div>
+              <h1 className="text-2xl font-bold text-slate-700 mb-2">Transaction Cancelled</h1>
+              <p className="text-slate-500 text-sm mb-6">This escrow transaction has been cancelled. If you believe this is an error, please contact support with your Escrow ID: <strong>{escrow.id?.slice(0, 8)}…</strong></p>
+              <Link href="/dashboard">
+                <Button className="w-full">View My Transactions</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // Payment already submitted — under review
   if (escrow.status === 'PAYMENT_SUBMITTED' && !paymentConfirmed) {
@@ -892,8 +997,12 @@ export default function Checkout() {
                             toast({ title: "Please fill in required fields", variant: "destructive" }); return;
                           }
                           try {
-                            await apiRequest("PATCH", `/api/escrows/${escrowId}`, { metadata: { shippingAddress } });
+                            // Send shippingAddress at the top level so the server merges it into
+                            // metadata.shipping.address — sending it inside metadata: { shippingAddress }
+                            // would replace the entire JSONB field, erasing the saved shipping option.
+                            await apiRequest("PATCH", `/api/escrows/${escrowId}`, { shippingAddress });
                             toast({ title: "Delivery address saved!", description: "The seller has been notified." });
+                            queryClient.invalidateQueries({ queryKey: ["/api/escrows", escrowId] });
                             setShowShippingForm(false);
                           } catch (e: any) { toast({ title: "Failed to save", description: e.message, variant: "destructive" }); }
                         }}
@@ -1409,7 +1518,9 @@ export default function Checkout() {
               <Button
                 className="w-full bg-emerald-600 hover:bg-emerald-700 font-semibold py-3 text-base"
                 onClick={async () => {
-                  if (selectedShippingOption && selectedShippingOption !== escrow?.shippingOption) {
+                  // Only PATCH when the selection has changed from what's already persisted
+                  const persistedOption = (escrow?.metadata as any)?.shipping?.option;
+                  if (selectedShippingOption && selectedShippingOption !== persistedOption) {
                     try {
                       const selectedRate = shippingRates?.find((r: any) => r.option === selectedShippingOption);
                       await apiRequest("PATCH", `/api/escrows/${escrowId}`, {
@@ -1418,7 +1529,7 @@ export default function Checkout() {
                         shippingFee: selectedRate?.price || "0",
                         shippingFeeCurrency: selectedRate?.currency || "NGN",
                       });
-                    } catch { /* non-blocking */ }
+                    } catch { /* shipping option also included in confirmPaymentMutation as a fallback */ }
                   }
                   setStep(2);
                 }}

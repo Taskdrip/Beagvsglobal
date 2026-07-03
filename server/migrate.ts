@@ -116,7 +116,8 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "pi_txid" varchar`,
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "shipping_agent_fee_amount" numeric(18,4)`,
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "admin_shipping_fee_amount" numeric(18,4)`,
-    `DO $$ BEGIN ALTER TYPE "public"."escrow_status" ADD VALUE IF NOT EXISTS 'PAYMENT_SUBMITTED'; EXCEPTION WHEN others THEN NULL; END $$`,
+    `DO $ BEGIN ALTER TYPE "public"."escrow_status" ADD VALUE IF NOT EXISTS 'PAYMENT_SUBMITTED'; EXCEPTION WHEN others THEN NULL; END $`,
+    `DO $ BEGIN ALTER TYPE "public"."escrow_status" ADD VALUE IF NOT EXISTS 'CANCELLED'; EXCEPTION WHEN others THEN NULL; END $`,
 
     // ── shipments ──────────────────────────────────────────────────────────
     `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "carrier_url" varchar`,
