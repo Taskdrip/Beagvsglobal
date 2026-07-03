@@ -445,8 +445,11 @@ export default function Checkout() {
               <GuestCheckoutAuth
                 ctaContext="Create a free account or sign in to complete your escrow purchase. It only takes a minute."
                 onAuthSuccess={async () => {
+                  // Refetch the auth user so isAuthenticated becomes true and the
+                  // checkout page re-renders without a full page reload (which would
+                  // wipe React Query cache and cause a visible flash / re-auth loop).
+                  await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
                   await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
-                  window.location.reload();
                 }}
               />
             </CardContent>

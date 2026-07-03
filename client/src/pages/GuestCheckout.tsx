@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -42,7 +41,8 @@ export default function GuestCheckout() {
   const [, navigate] = useLocation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [authComplete, setAuthComplete] = useState(false);
+  // authComplete tracks whether the user just finished the inline auth form so
+  // we know to immediately create the escrow (vs. the user already being logged in).
 
   const { data: listing, isLoading: listingLoading } = useQuery<any>({
     queryKey: ["/api/listings/slug", slug],
@@ -86,11 +86,9 @@ export default function GuestCheckout() {
     },
   });
 
-  useEffect(() => {
-    if (authComplete && isAuthenticated && listing && !createEscrowMutation.isPending) {
-      createEscrowMutation.mutate();
-    }
-  }, [authComplete, isAuthenticated]);
+  // No useEffect needed — createEscrowMutation.mutate() is called directly from
+  // onAuthSuccess once the auth state is confirmed. A useEffect approach caused
+  // potential double-mutations if the mutation hadn't started before the effect ran.
 
   const TypeIcon = TYPE_ICONS[listing?.type] || Package;
   const isLoading = listingLoading || authLoading;
@@ -254,8 +252,11 @@ export default function GuestCheckout() {
                 <GuestCheckoutAuth
                   ctaContext={`Sign in or create a free account to buy "${listing.title}" via secure escrow. Takes under a minute.`}
                   onAuthSuccess={async () => {
+                    // Ensure the auth cache is fresh before creating the escrow so
+                    // the server-side session is recognised on the next API call.
+                    await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
                     await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
-                    setAuthComplete(true);
+                    // Create the escrow immediately — the session cookie is now set.
                     createEscrowMutation.mutate();
                   }}
                   defaultTab="signup"

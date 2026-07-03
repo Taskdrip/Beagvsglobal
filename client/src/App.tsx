@@ -55,6 +55,17 @@ function RedirectToLogin() {
   return null;
 }
 
+// Redirect authenticated users away from auth-only pages (login, signup).
+// This handles the race window where isAuthenticated becomes true AFTER the
+// router has already navigated to /login (e.g. via RedirectToLogin firing
+// before the auth cache update has propagated), which would leave the user
+// stuck on /login with no matching route in the authenticated tree → 404.
+function RedirectToDashboard() {
+  const [, nav] = useLocation();
+  useEffect(() => { nav("/dashboard"); }, [nav]);
+  return null;
+}
+
 // Full-screen loader shown while the session is being resolved.
 function AuthLoader() {
   return (
@@ -88,6 +99,13 @@ function Router() {
 
       {isAuthenticated ? (
         <>
+          {/* Redirect authenticated users away from auth pages so the race
+              window (isAuthenticated briefly false → RedirectToLogin → /login,
+              then isAuthenticated true → /login has no authenticated route → 404)
+              resolves cleanly to /dashboard instead of 404. */}
+          <Route path="/login" component={RedirectToDashboard} />
+          <Route path="/signup" component={RedirectToDashboard} />
+          <Route path="/auth" component={RedirectToDashboard} />
           <Route path="/" component={Home} />
           <Route path="/onboarding" component={PiOnboarding} />
           <Route path="/dashboard" component={Dashboard} />

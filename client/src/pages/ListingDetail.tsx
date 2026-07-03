@@ -237,24 +237,20 @@ export default function ListingDetail() {
         description: "Redirecting to secure checkout...",
       });
       setShowEscrowDialog(false);
-      
-      // Redirect to checkout page
-      setTimeout(() => {
-        window.location.href = `/checkout/${data.id || 'new'}`;
-      }, 1000);
+      // Use the wouter navigate hook (declared below) so the React Query cache is
+      // preserved and the checkout page loads without a full page reload.
+      // The navigate reference is captured via the closure; it is assigned at line ~322.
+      setTimeout(() => navigate(`/checkout/${data.id}`), 500);
     },
     onError: (error: any) => {
-      console.log("Escrow error:", error); // Debug log
       // Check if error starts with "401:" which is the format from the API
       if (error.message.startsWith("401:") || error.message.includes("Unauthorized")) {
         toast({
           title: "Authentication required",
-          description: "Redirecting to sign in...",
+          description: "Please sign in to continue",
           variant: "destructive",
         });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 1500);
+        navigate("/login");
       } else {
         toast({
           title: "Failed to create escrow",
@@ -776,7 +772,10 @@ export default function ListingDetail() {
                           </DialogHeader>
                           <GuestCheckoutAuth
                             ctaContext="Create a free account or sign in to chat with the seller."
-                            onAuthSuccess={() => { window.location.reload(); }}
+                            onAuthSuccess={async () => {
+                              await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+                              await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+                            }}
                           />
                         </DialogContent>
                       </Dialog>

@@ -715,11 +715,19 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   app.get('/api/escrows', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      // Only admins may request the full escrow list (admin=true).
+      // Non-admin users always get their own escrows only.
+      const wantsAll = req.query.admin === 'true';
+      if (wantsAll) {
+        const currentUser = await storage.getUser(userId);
+        if (!currentUser || currentUser.role !== 'ADMIN') {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+      }
       const filters = {
         status: req.query.status as string,
-        userId: req.query.admin === 'true' ? undefined : userId,
+        userId: wantsAll ? undefined : userId,
       };
-      
       const escrows = await storage.getEscrows(filters);
       res.json(escrows);
     } catch (error) {
@@ -728,11 +736,20 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  app.get('/api/escrows/:id', isAuthenticatedEnhanced, async (req, res) => {
+  app.get('/api/escrows/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const escrow = await storage.getEscrow(req.params.id);
       if (!escrow) {
         return res.status(404).json({ message: "Escrow not found" });
+      }
+      // Only the buyer, seller, or an admin may view an escrow.
+      const currentUser = await storage.getUser(userId);
+      const isAdmin = currentUser?.role === 'ADMIN';
+      const isBuyer = escrow.buyerId === userId;
+      const isSeller = escrow.sellerId === userId;
+      if (!isAdmin && !isBuyer && !isSeller) {
+        return res.status(403).json({ message: "Access denied" });
       }
       res.json(escrow);
     } catch (error) {
