@@ -190,6 +190,10 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "company_name" varchar`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "location" varchar`,
 
+    // ── users: Pi Network fields (FIX: missing columns cause Drizzle SELECT to fail → login/signup 500/401) ──
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "pi_uid" varchar`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "pi_username" varchar`,
+
     // ── account_type enum: add SHIPPING_AGENT value ────────────────────────────
     `DO $$ BEGIN ALTER TYPE "public"."account_type" ADD VALUE IF NOT EXISTS 'SHIPPING_AGENT'; EXCEPTION WHEN others THEN NULL; END $$`,
 
