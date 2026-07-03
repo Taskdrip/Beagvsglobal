@@ -123,10 +123,14 @@ export default function Signup() {
         description: "Account created with Pi Network.",
       });
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      // Full page reload (not client-side routing) so the new session cookie
+      // and auth cache are picked up before the router decides which routes exist.
       if (user.role === "ADMIN") {
-        setLocation("/admin");
+        window.location.href = "/admin";
+      } else if (user.isNewUser) {
+        window.location.href = "/onboarding";
       } else {
-        setLocation("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (error: any) {
       toast({

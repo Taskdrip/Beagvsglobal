@@ -352,12 +352,17 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const piUser = await getPiUser(accessToken);
 
       let user = await storage.getUserByPiUid(piUser.uid);
+      let isNewUser = false;
       if (!user) {
+        isNewUser = true;
         user = await storage.createUser({
           piUid: piUser.uid,
           piUsername: piUser.username || username,
           username: `pi_${piUser.username || piUser.uid}`.slice(0, 50),
-          accountType: 'BOTH',
+          // New Pi users haven't gone through the account-type picker that the
+          // regular signup form uses, so mark them for onboarding on the client
+          // instead of assuming an account type for them.
+          accountType: 'BUYER',
           role: 'USER',
         });
       } else if (piUser.username && piUser.username !== user.piUsername) {
@@ -365,6 +370,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       }
 
       const { passwordHash: _, ...publicUser } = user;
+      (publicUser as any).isNewUser = isNewUser;
 
       await new Promise<void>((resolve) => {
         (req as any).session.regenerate((regenErr: any) => {

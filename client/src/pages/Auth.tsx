@@ -139,14 +139,29 @@ export default function Auth() {
 
   const piAuthMutation = useMutation({
     mutationFn: async (piAuth: { accessToken: string; username?: string }) => {
-      await apiRequest("POST", "/api/auth/pi", piAuth);
+      const res = await apiRequest("POST", "/api/auth/pi", piAuth);
+      return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (user: any) => {
+      if (user.isNewUser) {
+        toast({
+          title: "Welcome!",
+          description: "Account created with Pi Network. Let's finish setting up your account.",
+        });
+        window.location.href = "/onboarding";
+        return;
+      }
       toast({
         title: "Welcome!",
         description: "Signed in with Pi Network. Redirecting to dashboard...",
       });
-      window.location.href = "/dashboard";
+      if (user.role === "ADMIN") {
+        window.location.href = "/admin";
+      } else if (user.role === "DELIVERY_AGENT") {
+        window.location.href = "/agent/dashboard";
+      } else {
+        window.location.href = "/dashboard";
+      }
     },
     onError: (error: any) => {
       toast({
