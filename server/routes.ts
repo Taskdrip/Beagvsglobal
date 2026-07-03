@@ -355,10 +355,19 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       let isNewUser = false;
       if (!user) {
         isNewUser = true;
+        const baseUsername = `pi_${piUser.username || piUser.uid}`.slice(0, 50);
+        let candidateUsername = baseUsername;
+        // Guard against a username collision (e.g. someone already has this
+        // handle) causing the very first Pi sign-up attempt to fail outright.
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const existing = await storage.getUserByUsername(candidateUsername);
+          if (!existing) break;
+          candidateUsername = `${baseUsername.slice(0, 44)}_${Math.random().toString(36).slice(2, 6)}`;
+        }
         user = await storage.createUser({
           piUid: piUser.uid,
           piUsername: piUser.username || username,
-          username: `pi_${piUser.username || piUser.uid}`.slice(0, 50),
+          username: candidateUsername,
           // New Pi users haven't gone through the account-type picker that the
           // regular signup form uses, so mark them for onboarding on the client
           // instead of assuming an account type for them.

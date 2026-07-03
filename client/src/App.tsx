@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import ChatWidget from "@/components/ChatWidget";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import { initPiSdk, isPiBrowser } from "@/lib/pi";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
@@ -119,6 +121,20 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    // Initialize the Pi SDK as early as possible (rather than lazily right
+    // before the user clicks "Sign in with Pi") so the native Pi Browser
+    // bridge has time to finish its handshake before authenticate() is ever
+    // called — this avoids the common "works on the 2nd click" failure.
+    if (isPiBrowser()) {
+      try {
+        initPiSdk();
+      } catch {
+        // Non-fatal — authenticateWithPi() will retry init on first use.
+      }
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
