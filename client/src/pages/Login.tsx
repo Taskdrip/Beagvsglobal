@@ -62,17 +62,19 @@ export default function Login() {
         description: "Signed in with Pi Network.",
       });
 
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      // Full page reload (not client-side routing) so the new session cookie
-      // and auth cache are picked up before the router decides which routes exist.
+      // Set auth cache directly so the router sees isAuthenticated = true
+      // immediately — no page reload, no race condition with session cookies.
+      const { isNewUser: _, ...cachedUser } = user;
+      queryClient.setQueryData(["/api/auth/user"], cachedUser);
+
       if (user.role === "ADMIN") {
-        window.location.href = "/admin";
+        setLocation("/admin");
       } else if (user.role === "DELIVERY_AGENT") {
-        window.location.href = "/agent/dashboard";
+        setLocation("/agent/dashboard");
       } else if (user.isNewUser) {
-        window.location.href = "/onboarding";
+        setLocation("/onboarding");
       } else {
-        window.location.href = "/dashboard";
+        setLocation("/dashboard");
       }
     } catch (error: any) {
       toast({

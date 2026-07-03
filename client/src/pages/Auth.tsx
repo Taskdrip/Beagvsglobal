@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Link, useLocation } from "wouter";
@@ -39,7 +39,7 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 type SignInFormData = z.infer<typeof signInSchema>;
 
 export default function Auth() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const isSignUp = location.includes("sign-up");
   const { toast } = useToast();
@@ -143,24 +143,29 @@ export default function Auth() {
       return await res.json();
     },
     onSuccess: (user: any) => {
+      // Push the authenticated user straight into the React Query cache so the
+      // router sees isAuthenticated = true immediately — no page reload needed.
+      const { isNewUser: _, ...cachedUser } = user;
+      queryClient.setQueryData(["/api/auth/user"], cachedUser);
+
       if (user.isNewUser) {
         toast({
           title: "Welcome!",
           description: "Account created with Pi Network. Let's finish setting up your account.",
         });
-        window.location.href = "/onboarding";
+        setLocation("/onboarding");
         return;
       }
       toast({
-        title: "Welcome!",
-        description: "Signed in with Pi Network. Redirecting to dashboard...",
+        title: "Welcome back!",
+        description: "Signed in with Pi Network.",
       });
       if (user.role === "ADMIN") {
-        window.location.href = "/admin";
+        setLocation("/admin");
       } else if (user.role === "DELIVERY_AGENT") {
-        window.location.href = "/agent/dashboard";
+        setLocation("/agent/dashboard");
       } else {
-        window.location.href = "/dashboard";
+        setLocation("/dashboard");
       }
     },
     onError: (error: any) => {

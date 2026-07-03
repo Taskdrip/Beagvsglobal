@@ -15,9 +15,9 @@ import {
   CheckCircle,
   ArrowRight,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 
 const ACCOUNT_TYPES = [
@@ -44,6 +44,7 @@ const ACCOUNT_TYPES = [
 export default function PiOnboarding() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
 
   // Form fields
   const [firstName, setFirstName] = useState("");
@@ -66,15 +67,24 @@ export default function PiOnboarding() {
       password: string;
       accountType: string;
     }) => {
-      return await apiRequest("PATCH", "/api/user/pi-profile", payload);
+      const res = await apiRequest("PATCH", "/api/user/pi-profile", payload);
+      return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (updatedUser: any) => {
       toast({
         title: "You're all set!",
         description: "Taking you to your dashboard…",
       });
-      // Full reload so the session + auth query pick up the updated user.
-      window.location.href = "/dashboard";
+      // Update the auth cache with the full updated profile so the router
+      // keeps the user authenticated without a page reload.
+      queryClient.setQueryData(["/api/auth/user"], updatedUser);
+
+      // Route to the appropriate dashboard based on chosen account type.
+      if (updatedUser.accountType === "SHIPPING_AGENT" || updatedUser.role === "DELIVERY_AGENT") {
+        setLocation("/agent/dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
     },
     onError: (error: any) => {
       toast({
