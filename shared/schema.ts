@@ -71,6 +71,9 @@ export const users = pgTable("users", {
   kycRejectedAt: timestamp("kyc_rejected_at"),
   kycRejectionReason: text("kyc_rejection_reason"),
   kycNotes: text("kyc_notes"),
+  // Pi Network authentication
+  piUid: varchar("pi_uid"),
+  piUsername: varchar("pi_username"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -142,6 +145,9 @@ export const escrows = pgTable("escrows", {
   shippingFee: decimal("shipping_fee", { precision: 18, scale: 4 }),
   shippingFeeCurrency: varchar("shipping_fee_currency").default('NGN'),
   shippingAgentId: varchar("shipping_agent_id").references(() => users.id, { onDelete: 'set null' }),
+  // Pi Network payment tracking (Pi SDK createPayment identifier + blockchain txid)
+  piPaymentId: varchar("pi_payment_id"),
+  piTxid: varchar("pi_txid"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

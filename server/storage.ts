@@ -74,6 +74,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByPiUid(piUid: string): Promise<User | undefined>;
   createUser(userData: any): Promise<User>;
   
   // Wallet operations
@@ -251,6 +252,11 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByPiUid(piUid: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.piUid, piUid));
     return user;
   }
 

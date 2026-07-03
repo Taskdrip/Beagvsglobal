@@ -19,6 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import CryptoIcon from "@/components/CryptoIcon";
 import GuestCheckoutAuth from "@/components/GuestCheckoutAuth";
+import { authenticateWithPi, createPiPayment, isPiBrowser } from "@/lib/pi";
 
 const NETWORK_LABELS: Record<string, string> = {
   PI_MAINNET: "Pi Network (Mainnet)",
@@ -87,6 +88,18 @@ function CountdownTimer({ seconds }: { seconds: number }) {
 
 // ─── Fee Breakdown Panel ──────────────────────────────────────────────────────
 
+export function computeShippingInfo(escrow: any, selectedShippingRate?: any) {
+  const savedShippingCost = parseFloat((escrow.metadata as any)?.shipping?.cost || escrow.shippingFee || "0");
+  const shippingFeeNGN = selectedShippingRate
+    ? parseFloat(selectedShippingRate.price || "0")
+    : savedShippingCost;
+  const shippingOption = selectedShippingRate?.option || (escrow.metadata as any)?.shipping?.option || escrow.shippingOption;
+  const hasShipping = shippingFeeNGN > 0 && shippingOption && shippingOption !== 'SELF_PICKUP';
+  const shippingCurrency = escrow.shippingFeeCurrency || 'NGN';
+  const sameCurrencyAsItem = hasShipping && shippingCurrency === escrow.currency;
+  return { shippingFeeNGN, shippingOption, hasShipping, shippingCurrency, sameCurrencyAsItem };
+}
+
 function FeeBreakdown({ escrow, isSeller, selectedShippingRate }: { escrow: any; isSeller?: boolean; selectedShippingRate?: any }) {
   const amount = parseFloat(escrow.amount || "0");
   const feePct = parseFloat(escrow.platformFeePct || "10");
@@ -95,12 +108,9 @@ function FeeBreakdown({ escrow, isSeller, selectedShippingRate }: { escrow: any;
   const sellerReceives = amount - feeAmount;
 
   // Shipping fee — from selected rate (live) or already-saved on escrow metadata
-  const savedShippingCost = parseFloat((escrow.metadata as any)?.shipping?.cost || escrow.shippingFee || "0");
-  const shippingFeeNGN = selectedShippingRate
-    ? parseFloat(selectedShippingRate.price || "0")
-    : savedShippingCost;
-  const shippingOption = selectedShippingRate?.option || (escrow.metadata as any)?.shipping?.option || escrow.shippingOption;
-  const hasShipping = shippingFeeNGN > 0 && shippingOption && shippingOption !== 'SELF_PICKUP';
+  const { shippingFeeNGN, hasShipping, sameCurrencyAsItem } = computeShippingInfo(escrow, selectedShippingRate);
+  // Buyer total = item price + shipping fee (summed when they share the same currency)
+  const buyerTotal = sameCurrencyAsItem ? amount + shippingFeeNGN : amount;
 
   return (
     <div className="space-y-2.5">
@@ -135,24 +145,35 @@ function FeeBreakdown({ escrow, isSeller, selectedShippingRate }: { escrow: any;
 
       <Separator />
 
-      {/* Buyer total — item price + shipping fee */}
+      {/* Buyer total — item price + shipping fee, summed when in the same currency */}
       <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 space-y-1.5">
         <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide flex items-center gap-1.5">
           <User className="w-3.5 h-3.5" /> Buyer Total
         </p>
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-blue-700">Crypto Payment</span>
-          <div className="flex items-center gap-1 font-bold text-blue-800 text-base">
-            {amount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
-          </div>
-        </div>
-        {hasShipping && (
+        {sameCurrencyAsItem ? (
           <div className="flex justify-between items-center">
-            <span className="text-sm text-blue-700 flex items-center gap-1.5">
-              <Truck className="w-3.5 h-3.5" /> Shipping Fee (NGN)
-            </span>
-            <span className="font-bold text-blue-800 text-base">₦{shippingFeeNGN.toLocaleString()}</span>
+            <span className="text-sm text-blue-700">Total to Pay</span>
+            <div className="flex items-center gap-1 font-bold text-blue-800 text-base">
+              {buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
+            </div>
           </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-blue-700">Crypto Payment</span>
+              <div className="flex items-center gap-1 font-bold text-blue-800 text-base">
+                {amount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
+              </div>
+            </div>
+            {hasShipping && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-blue-700 flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5" /> Shipping Fee (NGN, paid separately)
+                </span>
+                <span className="font-bold text-blue-800 text-base">₦{shippingFeeNGN.toLocaleString()}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -297,6 +318,86 @@ export default function Checkout() {
     },
   });
 
+  const [piPaying, setPiPaying] = useState(false);
+
+  const piCompleteMutation = useMutation({
+    mutationFn: async ({ paymentId, txid }: { paymentId: string; txid: string }) => {
+      const res = await apiRequest("POST", "/api/pi/complete", { paymentId, txid, escrowId });
+      return res.json();
+    },
+    onSuccess: async () => {
+      setPiPaying(false);
+      setPaymentConfirmed(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/escrows", escrowId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
+      try {
+        const threadRes = await apiRequest("POST", "/api/chat/threads", {
+          listingId: escrow?.listingId,
+          sellerId: escrow?.sellerId,
+          escrowId: escrowId,
+        });
+        const thread = await threadRes.json();
+        if (thread?.id) setChatThreadId(thread.id);
+      } catch { /* non-fatal */ }
+      toast({ title: "Payment received!", description: "Your Pi payment was confirmed on-chain. Funds are now held in escrow." });
+    },
+    onError: (error: any) => {
+      setPiPaying(false);
+      toast({ title: "Payment failed to finalize", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handlePayWithPi = async () => {
+    if (!isPiBrowser()) {
+      toast({
+        title: "Open in Pi Browser",
+        description: "Pi payments can only be completed inside the Pi Browser app. Open this page there to pay.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setPiPaying(true);
+    try {
+      await authenticateWithPi(async (incompletePayment: any) => {
+        // Reconcile any prior incomplete payment before starting a new one
+        try {
+          await apiRequest("POST", "/api/pi/incomplete", { paymentId: incompletePayment.identifier });
+        } catch { /* non-fatal */ }
+      });
+
+      createPiPayment(
+        buyerTotal,
+        `Beagvs Global — Escrow ${escrowId?.slice(0, 8)}`,
+        { escrowId },
+        {
+          onReadyForServerApproval: async (paymentId: string) => {
+            try {
+              await apiRequest("POST", "/api/pi/approve", { paymentId, escrowId });
+            } catch (e: any) {
+              setPiPaying(false);
+              toast({ title: "Approval failed", description: e.message, variant: "destructive" });
+            }
+          },
+          onReadyForServerCompletion: (paymentId: string, txid: string) => {
+            piCompleteMutation.mutate({ paymentId, txid });
+          },
+          onCancel: async (paymentId: string) => {
+            setPiPaying(false);
+            try { await apiRequest("POST", "/api/pi/cancel", { paymentId }); } catch { /* non-fatal */ }
+            toast({ title: "Payment cancelled" });
+          },
+          onError: (error: Error) => {
+            setPiPaying(false);
+            toast({ title: "Pi payment error", description: error.message, variant: "destructive" });
+          },
+        }
+      );
+    } catch (e: any) {
+      setPiPaying(false);
+      toast({ title: "Pi authentication failed", description: e.message, variant: "destructive" });
+    }
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast({ title: "Copied!", description: `${label} copied to clipboard` });
@@ -404,6 +505,9 @@ export default function Checkout() {
   const feePct = parseFloat(escrow.platformFeePct || "10");
   const feeAmount = amount * (feePct / 100);
   const sellerReceives = amount - feeAmount;
+  const { shippingFeeNGN, sameCurrencyAsItem } = computeShippingInfo(escrow);
+  // Buyer total = item price + shipping fee when they share the same currency
+  const buyerTotal = sameCurrencyAsItem ? amount + shippingFeeNGN : amount;
 
   // ─── Status-aware screens (when returning to an existing escrow) ───────────
 
@@ -425,7 +529,7 @@ export default function Checkout() {
 
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
-                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Amount", value: `${buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${escrow.currency}` },
                   { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
                   { label: "Status", value: "Under Review" },
                 ].map(({ label, value }) => (
@@ -495,7 +599,7 @@ export default function Checkout() {
 
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
-                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Amount", value: `${buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${escrow.currency}` },
                   { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
                   { label: "Status", value: "Active" },
                 ].map(({ label, value }) => (
@@ -558,7 +662,7 @@ export default function Checkout() {
 
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
-                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Amount", value: `${buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${escrow.currency}` },
                   { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
                   { label: "Status", value: "Shipped" },
                 ].map(({ label, value }) => (
@@ -685,7 +789,7 @@ export default function Checkout() {
 
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
-                  { label: "Amount", value: `${amount.toLocaleString()} ${escrow.currency}` },
+                  { label: "Amount", value: `${buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${escrow.currency}` },
                   { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
                   { label: "Status", value: "Under Review" },
                 ].map(({ label, value }) => (
@@ -847,7 +951,7 @@ export default function Checkout() {
                 <div className="flex justify-between text-sm">
                   <span className="text-blue-600">{escrow.listing?.title || "Item"}</span>
                   <span className="font-bold text-blue-800 flex items-center gap-1">
-                    {amount.toLocaleString()} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
+                    {buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs text-blue-500">
@@ -1115,7 +1219,7 @@ export default function Checkout() {
             <div className="bg-blue-600 text-white rounded-xl p-4 mb-4 text-center">
               <p className="text-xs text-blue-200 mb-1">Send exactly this amount</p>
               <p className="text-3xl font-bold tabular-nums">
-                {amount.toLocaleString(undefined, { maximumFractionDigits: 8 })}
+                {buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })}
               </p>
               <p className="text-blue-200 text-sm mt-0.5 flex items-center justify-center gap-1">
                 <CryptoIcon currency={escrow.currency} showLabel={false} size="sm" /> {escrow.currency}
@@ -1174,6 +1278,45 @@ export default function Checkout() {
                   </div>
                 </div>
               )
+            ) : escrow.currency === "PI" ? (
+              /* ── Pi Network (native SDK payment) ─────────────────────────── */
+              <div className="space-y-3">
+                {isBuyer ? (
+                  <>
+                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-start gap-3">
+                      <img src="https://minepi.com/favicon.ico" alt="Pi" className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-purple-900">Pay directly with your Pi wallet</p>
+                        <p className="text-xs text-purple-700 mt-0.5">
+                          Tap the button below to open your Pi Wallet and confirm the payment. Funds are verified on the Pi blockchain and released to escrow automatically — no manual review needed.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      className="w-full bg-purple-600 hover:bg-purple-700 font-semibold"
+                      onClick={handlePayWithPi}
+                      disabled={piPaying || piCompleteMutation.isPending}
+                      data-testid="button-pay-with-pi"
+                    >
+                      {piPaying || piCompleteMutation.isPending ? (
+                        <span className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Processing Pi Payment…</span>
+                      ) : (
+                        <span className="flex items-center gap-2"><Wallet className="w-4 h-4" />Pay {buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} π with Pi</span>
+                      )}
+                    </Button>
+                    {!isPiBrowser() && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
+                        <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-700">Open this checkout page inside the <strong>Pi Browser</strong> app to complete a Pi payment.</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <p className="text-sm text-slate-600">Waiting for the buyer to complete payment via their Pi Wallet.</p>
+                  </div>
+                )}
+              </div>
             ) : (
               /* ── Crypto ────────────────────────────────────────────────── */
               platformWallet ? (
@@ -1202,7 +1345,7 @@ export default function Checkout() {
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
                     <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-700">
-                      Send <strong>exactly</strong> {amount.toLocaleString(undefined, { maximumFractionDigits: 8 })} {escrow.currency} on the <strong>{NETWORK_LABELS[escrow.network] || escrow.network}</strong> network. Sending to the wrong network may result in permanent loss of funds.
+                      Send <strong>exactly</strong> {buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} {escrow.currency} on the <strong>{NETWORK_LABELS[escrow.network] || escrow.network}</strong> network. Sending to the wrong network may result in permanent loss of funds.
                     </p>
                   </div>
                 </div>
@@ -1229,7 +1372,7 @@ export default function Checkout() {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-purple-600">Buyer Sends</span>
-                  <span className="font-medium text-purple-800">{amount.toLocaleString()} {escrow.currency}</span>
+                  <span className="font-medium text-purple-800">{buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} {escrow.currency}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-purple-600">Platform Fee ({feePct}%)</span>

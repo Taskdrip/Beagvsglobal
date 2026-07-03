@@ -12,6 +12,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { isPiBrowser, authenticateWithPi } from "@/lib/pi";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -33,6 +34,52 @@ export default function Login() {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
+
+  const [isPiLoading, setIsPiLoading] = useState(false);
+
+  const handlePiAuth = async () => {
+    if (!isPiBrowser()) {
+      toast({
+        title: "Pi Browser required",
+        description: "Open Beagvs Global inside the Pi Browser app to sign in with Pi Network.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsPiLoading(true);
+    try {
+      const auth = await authenticateWithPi(() => {
+        // Incomplete payment found — reconciled on next payment attempt.
+      });
+      const res = await apiRequest("POST", "/api/auth/pi", {
+        accessToken: auth.accessToken,
+        username: auth.user?.username,
+      });
+      const user = await res.json();
+
+      toast({
+        title: "Welcome!",
+        description: "Signed in with Pi Network.",
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      if (user.role === "ADMIN") {
+        setLocation("/admin");
+      } else if (user.role === "DELIVERY_AGENT") {
+        setLocation("/agent/dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Pi sign-in failed",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPiLoading(false);
+    }
+  };
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
@@ -134,6 +181,25 @@ export default function Login() {
             </form>
 
             <div className="mt-6 text-center space-y-4">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handlePiAuth}
+                disabled={isPiLoading}
+                className="w-full bg-purple-700 hover:bg-purple-800 text-white"
+                data-testid="button-pi-auth"
+              >
+                {isPiLoading ? "Connecting to Pi Network..." : "π Sign In with Pi Network"}
+              </Button>
+
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-gray-300" />

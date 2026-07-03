@@ -1454,6 +1454,7 @@ export default function Admin() {
   const [editingEscrowTracking, setEditingEscrowTracking] = useState<string | null>(null);
   const [trackingValues, setTrackingValues] = useState<Record<string, any>>({});
   const [escrowStatusFilter, setEscrowStatusFilter] = useState<string>("ALL");
+  const [escrowSearchTerm, setEscrowSearchTerm] = useState<string>("");
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [resetPasswordTarget, setResetPasswordTarget] = useState<any>(null);
   const [newTempPassword, setNewTempPassword] = useState("");
@@ -1972,6 +1973,14 @@ export default function Admin() {
                     All Escrow Transactions
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="text"
+                      value={escrowSearchTerm}
+                      onChange={e => setEscrowSearchTerm(e.target.value)}
+                      placeholder="Search by ID, buyer, seller, or listing..."
+                      className="border rounded-lg px-3 py-1.5 text-sm bg-white w-64"
+                      data-testid="input-escrow-search"
+                    />
                     <select
                       value={escrowStatusFilter}
                       onChange={e => setEscrowStatusFilter(e.target.value)}
@@ -1992,15 +2001,72 @@ export default function Admin() {
                     <Button size="sm" variant="outline" onClick={() => refetchEscrows()} data-testid="button-refresh-escrows">
                       <RefreshCw className="w-4 h-4 mr-1" /> Refresh
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const rows = (escrows || []).map((e: any) => {
+                          const itemAmount = parseFloat(e.amount || "0");
+                          const shipFee = parseFloat(e.shippingFee || (e.metadata as any)?.shipping?.cost || "0");
+                          const shipCurrency = e.shippingFeeCurrency || 'NGN';
+                          const sameCurrency = shipFee > 0 && shipCurrency === e.currency;
+                          const total = sameCurrency ? itemAmount + shipFee : itemAmount;
+                          return {
+                            id: e.id,
+                            status: e.status,
+                            listing: e.listing?.title || "",
+                            buyer: e.buyer?.username || e.buyerId,
+                            seller: e.seller?.username || e.sellerId,
+                            amount: itemAmount,
+                            shippingFee: shipFee,
+                            shippingCurrency: shipCurrency,
+                            total,
+                            currency: e.currency,
+                            network: e.network,
+                            platformFeeAmount: e.platformFeeAmount || "",
+                            sellerNetAmount: e.sellerNetAmount || "",
+                            piPaymentId: e.piPaymentId || "",
+                            piTxid: e.piTxid || "",
+                            createdAt: e.createdAt,
+                            updatedAt: e.updatedAt,
+                          };
+                        });
+                        const headers = Object.keys(rows[0] || { id: "" });
+                        const csv = [
+                          headers.join(","),
+                          ...rows.map((r: any) => headers.map(h => `"${String(r[h] ?? "").replace(/"/g, '""')}"`).join(",")),
+                        ].join("\n");
+                        const blob = new Blob([csv], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `escrows-export-${new Date().toISOString().slice(0, 10)}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      disabled={!escrows || escrows.length === 0}
+                      data-testid="button-export-escrows"
+                    >
+                      ⬇ Export CSV
+                    </Button>
                     <span className="text-xs text-slate-400">Auto-refreshes every 15s</span>
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {escrows && escrows.length > 0 ? (() => {
-                  const filtered = escrowStatusFilter === "ALL" ? escrows : escrows.filter((e: any) => e.status === escrowStatusFilter);
+                  const term = escrowSearchTerm.trim().toLowerCase();
+                  const filtered = escrows
+                    .filter((e: any) => escrowStatusFilter === "ALL" || e.status === escrowStatusFilter)
+                    .filter((e: any) => {
+                      if (!term) return true;
+                      return [
+                        e.id, e.listing?.title, e.buyer?.username, e.buyer?.firstName,
+                        e.seller?.username, e.seller?.firstName, e.buyerId, e.sellerId,
+                      ].some(field => field && String(field).toLowerCase().includes(term));
+                    });
                   return filtered.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400">No transactions with status "{escrowStatusFilter}"</div>
+                    <div className="text-center py-8 text-slate-400">No transactions match your filters.</div>
                   ) : (
                     <div className="space-y-4">
                       {filtered.map((escrow: any) => {
@@ -2022,10 +2088,23 @@ export default function Admin() {
                                   </p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-lg font-bold text-slate-900">{escrow.amount} {escrow.currency}</p>
-                                  {escrow.shippingCost && parseFloat(escrow.shippingCost) > 0 && (
-                                    <p className="text-xs text-slate-500">incl. shipping: {escrow.shippingCost} NGN</p>
-                                  )}
+                                  {(() => {
+                                    const itemAmount = parseFloat(escrow.amount || "0");
+                                    const shipFee = parseFloat(escrow.shippingFee || (escrow.metadata as any)?.shipping?.cost || "0");
+                                    const shipCurrency = escrow.shippingFeeCurrency || 'NGN';
+                                    const sameCurrency = shipFee > 0 && shipCurrency === escrow.currency;
+                                    const total = sameCurrency ? itemAmount + shipFee : itemAmount;
+                                    return (
+                                      <>
+                                        <p className="text-lg font-bold text-slate-900">{total.toLocaleString(undefined, { maximumFractionDigits: 8 })} {escrow.currency}</p>
+                                        {shipFee > 0 && (
+                                          <p className="text-xs text-slate-500">
+                                            {sameCurrency ? `(incl. shipping: ${shipFee.toLocaleString()} ${shipCurrency})` : `+ shipping: ${shipFee.toLocaleString()} ${shipCurrency} (separate)`}
+                                          </p>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                   <p className="text-xs text-slate-400">{escrow.network} · {new Date(escrow.createdAt).toLocaleDateString()}</p>
                                 </div>
                               </div>
@@ -2076,7 +2155,7 @@ export default function Admin() {
                                     ✓ Mark Delivered
                                   </Button>
                                 )}
-                                {['DELIVERED', 'FUNDED'].includes(escrow.status) && (
+                                {['DELIVERED', 'FUNDED', 'SHIPPED'].includes(escrow.status) && (
                                   <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleEscrowAction(escrow, 'RELEASED')} data-testid={`button-release-${escrow.id}`}>
                                     💰 Release Funds
                                   </Button>

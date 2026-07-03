@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { isPiBrowser, authenticateWithPi } from "@/lib/pi";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import {
@@ -90,11 +91,53 @@ const ACCOUNT_TYPES = [
 
 export default function Signup() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPiLoading, setIsPiLoading] = useState(false);
   const [selectedAccountType, setSelectedAccountType] = useState<string>("");
   const [selectedAgentType, setSelectedAgentType] = useState<string>("");
+
+  const handlePiAuth = async () => {
+    if (!isPiBrowser()) {
+      toast({
+        title: "Pi Browser required",
+        description: "Open Beagvs Global inside the Pi Browser app to sign up with Pi Network.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsPiLoading(true);
+    try {
+      const auth = await authenticateWithPi(() => {
+        // Incomplete payment found — reconciled on next payment attempt.
+      });
+      const res = await apiRequest("POST", "/api/auth/pi", {
+        accessToken: auth.accessToken,
+        username: auth.user?.username,
+      });
+      const user = await res.json();
+      toast({
+        title: "Welcome!",
+        description: "Account created with Pi Network.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      if (user.role === "ADMIN") {
+        setLocation("/admin");
+      } else {
+        setLocation("/dashboard");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Pi sign-up failed",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPiLoading(false);
+    }
+  };
 
   const {
     register,
@@ -392,12 +435,31 @@ export default function Signup() {
                   <div className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handlePiAuth}
+                disabled={isPiLoading}
+                className="w-full bg-purple-700 hover:bg-purple-800 text-white"
+                data-testid="button-pi-auth"
+              >
+                {isPiLoading ? "Connecting to Pi Network..." : "π Sign Up with Pi Network"}
+              </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
                   <span className="px-2 bg-white text-gray-500">Already have an account?</span>
                 </div>
               </div>
-              <a href="/api/login">
+              <Link href="/login">
                 <Button variant="outline" className="w-full" data-testid="link-login">Sign In Instead</Button>
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>

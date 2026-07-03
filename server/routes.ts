@@ -11,6 +11,7 @@ import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
 import { saveImage, serveStoredImage } from "./imageStorage";
+import { getPiUser, approvePiPayment, completePiPayment, cancelPiPayment, getPiPayment } from "./pi";
 
 export async function registerRoutes(app: Express, existingServer?: HttpServer): Promise<Server> {
   // Auth middleware
@@ -334,6 +335,156 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   });
 
   // (duplicate login route removed)
+
+  // ---------------------------------------------------------------------
+  // Pi Network authentication & payments
+  // ---------------------------------------------------------------------
+
+  // Verify a Pi SDK access token, then find-or-create a Beagvs user linked
+  // to that Pi account and log them in via session (same pattern as email/password login).
+  app.post('/api/auth/pi', async (req, res) => {
+    try {
+      const { accessToken, username } = req.body;
+      if (!accessToken) {
+        return res.status(400).json({ message: "Missing Pi access token" });
+      }
+
+      const piUser = await getPiUser(accessToken);
+
+      let user = await storage.getUserByPiUid(piUser.uid);
+      if (!user) {
+        user = await storage.createUser({
+          piUid: piUser.uid,
+          piUsername: piUser.username || username,
+          username: `pi_${piUser.username || piUser.uid}`.slice(0, 50),
+          accountType: 'BOTH',
+          role: 'USER',
+        });
+      } else if (piUser.username && piUser.username !== user.piUsername) {
+        user = await storage.updateUser(user.id, { piUsername: piUser.username });
+      }
+
+      const { passwordHash: _, ...publicUser } = user;
+
+      await new Promise<void>((resolve) => {
+        (req as any).session.regenerate((regenErr: any) => {
+          if (regenErr) {
+            console.error('[pi-login] session.regenerate error (non-fatal):', regenErr);
+            return resolve();
+          }
+          (req as any).session.userId = user!.id;
+          (req as any).session.isCustomAuth = true;
+          (req as any).session.save((saveErr: any) => {
+            if (saveErr) console.error('[pi-login] session.save error (non-fatal):', saveErr);
+            resolve();
+          });
+        });
+      });
+
+      res.json(publicUser);
+    } catch (error: any) {
+      console.error("Pi auth error:", error);
+      res.status(401).json({ message: error.message || "Pi authentication failed" });
+    }
+  });
+
+  // Called from the client's onReadyForServerApproval callback.
+  // Approves the Pi payment on the Pi Platform so the user can confirm it in their wallet.
+  app.post('/api/pi/approve', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { paymentId, escrowId } = req.body;
+      if (!paymentId || !escrowId) {
+        return res.status(400).json({ message: "paymentId and escrowId are required" });
+      }
+
+      const escrow = await storage.getEscrow(escrowId);
+      if (!escrow || escrow.buyerId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Not authorized for this escrow" });
+      }
+
+      await approvePiPayment(paymentId);
+      await storage.updateEscrow(escrowId, { piPaymentId: paymentId } as any);
+
+      res.json({ status: "approved" });
+    } catch (error: any) {
+      console.error("Pi payment approval error:", error);
+      res.status(500).json({ message: error.message || "Failed to approve Pi payment" });
+    }
+  });
+
+  // Called from the client's onReadyForServerCompletion callback once the user
+  // has approved and blockchain-submitted the payment (txid available).
+  app.post('/api/pi/complete', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { paymentId, txid, escrowId } = req.body;
+      if (!paymentId || !txid || !escrowId) {
+        return res.status(400).json({ message: "paymentId, txid and escrowId are required" });
+      }
+
+      const escrow = await storage.getEscrow(escrowId);
+      if (!escrow || escrow.buyerId !== req.user.claims.sub) {
+        return res.status(403).json({ message: "Not authorized for this escrow" });
+      }
+
+      await completePiPayment(paymentId, txid);
+
+      // A completed Pi payment is verified on the blockchain by the Pi Platform,
+      // so we move the escrow straight to FUNDED (skipping manual admin review).
+      const updated = await storage.updateEscrow(escrowId, {
+        piPaymentId: paymentId,
+        piTxid: txid,
+        buyerTxHash: txid,
+        status: 'FUNDED',
+        paymentSubmittedAt: new Date(),
+      } as any);
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Pi payment completion error:", error);
+      res.status(500).json({ message: error.message || "Failed to complete Pi payment" });
+    }
+  });
+
+  // Called from the client's onCancel / onError callbacks so we can clean up server state.
+  app.post('/api/pi/cancel', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { paymentId } = req.body;
+      if (paymentId) {
+        try { await cancelPiPayment(paymentId); } catch { /* payment may not exist server-side yet */ }
+      }
+      res.json({ status: "cancelled" });
+    } catch (error: any) {
+      console.error("Pi payment cancel error:", error);
+      res.status(500).json({ message: error.message || "Failed to cancel Pi payment" });
+    }
+  });
+
+  // Reconciliation endpoint for incomplete payments Pi reports on app re-open.
+  app.post('/api/pi/incomplete', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const { paymentId } = req.body;
+      if (!paymentId) return res.status(400).json({ message: "paymentId is required" });
+      const payment = await getPiPayment(paymentId);
+      const escrowId = payment?.metadata?.escrowId;
+      if (escrowId && payment?.transaction?.txid) {
+        const escrow = await storage.getEscrow(escrowId);
+        if (escrow && escrow.buyerId === req.user.claims.sub && escrow.status === 'CREATED') {
+          await completePiPayment(paymentId, payment.transaction.txid);
+          await storage.updateEscrow(escrowId, {
+            piPaymentId: paymentId,
+            piTxid: payment.transaction.txid,
+            buyerTxHash: payment.transaction.txid,
+            status: 'FUNDED',
+            paymentSubmittedAt: new Date(),
+          } as any);
+        }
+      }
+      res.json({ status: "reconciled" });
+    } catch (error: any) {
+      console.error("Pi payment reconciliation error:", error);
+      res.status(500).json({ message: error.message || "Failed to reconcile Pi payment" });
+    }
+  });
 
   // Wallet routes
   app.get('/api/wallets', isAuthenticatedEnhanced, async (req: any, res) => {

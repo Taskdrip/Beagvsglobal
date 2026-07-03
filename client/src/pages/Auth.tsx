@@ -15,6 +15,7 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Link, useLocation } from "wouter";
 import { Globe, Eye, EyeOff } from "lucide-react";
+import { isPiBrowser, authenticateWithPi } from "@/lib/pi";
 
 const signUpSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -134,6 +135,49 @@ export default function Auth() {
 
   const handleReplitAuth = () => {
     window.location.href = "/api/login";
+  };
+
+  const piAuthMutation = useMutation({
+    mutationFn: async (piAuth: { accessToken: string; username?: string }) => {
+      await apiRequest("POST", "/api/auth/pi", piAuth);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Welcome!",
+        description: "Signed in with Pi Network. Redirecting to dashboard...",
+      });
+      window.location.href = "/dashboard";
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Pi sign-in failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handlePiAuth = async () => {
+    if (!isPiBrowser()) {
+      toast({
+        title: "Pi Browser required",
+        description: "Open Beagvs Global inside the Pi Browser app to sign in with Pi Network.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const auth = await authenticateWithPi(() => {
+        // Incomplete payment found — server routes handle reconciliation on next payment attempt.
+      });
+      piAuthMutation.mutate({ accessToken: auth.accessToken, username: auth.user?.username });
+    } catch (error: any) {
+      toast({
+        title: "Pi sign-in failed",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -416,6 +460,25 @@ export default function Auth() {
                   </Button>
                 </form>
               )}
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-slate-medium">Or continue with</span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handlePiAuth}
+                disabled={piAuthMutation.isPending}
+                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-semibold"
+                data-testid="button-pi-auth"
+              >
+                {piAuthMutation.isPending ? "Connecting to Pi Network..." : `π ${isSignUp ? "Sign Up" : "Sign In"} with Pi Network`}
+              </Button>
               
               <div className="mt-6 text-center">
                 <p className="text-sm text-slate-medium">
