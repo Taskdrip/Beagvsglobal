@@ -62,6 +62,13 @@ app.use((req, res, next) => {
 // Serve uploaded images statically in both dev and prod
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
+// Domain ownership validation file for beagvsmarine.com
+app.get("/validation-key.txt", (_req, res) => {
+  res.type("text/plain").send(
+    "07a40662891f6d8a782a5172249bed8f5c38d308fb9bdbe680f6a077a1ce5681ad85052666b719850360a44bca0be70eb836d183bfce0a29e24d0f5d59857f0b",
+  );
+});
+
 // Health check endpoints — available immediately before any async setup
 // Covers both /health and /api/health for Railway and other platforms
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
