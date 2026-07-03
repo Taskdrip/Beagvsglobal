@@ -145,6 +145,9 @@ export const escrows = pgTable("escrows", {
   shippingFee: decimal("shipping_fee", { precision: 18, scale: 4 }),
   shippingFeeCurrency: varchar("shipping_fee_currency").default('NGN'),
   shippingAgentId: varchar("shipping_agent_id").references(() => users.id, { onDelete: 'set null' }),
+  // Shipping fee split: 75% payable to the assigned shipping agent, 25% retained by the platform (admin escrow).
+  shippingAgentFeeAmount: decimal("shipping_agent_fee_amount", { precision: 18, scale: 4 }),
+  adminShippingFeeAmount: decimal("admin_shipping_fee_amount", { precision: 18, scale: 4 }),
   // Pi Network payment tracking (Pi SDK createPayment identifier + blockchain txid)
   piPaymentId: varchar("pi_payment_id"),
   piTxid: varchar("pi_txid"),
