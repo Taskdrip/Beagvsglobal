@@ -145,17 +145,20 @@ export default function Auth() {
     onSuccess: (user: any) => {
       // Push the authenticated user straight into the React Query cache so the
       // router sees isAuthenticated = true immediately — no page reload needed.
-      const { isNewUser: _, ...cachedUser } = user;
+      const { needsOnboarding: _, ...cachedUser } = user;
       queryClient.setQueryData(["/api/auth/user"], cachedUser);
 
-      if (user.isNewUser) {
+      if (user.needsOnboarding) {
+        // New Pi user OR returning user who quit mid-onboarding — complete profile first.
         toast({
           title: "Welcome!",
-          description: "Account created with Pi Network. Let's finish setting up your account.",
+          description: "Let's finish setting up your account.",
         });
         setLocation("/onboarding");
         return;
       }
+
+      // Returning Pi user with a completed profile.
       toast({
         title: "Welcome back!",
         description: "Signed in with Pi Network.",
@@ -165,6 +168,7 @@ export default function Auth() {
       } else if (user.role === "DELIVERY_AGENT") {
         setLocation("/agent/dashboard");
       } else {
+        // BUYER, SELLER, BOTH — all use the unified dashboard.
         setLocation("/dashboard");
       }
     },

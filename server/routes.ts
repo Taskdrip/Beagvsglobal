@@ -379,7 +379,13 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       }
 
       const { passwordHash: _, ...publicUser } = user;
-      (publicUser as any).isNewUser = isNewUser;
+
+      // needsOnboarding is true when:
+      //  (a) the user row was just created (brand-new Pi sign-up), OR
+      //  (b) the user exists but hasn't finished the onboarding form yet
+      //      (no firstName or no passwordHash means they quit halfway through)
+      const needsOnboarding = isNewUser || !user.firstName || !user.passwordHash;
+      (publicUser as any).needsOnboarding = needsOnboarding;
 
       // Persist the session.  We skip session.regenerate() here because it can
       // fail in environments where the session store doesn't support regeneration

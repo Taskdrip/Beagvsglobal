@@ -118,19 +118,28 @@ export default function Signup() {
         username: auth.user?.username,
       });
       const user = await res.json();
+
+      // Set auth cache directly — no page reload, no race with session cookies.
+      const { needsOnboarding: _, ...cachedUser } = user;
+      queryClient.setQueryData(["/api/auth/user"], cachedUser);
+
       toast({
         title: "Welcome!",
-        description: "Account created with Pi Network.",
+        description: user.needsOnboarding
+          ? "Let's finish setting up your account."
+          : "Signed in with Pi Network.",
       });
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      // Full page reload (not client-side routing) so the new session cookie
-      // and auth cache are picked up before the router decides which routes exist.
+
       if (user.role === "ADMIN") {
-        window.location.href = "/admin";
-      } else if (user.isNewUser) {
-        window.location.href = "/onboarding";
+        setLocation("/admin");
+      } else if (user.role === "DELIVERY_AGENT") {
+        setLocation("/agent/dashboard");
+      } else if (user.needsOnboarding) {
+        // New Pi user OR returning user who quit mid-onboarding.
+        setLocation("/onboarding");
       } else {
-        window.location.href = "/dashboard";
+        // Fully onboarded user — route to their dashboard.
+        setLocation("/dashboard");
       }
     } catch (error: any) {
       toast({

@@ -64,16 +64,19 @@ export default function Login() {
 
       // Set auth cache directly so the router sees isAuthenticated = true
       // immediately — no page reload, no race condition with session cookies.
-      const { isNewUser: _, ...cachedUser } = user;
+      const { needsOnboarding: _, ...cachedUser } = user;
       queryClient.setQueryData(["/api/auth/user"], cachedUser);
 
       if (user.role === "ADMIN") {
         setLocation("/admin");
       } else if (user.role === "DELIVERY_AGENT") {
         setLocation("/agent/dashboard");
-      } else if (user.isNewUser) {
+      } else if (user.needsOnboarding) {
+        // New Pi user OR returning Pi user who quit before finishing the
+        // onboarding form — send them back to complete their profile.
         setLocation("/onboarding");
       } else {
+        // Returning Pi user with a completed profile — route by account type.
         setLocation("/dashboard");
       }
     } catch (error: any) {
