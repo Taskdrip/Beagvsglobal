@@ -206,8 +206,8 @@ function AdminSecurityTab({ adminUser }: { adminUser: any }) {
               <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">ADMIN</span>
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-slate-500">Default Credentials</span>
-              <code className="text-xs bg-slate-100 px-2 py-1 rounded">admin@beagvsglobal.com / Admin@2025!</code>
+              <span className="text-slate-500">Email</span>
+              <span className="text-sm font-medium">{adminUser?.email}</span>
             </div>
           </div>
         </CardContent>

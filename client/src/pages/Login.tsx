@@ -221,13 +221,6 @@ export default function Login() {
                 </Button>
               </Link>
 
-              <div className="pt-2 border-t border-gray-100">
-                <Link href="/admin/login">
-                  <span className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer transition-colors" data-testid="link-admin-login">
-                    Admin Portal →
-                  </span>
-                </Link>
-              </div>
             </div>
           </CardContent>
         </Card>

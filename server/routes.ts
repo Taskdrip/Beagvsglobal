@@ -381,18 +381,23 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const { passwordHash: _, ...publicUser } = user;
       (publicUser as any).isNewUser = isNewUser;
 
-      await new Promise<void>((resolve) => {
-        (req as any).session.regenerate((regenErr: any) => {
-          if (regenErr) {
-            console.error('[pi-login] session.regenerate error (non-fatal):', regenErr);
-            return resolve();
-          }
-          (req as any).session.userId = user!.id;
-          (req as any).session.isCustomAuth = true;
-          (req as any).session.save((saveErr: any) => {
-            if (saveErr) console.error('[pi-login] session.save error (non-fatal):', saveErr);
+      // Persist the session.  We skip session.regenerate() here because it can
+      // fail in environments where the session store doesn't support regeneration
+      // (e.g. MemoryStore under certain race conditions), and a failed regenerate
+      // silently leaves the session without userId — the next auth check then
+      // returns 401 and kicks the user back to the login page.
+      // Directly writing to the existing session and saving is simpler and more
+      // reliable; the regeneration security-hardening can be added separately.
+      (req as any).session.userId = user!.id;
+      (req as any).session.isCustomAuth = true;
+      await new Promise<void>((resolve, reject) => {
+        (req as any).session.save((saveErr: any) => {
+          if (saveErr) {
+            console.error('[pi-login] session.save error:', saveErr);
+            reject(new Error('Session could not be saved. Please try again.'));
+          } else {
             resolve();
-          });
+          }
         });
       });
 

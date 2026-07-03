@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -44,6 +44,16 @@ import Notifications from "@/pages/Notifications";
 import DeliveryAgentDashboard from "@/pages/DeliveryAgentDashboard";
 import AgentSignup from "@/pages/AgentSignup";
 import PiOnboarding from "@/pages/PiOnboarding";
+
+// Client-side redirect that never triggers a full-page reload.
+// Using window.location.replace() here would wipe the React Query cache and
+// cause a race condition where isAuthenticated briefly reads false on the
+// fresh page load, kicking Pi Network users (and others) back to /login.
+function RedirectToLogin() {
+  const [, nav] = useLocation();
+  useEffect(() => { nav("/login"); }, [nav]);
+  return null;
+}
 
 // Full-screen loader shown while the session is being resolved.
 function AuthLoader() {
@@ -132,16 +142,16 @@ function Router() {
           <Route path="/privacy" component={Privacy} />
           <Route path="/terms" component={Terms} />
           <Route path="/careers" component={Careers} />
-          {/* Catch-all: any authenticated-only path redirects to login */}
-          <Route path="/dashboard">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/onboarding">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/admin">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/sell/new">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/sell/:id/edit">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/account/settings">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/kyc">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/notifications">{() => { window.location.replace("/login"); return null; }}</Route>
-          <Route path="/chat/:id">{() => { window.location.replace("/login"); return null; }}</Route>
+          {/* Catch-all: any authenticated-only path redirects to login (client-side, no page reload) */}
+          <Route path="/dashboard" component={RedirectToLogin} />
+          <Route path="/onboarding" component={RedirectToLogin} />
+          <Route path="/admin" component={RedirectToLogin} />
+          <Route path="/sell/new" component={RedirectToLogin} />
+          <Route path="/sell/:id/edit" component={RedirectToLogin} />
+          <Route path="/account/settings" component={RedirectToLogin} />
+          <Route path="/kyc" component={RedirectToLogin} />
+          <Route path="/notifications" component={RedirectToLogin} />
+          <Route path="/chat/:id" component={RedirectToLogin} />
         </>
       )}
       <Route component={NotFound} />

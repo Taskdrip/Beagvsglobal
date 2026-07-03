@@ -24,7 +24,7 @@ export default function AdminLogin() {
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "admin@beagvsglobal.com", password: "Admin@2025!" },
+    defaultValues: { email: "", password: "" },
   });
 
   const onSubmit = async (data: LoginFormData) => {
@@ -132,12 +132,6 @@ export default function AdminLogin() {
               </Button>
             </form>
 
-            <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <p className="text-amber-400 text-xs text-center">
-                Default credentials: <span className="font-mono font-semibold">admin@beagvsglobal.com</span> / <span className="font-mono font-semibold">Admin@2025!</span>
-              </p>
-              <p className="text-amber-400/70 text-xs text-center mt-0.5">You will be required to change the password on first login.</p>
-            </div>
           </CardContent>
         </Card>
       </div>
