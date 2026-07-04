@@ -123,6 +123,8 @@ export interface IStorage {
   markMessageAsRead(id: string): Promise<void>;
   getUserChatThreads(userId: string): Promise<(ChatThread & { listing: Listing; buyer: User; seller: User; lastMessage?: Message; unreadCount: number })[]>;
   getAllChatThreads(): Promise<(ChatThread & { listing: any; buyer: any; seller: any; unreadCount: number; lastMessage?: any })[]>;
+  linkAgentToThread(escrowId: string, agentId: string): Promise<void>;
+  getThreadByEscrowId(escrowId: string): Promise<ChatThread | null>;
   
   // Notification operations
   getUserNotifications(userId: string): Promise<Notification[]>;
@@ -1165,7 +1167,7 @@ export class DatabaseStorage implements IStorage {
       .from(chatThreads)
       .leftJoin(listings, eq(chatThreads.listingId, listings.id))
       .leftJoin(users, or(eq(chatThreads.buyerId, users.id), eq(chatThreads.sellerId, users.id)))
-      .where(or(eq(chatThreads.buyerId, userId), eq(chatThreads.sellerId, userId)))
+      .where(or(eq(chatThreads.buyerId, userId), eq(chatThreads.sellerId, userId), eq((chatThreads as any).agentId, userId)))
       .orderBy(desc(chatThreads.lastMessageAt));
 
     // Get unread counts and last messages for each thread
@@ -1538,7 +1540,7 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Available Shipments (for agents to browse and claim) ─────────────────────
 
-  async getAvailableShipments(): Promise<(Shipment & { seller: User; buyer: User })[]> {
+  async getAvailableShipments(): Promise<(Shipment & { seller: User; buyer: User; listing?: any })[]> {
     const rows = await db
       .select()
       .from(shipments)
@@ -1547,8 +1549,30 @@ export class DatabaseStorage implements IStorage {
     return Promise.all(rows.map(async (s) => {
       const [seller] = await db.select().from(users).where(eq(users.id, s.sellerId));
       const [buyer] = await db.select().from(users).where(eq(users.id, s.buyerId));
-      return { ...s, seller, buyer };
+      // Enrich with listing info via the linked escrow
+      let listing: any = null;
+      if (s.escrowId) {
+        const [escrow] = await db.select().from(escrows).where(eq(escrows.id, s.escrowId));
+        if (escrow?.listingId) {
+          const [lst] = await db.select().from(listings).where(eq(listings.id, escrow.listingId));
+          listing = lst ?? null;
+        }
+      }
+      return { ...s, seller, buyer, listing };
     }));
+  }
+
+  async linkAgentToThread(escrowId: string, agentId: string): Promise<void> {
+    await db
+      .update(chatThreads)
+      .set({ agentId } as any)
+      .where(eq(chatThreads.escrowId, escrowId))
+      .catch(() => { /* thread may not exist yet — non-fatal */ });
+  }
+
+  async getThreadByEscrowId(escrowId: string): Promise<ChatThread | null> {
+    const [thread] = await db.select().from(chatThreads).where(eq(chatThreads.escrowId, escrowId));
+    return thread ?? null;
   }
 
   async claimShipment(shipmentId: string, agentId: string): Promise<Shipment> {

@@ -3773,9 +3773,30 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         }
       } catch (e) { /* non-critical */ }
 
+      // Link agent to the escrow's chat thread so they can message buyer/seller
+      if (existing.escrowId) {
+        try { await storage.linkAgentToThread(existing.escrowId, agentId); } catch { /* non-critical */ }
+      }
+
       res.json(updated);
     } catch (e: any) {
       res.status(400).json({ message: e.message || 'Failed to claim shipment' });
+    }
+  });
+
+  // Agent: get the chat thread for one of their shipments
+  app.get('/api/agent/shipments/:id/thread', isAuthenticatedEnhanced, isDeliveryAgent, async (req: any, res) => {
+    try {
+      const agentId = req.user.claims.sub;
+      const shipment = await storage.getShipment(req.params.id);
+      if (!shipment) return res.status(404).json({ message: 'Shipment not found' });
+      if ((shipment as any).agentId !== agentId) return res.status(403).json({ message: 'Not your shipment' });
+      if (!shipment.escrowId) return res.status(404).json({ message: 'No escrow linked to this shipment' });
+      const thread = await storage.getThreadByEscrowId(shipment.escrowId);
+      if (!thread) return res.status(404).json({ message: 'No chat thread found for this order' });
+      res.json(thread);
+    } catch (e: any) {
+      res.status(500).json({ message: 'Failed to fetch thread' });
     }
   });
 

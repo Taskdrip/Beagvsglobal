@@ -1,17 +1,19 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
-import Footer from "@/components/Footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import {
   Package, Truck, CheckCircle2, Clock, MapPin,
-  AlertCircle, LogOut, User2, RefreshCw, ChevronRight, Search, Loader2,
+  AlertCircle, LogOut, User2, RefreshCw, ChevronRight,
+  Search, Loader2, MessageCircle, Filter, ShoppingBag,
 } from "lucide-react";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -62,6 +64,7 @@ export default function DeliveryAgentDashboard() {
   const { user, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [locationFilter, setLocationFilter] = useState("");
 
   const { data: shipments = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ["/api/agent/shipments"],
@@ -75,7 +78,6 @@ export default function DeliveryAgentDashboard() {
     refetchInterval: 60_000,
   });
 
-  // Platform settings — used to show agent payout % breakdown
   const { data: platformSettings = [] } = useQuery<any[]>({
     queryKey: ["/api/platform-settings"],
     enabled: !!user,
@@ -104,6 +106,15 @@ export default function DeliveryAgentDashboard() {
     },
     onError: (err: any) => toast({ title: "Failed to claim shipment", description: err.message, variant: "destructive" }),
   });
+
+  const openChat = async (shipmentId: string) => {
+    try {
+      const thread = await apiRequest("GET", `/api/agent/shipments/${shipmentId}/thread`).then(r => r.json());
+      setLocation(`/chat/${thread.id}`);
+    } catch {
+      toast({ title: "Chat not available", description: "No conversation linked to this order yet.", variant: "destructive" });
+    }
+  };
 
   const handleLogout = async () => {
     await apiRequest("POST", "/api/auth/logout");
@@ -147,6 +158,19 @@ export default function DeliveryAgentDashboard() {
   const activeShipments = shipments.filter((s: any) => ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(s.status));
   const completedShipments = shipments.filter((s: any) => ["DELIVERED", "FAILED", "RETURNED"].includes(s.status));
 
+  // Location-filtered available shipments
+  const filteredAvailable = locationFilter.trim()
+    ? availableShipments.filter((s: any) => {
+        const q = locationFilter.toLowerCase();
+        return (
+          s.origin?.toLowerCase().includes(q) ||
+          s.destination?.toLowerCase().includes(q) ||
+          s.seller?.location?.toLowerCase().includes(q) ||
+          s.listing?.location?.toLowerCase().includes(q)
+        );
+      })
+    : availableShipments;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
@@ -160,10 +184,14 @@ export default function DeliveryAgentDashboard() {
               <p className="font-semibold text-slate-900 leading-tight">Agent Portal</p>
               <p className="text-xs text-slate-500 leading-tight">
                 {(user as any).firstName || (user as any).username || (user as any).email}
+                {(user as any).location ? ` · ${(user as any).location}` : ""}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setLocation("/chat")} className="text-slate-500 hover:text-blue-600">
+              <MessageCircle className="w-4 h-4 mr-1" /> Chat
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => { refetch(); refetchAvailable(); }} className="text-slate-500 hover:text-slate-700">
               <RefreshCw className="w-4 h-4" />
             </Button>
@@ -199,19 +227,73 @@ export default function DeliveryAgentDashboard() {
         </div>
 
         {/* Tabs: My Deliveries / Available Pickups */}
-        <Tabs defaultValue="my-deliveries" className="space-y-4">
+        <Tabs defaultValue="available" className="space-y-4">
           <TabsList className="w-full">
-            <TabsTrigger value="my-deliveries" className="flex-1">
-              My Deliveries
-              {total > 0 && <Badge className="ml-2 bg-blue-600 text-white text-xs">{total}</Badge>}
-            </TabsTrigger>
             <TabsTrigger value="available" className="flex-1">
               Available Pickups
               {availableShipments.length > 0 && (
                 <Badge className="ml-2 bg-green-600 text-white text-xs">{availableShipments.length}</Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="my-deliveries" className="flex-1">
+              My Deliveries
+              {total > 0 && <Badge className="ml-2 bg-blue-600 text-white text-xs">{total}</Badge>}
+            </TabsTrigger>
           </TabsList>
+
+          {/* Available Pickups */}
+          <TabsContent value="available" className="space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="font-semibold text-slate-900">Available Pickups</h3>
+                <p className="text-sm text-slate-500">Unclaimed orders you can self-assign for delivery</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => refetchAvailable()} disabled={loadingAvailable}>
+                <RefreshCw className={`w-4 h-4 mr-1 ${loadingAvailable ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+            </div>
+
+            {/* Location filter */}
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                className="pl-9"
+                placeholder="Filter by location (e.g. Lagos, Abuja)…"
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+              />
+            </div>
+
+            {loadingAvailable ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+              </div>
+            ) : filteredAvailable.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="text-center py-14">
+                  <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 font-medium">
+                    {locationFilter ? "No pickups match this location" : "No available pickups right now"}
+                  </p>
+                  <p className="text-slate-400 text-sm mt-1">
+                    {locationFilter ? "Try a different location or clear the filter." : "New orders will appear here once sellers submit payments."}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {(filteredAvailable as any[]).map((s) => (
+                  <AvailableShipmentCard
+                    key={s.id}
+                    shipment={s}
+                    agentPayoutPct={agentPayoutPct}
+                    onClaim={() => claimMutation.mutate(s.id)}
+                    isClaiming={claimMutation.isPending}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
           {/* My Deliveries */}
           <TabsContent value="my-deliveries" className="space-y-4">
@@ -237,6 +319,7 @@ export default function DeliveryAgentDashboard() {
                     shipments={pendingShipments}
                     onUpdateStatus={updateStatusMutation.mutate}
                     isUpdating={updateStatusMutation.isPending}
+                    onChat={openChat}
                   />
                 )}
                 {activeShipments.length > 0 && (
@@ -246,6 +329,7 @@ export default function DeliveryAgentDashboard() {
                     shipments={activeShipments}
                     onUpdateStatus={updateStatusMutation.mutate}
                     isUpdating={updateStatusMutation.isPending}
+                    onChat={openChat}
                   />
                 )}
                 {completedShipments.length > 0 && (
@@ -255,96 +339,11 @@ export default function DeliveryAgentDashboard() {
                     shipments={completedShipments}
                     onUpdateStatus={updateStatusMutation.mutate}
                     isUpdating={updateStatusMutation.isPending}
+                    onChat={openChat}
                     muted
                   />
                 )}
               </>
-            )}
-          </TabsContent>
-
-          {/* Available Pickups */}
-          <TabsContent value="available" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-slate-900">Available Pickups</h3>
-                <p className="text-sm text-slate-500">Unclaimed shipments you can self-assign</p>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => refetchAvailable()} disabled={loadingAvailable}>
-                <RefreshCw className={`w-4 h-4 mr-1 ${loadingAvailable ? "animate-spin" : ""}`} /> Refresh
-              </Button>
-            </div>
-
-            {loadingAvailable ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-              </div>
-            ) : availableShipments.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="text-center py-14">
-                  <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500 font-medium">No available pickups right now</p>
-                  <p className="text-slate-400 text-sm mt-1">New orders will appear here once created by sellers.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {(availableShipments as any[]).map((s) => (
-                  <Card key={s.id} className="border shadow-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-3 flex-wrap">
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono font-bold text-slate-900 text-sm">{s.trackingNumber}</span>
-                            <Badge className="text-xs border bg-yellow-100 text-yellow-800 border-yellow-200">Unclaimed</Badge>
-                          </div>
-                          {(s.origin || s.destination) && (
-                            <div className="flex items-center gap-1 text-xs text-slate-500">
-                              <MapPin className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{s.origin && s.destination ? `${s.origin} → ${s.destination}` : s.origin || s.destination}</span>
-                            </div>
-                          )}
-                          {s.recipientName && (
-                            <div className="flex items-center gap-1 text-xs text-slate-500">
-                              <User2 className="w-3 h-3 flex-shrink-0" />
-                              <span>{s.recipientName}</span>
-                            </div>
-                          )}
-                          <p className="text-xs text-slate-400">
-                            {s.carrier}{s.serviceType ? ` · ${s.serviceType}` : ""}
-                            {s.weightKg ? ` · ${s.weightKg} kg` : ""}
-                          </p>
-                          {s.seller && (
-                            <p className="text-xs text-slate-500">
-                              Seller: <span className="font-medium">{s.seller.firstName || s.seller.username}</span>
-                              {s.seller.location ? ` · ${s.seller.location}` : ""}
-                            </p>
-                          )}
-                          {s.specialInstructions && (() => {
-                            const feeMatch = s.specialInstructions.match(/Shipping fee: (₦[\d,]+ NGN)/);
-                            return feeMatch ? (
-                              <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded px-2 py-1">
-                                <span className="text-xs text-green-700 font-medium">💰 Your fee: {feeMatch[1]}</span>
-                              </div>
-                            ) : (
-                              <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-100">
-                                ⚠ {s.specialInstructions}
-                              </p>
-                            );
-                          })()}
-                        </div>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white flex-shrink-0"
-                          disabled={claimMutation.isPending}
-                          onClick={() => claimMutation.mutate(s.id)}
-                        >
-                          {claimMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Claim <ChevronRight className="w-3.5 h-3.5 ml-1" /></>}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
             )}
           </TabsContent>
         </Tabs>
@@ -357,6 +356,96 @@ export default function DeliveryAgentDashboard() {
   );
 }
 
+// ── AvailableShipmentCard ─────────────────────────────────────────────────────
+
+function AvailableShipmentCard({
+  shipment: s,
+  agentPayoutPct,
+  onClaim,
+  isClaiming,
+}: {
+  shipment: any;
+  agentPayoutPct: number;
+  onClaim: () => void;
+  isClaiming: boolean;
+}) {
+  const feeMatch = s.specialInstructions?.match(/Shipping fee: ([\₦\d,.]+ \w+)/);
+  const listingImages: string[] = s.listing?.images ?? [];
+
+  return (
+    <Card className="border shadow-sm hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        {/* Product info row */}
+        {s.listing && (
+          <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
+            {listingImages[0] ? (
+              <img src={listingImages[0]} alt={s.listing.title} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <ShoppingBag className="w-6 h-6 text-slate-400" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-slate-900 text-sm truncate">{s.listing.title}</p>
+              <p className="text-xs text-slate-500">{s.listing.type?.replace(/_/g, " ")} · {s.listing.priceCrypto} {s.listing.currency}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono font-bold text-slate-900 text-sm">{s.trackingNumber}</span>
+              <Badge className="text-xs border bg-yellow-100 text-yellow-800 border-yellow-200">Unclaimed</Badge>
+            </div>
+            {(s.origin || s.destination) && (
+              <div className="flex items-center gap-1 text-xs text-slate-500">
+                <MapPin className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{s.origin && s.destination ? `${s.origin} → ${s.destination}` : s.origin || s.destination}</span>
+              </div>
+            )}
+            {s.recipientName && (
+              <div className="flex items-center gap-1 text-xs text-slate-500">
+                <User2 className="w-3 h-3 flex-shrink-0" />
+                <span>{s.recipientName}</span>
+              </div>
+            )}
+            <p className="text-xs text-slate-400">
+              {s.carrier}{s.serviceType ? ` · ${s.serviceType}` : ""}
+              {s.weightKg ? ` · ${s.weightKg} kg` : ""}
+            </p>
+            {s.seller && (
+              <p className="text-xs text-slate-500">
+                Seller: <span className="font-medium">{s.seller.firstName || s.seller.username}</span>
+                {s.seller.location ? ` · ${s.seller.location}` : ""}
+              </p>
+            )}
+            {feeMatch ? (
+              <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded px-2 py-1">
+                <span className="text-xs text-green-700 font-medium">
+                  💰 Your payout: {feeMatch[1]} ({agentPayoutPct}% of fee)
+                </span>
+              </div>
+            ) : s.specialInstructions ? (
+              <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 border border-amber-100">
+                ⚠ {s.specialInstructions}
+              </p>
+            ) : null}
+          </div>
+          <Button
+            size="sm"
+            className="bg-green-600 hover:bg-green-700 text-white flex-shrink-0"
+            disabled={isClaiming}
+            onClick={onClaim}
+          >
+            {isClaiming ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Claim <ChevronRight className="w-3.5 h-3.5 ml-1" /></>}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── ShipmentSection ───────────────────────────────────────────────────────────
 
 function ShipmentSection({
@@ -365,6 +454,7 @@ function ShipmentSection({
   shipments,
   onUpdateStatus,
   isUpdating,
+  onChat,
   muted = false,
 }: {
   title: string;
@@ -372,6 +462,7 @@ function ShipmentSection({
   shipments: any[];
   onUpdateStatus: (args: { shipmentId: string; status: string }) => void;
   isUpdating: boolean;
+  onChat: (shipmentId: string) => void;
   muted?: boolean;
 }) {
   return (
@@ -388,6 +479,7 @@ function ShipmentSection({
             shipment={s}
             onUpdateStatus={onUpdateStatus}
             isUpdating={isUpdating}
+            onChat={onChat}
             muted={muted}
           />
         ))}
@@ -402,18 +494,38 @@ function ShipmentCard({
   shipment: s,
   onUpdateStatus,
   isUpdating,
+  onChat,
   muted,
 }: {
   shipment: any;
   onUpdateStatus: (args: { shipmentId: string; status: string }) => void;
   isUpdating: boolean;
+  onChat: (shipmentId: string) => void;
   muted: boolean;
 }) {
   const actions = NEXT_STATUS[s.status] ?? [];
+  const listingImages: string[] = s.listing?.images ?? [];
 
   return (
     <Card className={`border shadow-sm transition-shadow hover:shadow-md ${muted ? "opacity-70" : ""}`}>
       <CardContent className="p-4">
+        {/* Product row */}
+        {s.listing && (
+          <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
+            {listingImages[0] ? (
+              <img src={listingImages[0]} alt={s.listing.title} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <ShoppingBag className="w-5 h-5 text-slate-400" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-slate-900 text-sm truncate">{s.listing.title}</p>
+              <p className="text-xs text-slate-500">{s.listing.type?.replace(/_/g, " ")}</p>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -440,6 +552,13 @@ function ShipmentCard({
               {s.carrier}{s.serviceType ? ` · ${s.serviceType}` : ""}
               {s.weightKg ? ` · ${s.weightKg} kg` : ""}
             </p>
+            {/* Buyer contact */}
+            {s.buyer && (
+              <p className="text-xs text-slate-500 mt-1">
+                Buyer: <span className="font-medium">{s.buyer.firstName || s.buyer.username}</span>
+                {s.buyer.whatsapp ? ` · WhatsApp: ${s.buyer.whatsapp}` : ""}
+              </p>
+            )}
             {s.specialInstructions && (
               <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-2 border border-amber-100">
                 ⚠ {s.specialInstructions}
@@ -451,22 +570,30 @@ function ShipmentCard({
               </p>
             )}
           </div>
-          {actions.length > 0 && (
-            <div className="flex flex-col gap-1.5 flex-shrink-0">
-              {actions.map((action) => (
-                <Button
-                  key={action.status}
-                  size="sm"
-                  className={`text-xs text-white ${action.color}`}
-                  disabled={isUpdating}
-                  onClick={() => onUpdateStatus({ shipmentId: s.id, status: action.status })}
-                >
-                  {action.label}
-                  <ChevronRight className="w-3.5 h-3.5 ml-1" />
-                </Button>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5 flex-shrink-0">
+            {/* Chat button */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
+              onClick={() => onChat(s.id)}
+            >
+              <MessageCircle className="w-3.5 h-3.5 mr-1" /> Chat
+            </Button>
+            {/* Status action buttons */}
+            {actions.map((action) => (
+              <Button
+                key={action.status}
+                size="sm"
+                className={`text-xs text-white ${action.color}`}
+                disabled={isUpdating}
+                onClick={() => onUpdateStatus({ shipmentId: s.id, status: action.status })}
+              >
+                {action.label}
+                <ChevronRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>

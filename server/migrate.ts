@@ -47,6 +47,13 @@ export async function runMigrations(): Promise<void> {
 export async function runSafetySQL(): Promise<void> {
   console.log("[migrate] Running post-migration schema safety checks...");
 
+  // ── Pre-phase: bare DDL that CANNOT run inside a transaction block ──────────
+  // ALTER TYPE ADD VALUE must run outside any transaction / DO block.
+  // pool.query() in autocommit mode satisfies this requirement.
+  await pool.query(`ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'DELIVERY_AGENT'`).catch((e: any) => {
+    console.warn("[migrate] user_role DELIVERY_AGENT:", e.message?.split("\n")[0]);
+  });
+
   // ── Phase 1: enum types (must exist before columns that reference them) ────
   // Run these in a single DO block so each is independent and idempotent.
   await pool.query(`
@@ -164,11 +171,11 @@ export async function runSafetySQL(): Promise<void> {
       "created_at" timestamp DEFAULT now()
     )`,
 
-    // ── user_role enum — DELIVERY_AGENT value is added via migration 0002. ─
-    // ALTER TYPE ADD VALUE cannot run in a transaction, so it is skipped here.
-
     // ── shipments — delivery agent assignment column ────────────────────
     `ALTER TABLE "shipments" ADD COLUMN IF NOT EXISTS "agent_id" varchar REFERENCES "users"("id") ON DELETE SET NULL`,
+
+    // ── chat_threads — agent participant column ─────────────────────────────
+    `ALTER TABLE "chat_threads" ADD COLUMN IF NOT EXISTS "agent_id" varchar REFERENCES "users"("id") ON DELETE SET NULL`,
 
     // ── shipping_rates (entire table — not in initial migration SQL) ──────
     `CREATE TABLE IF NOT EXISTS "shipping_rates" (

@@ -169,6 +169,7 @@ export const chatThreads = pgTable("chat_threads", {
   buyerId: varchar("buyer_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   sellerId: varchar("seller_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   escrowId: varchar("escrow_id").references(() => escrows.id, { onDelete: 'set null' }),
+  agentId: varchar("agent_id").references(() => users.id, { onDelete: 'set null' }),
   status: varchar("status").default('active'), // active, archived, closed
   lastMessageAt: timestamp("last_message_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
