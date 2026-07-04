@@ -2296,11 +2296,24 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       // Sync shipment status with the latest event status
       await storage.updateShipment(id, { status: eventData.status });
 
-      // If delivered, update escrow to DELIVERED — only when escrow is still in SHIPPED state
+      // Package physically delivered by agent — do NOT auto-advance escrow to DELIVERED.
+      // The buyer must still confirm receipt themselves before funds become payable.
+      // We just flag the escrow so the buyer's UI can prompt them to confirm.
       if (eventData.status === 'DELIVERED' && existing.escrowId) {
         const currentEscrow = await storage.getEscrow(existing.escrowId);
         if (currentEscrow?.status === 'SHIPPED') {
-          await storage.updateEscrow(existing.escrowId, { status: 'DELIVERED' });
+          await storage.updateEscrow(existing.escrowId, {
+            metadata: { ...(currentEscrow.metadata as any || {}), physicallyDelivered: true, physicallyDeliveredAt: new Date().toISOString() },
+          } as any);
+          await storage.createNotification({
+            userId: currentEscrow.buyerId,
+            type: 'ESCROW_UPDATE',
+            data: {
+              escrowId: currentEscrow.id,
+              message: 'Your package has arrived! Please confirm receipt to release payment to the seller.',
+              action: 'physically_delivered',
+            },
+          });
         }
         await storage.updateShipment(id, { actualDelivery: new Date() as any });
       }
@@ -2504,11 +2517,14 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       }
 
       if (status === 'DELIVERED') {
-        // Only sync escrow if it is still in SHIPPED state (guard against double-advance)
+        // Do NOT auto-advance escrow to DELIVERED — the buyer must confirm receipt themselves.
+        // Flag the escrow as physically delivered so the buyer's UI can prompt them to confirm.
         if (existing.escrowId) {
           const currentEscrow = await storage.getEscrow(existing.escrowId);
           if (currentEscrow?.status === 'SHIPPED') {
-            await storage.updateEscrow(existing.escrowId, { status: 'DELIVERED' });
+            await storage.updateEscrow(existing.escrowId, {
+              metadata: { ...(currentEscrow.metadata as any || {}), physicallyDelivered: true, physicallyDeliveredAt: new Date().toISOString() },
+            } as any);
           }
         }
 

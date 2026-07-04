@@ -48,7 +48,7 @@ type ActionInfo = {
   urgent?: boolean;
 };
 
-function getActionForBuyer(status: string, escrowId: string): ActionInfo {
+function getActionForBuyer(status: string, escrowId: string, physicallyDelivered?: boolean): ActionInfo {
   switch (status) {
     case "CREATED":
       return { title: "Complete your payment", description: "Submit your payment and upload proof to fund the escrow.", cta: "Go to Checkout", ctaLink: `/checkout/${escrowId}`, urgent: true };
@@ -57,9 +57,11 @@ function getActionForBuyer(status: string, escrowId: string): ActionInfo {
     case "FUNDED":
       return { title: "Waiting for the seller to ship", description: "The escrow is funded. The seller will ship your order and update the tracking number." };
     case "SHIPPED":
-      return { title: "Confirm you received the item", description: "Your order is on its way. Once it arrives, confirm receipt to release payment to the seller.", cta: "Confirm Delivery", ctaLink: `/checkout/${escrowId}`, urgent: true };
+      return physicallyDelivered
+        ? { title: "Your package has arrived — confirm receipt", description: "The courier marked this as delivered. Check your item and confirm receipt to release payment to the seller.", cta: "Confirm Delivery", ctaLink: `/checkout/${escrowId}`, urgent: true }
+        : { title: "Confirm you received the item", description: "Your order is on its way. Once it arrives, confirm receipt to release payment to the seller.", cta: "Track & Confirm", ctaLink: `/checkout/${escrowId}`, urgent: true };
     case "DELIVERED":
-      return { title: "You confirmed delivery ✓", description: "Funds will be released to the seller shortly. The transaction is almost complete." };
+      return { title: "You confirmed delivery ✓", description: "Funds will be released to the seller once they submit a payout request and admin approves." };
     case "RELEASED":
       return { title: "Transaction complete 🎉", description: "Funds have been released to the seller. Thank you for trading on Beagvs!" };
     case "DISPUTED":
@@ -69,7 +71,7 @@ function getActionForBuyer(status: string, escrowId: string): ActionInfo {
   }
 }
 
-function getActionForSeller(status: string, escrowId: string): ActionInfo {
+function getActionForSeller(status: string, escrowId: string, physicallyDelivered?: boolean): ActionInfo {
   switch (status) {
     case "CREATED":
       return { title: "Waiting for buyer payment", description: "The buyer needs to submit their payment. You'll be notified when they do." };
@@ -78,13 +80,30 @@ function getActionForSeller(status: string, escrowId: string): ActionInfo {
     case "FUNDED":
       return { title: "Ship the order now", description: "Payment is secured in escrow. Fulfil and ship the order, then mark it as shipped.", cta: "Mark as Shipped", ctaLink: `/checkout/${escrowId}`, urgent: true };
     case "SHIPPED":
-      return { title: "Waiting for buyer to confirm receipt", description: "The order is shipped. The buyer must confirm delivery before funds are released to you." };
+      return physicallyDelivered
+        ? { title: "Package delivered — awaiting buyer confirmation", description: "The courier delivered the package. The buyer still needs to confirm receipt before funds are released to you." }
+        : { title: "Waiting for buyer to confirm receipt", description: "The order is shipped. The buyer must confirm delivery before funds are released to you." };
     case "DELIVERED":
-      return { title: "Request your payout", description: "The buyer confirmed receipt. Go to checkout to submit your payout request.", cta: "Request Payout", ctaLink: `/checkout/${escrowId}`, urgent: true };
+      return { title: "Request your payout", description: "The buyer confirmed receipt. Add your payout account (if you haven't) and submit your payout request.", cta: "Request Payout", ctaLink: `/checkout/${escrowId}`, urgent: true };
     case "RELEASED":
       return { title: "Funds released to you 🎉", description: "The escrow is complete. Check your payout requests for payment status.", cta: "View Payouts", ctaLink: "/dashboard?tab=payouts" };
     case "DISPUTED":
       return { title: "Dispute in progress", description: "Our team is reviewing the dispute. Check your messages.", cta: "Open Chat", ctaLink: "/chat", urgent: true };
+    default:
+      return { title: status, description: "" };
+  }
+}
+
+function getActionForAgent(status: string): ActionInfo {
+  switch (status) {
+    case "FUNDED":
+      return { title: "Awaiting pickup", description: "This order is funded and waiting for the seller to hand off the package for shipping." };
+    case "SHIPPED":
+      return { title: "Deliver this package", description: "Update the shipment status as you move the package — pick up, in transit, out for delivery — then mark it delivered once handed to the buyer.", cta: "Open Deliveries", ctaLink: "/delivery-agent", urgent: true };
+    case "DELIVERED":
+      return { title: "Delivery complete ✓", description: "You've marked this package as delivered. Waiting on the buyer to confirm receipt." };
+    case "RELEASED":
+      return { title: "Order complete 🎉", description: "This transaction has been completed and funds released." };
     default:
       return { title: status, description: "" };
   }
@@ -130,8 +149,12 @@ export default function TransactionGuide({ escrow, userId, compact = false, clas
     escrow.sellerId === userId ? "seller" : "agent";
 
   const status: string = escrow.status ?? "CREATED";
+  const physicallyDelivered = !!(escrow.metadata as any)?.physicallyDelivered;
   const steps = buildSteps(status, role);
-  const action = role === "buyer" ? getActionForBuyer(status, escrow.id) : getActionForSeller(status, escrow.id);
+  const action =
+    role === "buyer" ? getActionForBuyer(status, escrow.id, physicallyDelivered) :
+    role === "seller" ? getActionForSeller(status, escrow.id, physicallyDelivered) :
+    getActionForAgent(status);
   const statusMeta = STATUS_LABELS[status] ?? { short: status, color: "bg-slate-100 text-slate-600 border-slate-200" };
   const isTerminal = ["RELEASED", "CANCELLED", "REFUNDED", "DISPUTED"].includes(status);
   const listingTitle = escrow.listing?.title ?? "Your Transaction";

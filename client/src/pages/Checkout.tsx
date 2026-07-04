@@ -880,17 +880,22 @@ export default function Checkout() {
 
   // Order shipped — buyer confirms delivery
   if (escrow.status === 'SHIPPED') {
+    const physicallyDelivered = !!(escrow.metadata as any)?.physicallyDelivered;
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
         <div className="max-w-xl mx-auto pt-10 space-y-5">
-          <Card className="shadow-lg border-cyan-200">
+          <Card className={`shadow-lg ${physicallyDelivered ? "border-green-300" : "border-cyan-200"}`}>
             <CardContent className="p-8 text-center">
-              <div className="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Truck className="w-9 h-9 text-cyan-600" />
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${physicallyDelivered ? "bg-green-100" : "bg-cyan-100"}`}>
+                {physicallyDelivered ? <Package className="w-9 h-9 text-green-600" /> : <Truck className="w-9 h-9 text-cyan-600" />}
               </div>
-              <h1 className="text-2xl font-bold text-cyan-700 mb-2">Order Shipped!</h1>
+              <h1 className={`text-2xl font-bold mb-2 ${physicallyDelivered ? "text-green-700" : "text-cyan-700"}`}>
+                {physicallyDelivered ? "Package Delivered!" : "Order Shipped!"}
+              </h1>
               <p className="text-slate-600 mb-1">
-                {isBuyer ? "Your order is on its way." : "You marked this order as shipped."}
+                {physicallyDelivered
+                  ? (isBuyer ? "Your package has arrived at your address." : "The courier confirmed delivery to the buyer.")
+                  : (isBuyer ? "Your order is on its way." : "You marked this order as shipped.")}
               </p>
               <p className="text-slate-500 text-sm mb-6">
                 {isBuyer
@@ -898,11 +903,20 @@ export default function Checkout() {
                   : "Waiting for the buyer to confirm they received the item. Funds will be released after confirmation."}
               </p>
 
+              {isBuyer && physicallyDelivered && (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 flex items-start gap-2 text-left">
+                  <AlertCircle className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-orange-700">
+                    <strong>Action needed:</strong> The courier has marked this package as delivered. Please check your item and confirm receipt below so the seller can be paid.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3 mb-6">
                 {[
                   { label: "Amount", value: `${buyerTotal.toLocaleString(undefined, { maximumFractionDigits: 8 })} ${escrow.currency}` },
                   { label: "Escrow ID", value: escrow.id?.slice(0, 8) + "…" },
-                  { label: "Status", value: "Shipped" },
+                  { label: "Status", value: physicallyDelivered ? "Delivered — Awaiting Confirmation" : "Shipped" },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-slate-50 rounded-lg p-3">
                     <p className="text-xs text-slate-500">{label}</p>
@@ -914,7 +928,7 @@ export default function Checkout() {
               <div className="flex flex-col gap-3">
                 {isBuyer && (
                   <Button
-                    className="w-full bg-green-600 hover:bg-green-700 gap-2 font-semibold"
+                    className={`w-full gap-2 font-semibold ${physicallyDelivered ? "bg-green-600 hover:bg-green-700 animate-pulse" : "bg-green-600 hover:bg-green-700"}`}
                     onClick={() => updateStatusMutation.mutate('DELIVERED')}
                     disabled={updateStatusMutation.isPending}
                     data-testid="button-confirm-delivery"
