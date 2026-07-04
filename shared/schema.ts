@@ -728,7 +728,10 @@ export const payoutStatusEnum = pgEnum('payout_status', ['PENDING', 'APPROVED', 
 export const sellerPayoutRequests = pgTable("seller_payout_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   escrowId: varchar("escrow_id").notNull().references(() => escrows.id, { onDelete: 'cascade' }),
-  sellerId: varchar("seller_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sellerId: varchar("seller_id").references(() => users.id, { onDelete: 'cascade' }),
+  // Who this payout is owed to: 'seller' (marketplace sale proceeds) or 'agent' (shipping fee cut)
+  payeeType: varchar("payee_type").default('seller'),
+  agentId: varchar("agent_id").references(() => users.id, { onDelete: 'cascade' }),
   amount: decimal("amount", { precision: 22, scale: 4 }).notNull(),
   currency: varchar("currency").notNull(),
   status: payoutStatusEnum("status").default('PENDING'),

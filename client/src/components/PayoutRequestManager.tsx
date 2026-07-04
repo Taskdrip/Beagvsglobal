@@ -26,6 +26,10 @@ type PayoutRequest = {
   escrow?: any;
   wallet?: any;
   bankAccount?: any;
+  payeeType?: "seller" | "agent";
+  agentId?: string;
+  seller?: any;
+  agent?: any;
 };
 
 const STATUS_STYLE: Record<string, { color: string; icon: any; label: string }> = {
@@ -236,10 +240,10 @@ export function AdminPayoutManager() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <div>
           <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-            Seller Payout Requests
+            Payout Requests
             {pendingCount > 0 && <Badge className="bg-red-500 text-white">{pendingCount} pending</Badge>}
           </h3>
-          <p className="text-sm text-slate-500">Review, approve, and process seller payouts</p>
+          <p className="text-sm text-slate-500">Review, approve, and process seller and shipping agent payouts</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {["ALL", "PENDING", "APPROVED", "PAID", "REJECTED"].map(s => (
@@ -281,7 +285,16 @@ export function AdminPayoutManager() {
                         {req.paymentMethod && <Badge variant="outline" className="text-xs capitalize">{req.paymentMethod}</Badge>}
                       </div>
                       <p className="text-sm text-slate-700">
-                        Seller: <span className="font-medium">{(req as any).seller?.username ?? (req as any).seller?.email ?? "Unknown"}</span>
+                        {req.payeeType === "agent" ? (
+                          <>
+                            <Badge variant="outline" className="text-xs mr-1.5 align-middle">Shipping Agent</Badge>
+                            <span className="font-medium">{req.agent?.username ?? req.agent?.email ?? "Unknown"}</span>
+                          </>
+                        ) : (
+                          <>
+                            Seller: <span className="font-medium">{req.seller?.username ?? req.seller?.email ?? "Unknown"}</span>
+                          </>
+                        )}
                       </p>
                       <p className="text-sm text-slate-600">Transaction: {(req as any).escrow?.listing?.title ?? req.escrowId.slice(0, 12)}</p>
                       {req.bankAccount && (
@@ -336,6 +349,182 @@ export function AdminPayoutManager() {
                         )}
                       </div>
                     ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Shipping agent view ──────────────────────────────────────────────────────
+
+type AgentPayoutManagerProps = {
+  shipments: any[]; // agent's shipments, each enriched with .escrow
+};
+
+export function AgentPayoutManager({ shipments }: AgentPayoutManagerProps) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ escrowId: "", paymentMethod: "bank", walletId: "", bankAccountId: "", notes: "" });
+
+  const { data: requests = [], isLoading } = useQuery<PayoutRequest[]>({ queryKey: ["/api/payout-requests"] });
+  const { data: wallets = [] } = useQuery<any[]>({ queryKey: ["/api/wallets"] });
+  const { data: bankAccounts = [] } = useQuery<any[]>({ queryKey: ["/api/bank-accounts"] });
+
+  const createMutation = useMutation({
+    mutationFn: (data: typeof form) => apiRequest("POST", "/api/payout-requests", data),
+    onSuccess: () => {
+      toast({ title: "Payout request submitted!", description: "Admin will review and process it shortly." });
+      queryClient.invalidateQueries({ queryKey: ["/api/payout-requests"] });
+      setOpen(false);
+    },
+    onError: (e: any) => toast({ title: "Failed to submit request", description: e.message, variant: "destructive" }),
+  });
+
+  // Shipments whose escrow is DELIVERED/RELEASED, has a positive shipping-agent fee, and no existing pending/approved request
+  const requestedEscrowIds = new Set(requests.filter(r => ["PENDING", "APPROVED"].includes(r.status)).map(r => r.escrowId));
+  const eligibleEscrows = shipments
+    .map(s => s.escrow)
+    .filter((e: any) => e && ["DELIVERED", "RELEASED"].includes(e.status))
+    .filter((e: any) => Number(e.shippingAgentFeeAmount) > 0)
+    .filter((e: any) => !requestedEscrowIds.has(e.id));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.escrowId) { toast({ title: "Please select a delivery", variant: "destructive" }); return; }
+    createMutation.mutate(form);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-900">Earnings & Payouts</h3>
+          <p className="text-sm text-slate-500">Request your 75% share of the shipping fee for completed deliveries</p>
+        </div>
+        {eligibleEscrows.length > 0 && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                <Plus className="w-4 h-4 mr-1" /> Request Payout
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader><DialogTitle>Request Payout</DialogTitle></DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+                <div>
+                  <label className="text-sm font-medium">Select Delivery</label>
+                  <Select onValueChange={v => setForm(f => ({ ...f, escrowId: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Choose a completed delivery" /></SelectTrigger>
+                    <SelectContent>
+                      {eligibleEscrows.map((e: any) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.id.slice(0, 8)} — {e.shippingAgentFeeAmount} {e.shippingFeeCurrency || e.currency}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Payment Method</label>
+                  <Select value={form.paymentMethod} onValueChange={v => setForm(f => ({ ...f, paymentMethod: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                      <SelectItem value="crypto">Crypto Wallet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.paymentMethod === "bank" && (
+                  <div>
+                    <label className="text-sm font-medium">Bank Account</label>
+                    <Select onValueChange={v => setForm(f => ({ ...f, bankAccountId: v }))}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select bank account" /></SelectTrigger>
+                      <SelectContent>
+                        {bankAccounts.map((b: any) => (
+                          <SelectItem key={b.id} value={b.id}>{b.bankName} — {b.accountNumber}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {bankAccounts.length === 0 && <p className="text-xs text-amber-600 mt-1">⚠ Add a bank account in Account Settings first.</p>}
+                  </div>
+                )}
+                {form.paymentMethod === "crypto" && (
+                  <div>
+                    <label className="text-sm font-medium">Crypto Wallet</label>
+                    <Select onValueChange={v => setForm(f => ({ ...f, walletId: v }))}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select wallet" /></SelectTrigger>
+                      <SelectContent>
+                        {wallets.map((w: any) => (
+                          <SelectItem key={w.id} value={w.id}>{w.type} — {w.address.slice(0, 16)}…</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {wallets.length === 0 && <p className="text-xs text-amber-600 mt-1">⚠ Add a crypto wallet in Account Settings first.</p>}
+                  </div>
+                )}
+                <div>
+                  <label className="text-sm font-medium">Notes (optional)</label>
+                  <Textarea className="mt-1 text-sm" rows={2} placeholder="Any special instructions..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button type="submit" className="flex-1 bg-green-600 hover:bg-green-700" disabled={createMutation.isPending}>
+                    {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                    Submit Request
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+      ) : requests.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <DollarSign className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-slate-500 font-medium">No payout requests yet</p>
+            {eligibleEscrows.length > 0
+              ? <p className="text-slate-400 text-sm mt-1">You have {eligibleEscrows.length} completed delivery(ies) ready for payout.</p>
+              : <p className="text-slate-400 text-sm mt-1">Payouts become available once a delivery is marked delivered.</p>
+            }
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {requests.map(req => {
+            const s = STATUS_STYLE[req.status] ?? STATUS_STYLE.PENDING;
+            const Icon = s.icon;
+            return (
+              <Card key={req.id} className="border-slate-200">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-semibold text-slate-900">{Number(req.amount).toLocaleString()} {req.currency}</span>
+                        <Badge className={`text-xs border ${s.color}`}>
+                          <Icon className="w-3 h-3 mr-1" />{s.label}
+                        </Badge>
+                        {req.paymentMethod && <Badge variant="outline" className="text-xs capitalize">{req.paymentMethod}</Badge>}
+                      </div>
+                      <p className="text-xs text-slate-500">Delivery: {req.escrowId.slice(0, 12)}</p>
+                      {req.bankAccount && <p className="text-xs text-slate-500">{req.bankAccount.bankName} · {req.bankAccount.accountNumber}</p>}
+                      {req.wallet && <p className="text-xs text-slate-500">{req.wallet.type} · {req.wallet.address.slice(0, 16)}…</p>}
+                      {req.adminNote && (
+                        <p className={`text-xs mt-1.5 px-2 py-1 rounded ${req.status === 'REJECTED' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+                          Admin: {req.adminNote}
+                        </p>
+                      )}
+                      {req.txHash && <p className="text-xs text-green-700 mt-1">TX: <span className="font-mono">{req.txHash}</span></p>}
+                      <p className="text-xs text-slate-400 mt-1">{new Date(req.createdAt).toLocaleDateString()}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

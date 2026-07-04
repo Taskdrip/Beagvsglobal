@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Link } from "wouter";
+import { AgentPayoutManager } from "@/components/PayoutRequestManager";
+import { Building2 } from "lucide-react";
 import {
   Package, Truck, CheckCircle2, Clock, MapPin,
   AlertCircle, LogOut, User2, RefreshCw, ChevronRight,
@@ -239,6 +242,9 @@ export default function DeliveryAgentDashboard() {
               My Deliveries
               {total > 0 && <Badge className="ml-2 bg-blue-600 text-white text-xs">{total}</Badge>}
             </TabsTrigger>
+            <TabsTrigger value="earnings" className="flex-1">
+              Earnings & Payouts
+            </TabsTrigger>
           </TabsList>
 
           {/* Available Pickups */}
@@ -345,6 +351,24 @@ export default function DeliveryAgentDashboard() {
                 )}
               </>
             )}
+          </TabsContent>
+
+          {/* Earnings & Payouts */}
+          <TabsContent value="earnings" className="space-y-4">
+            <Card className="border-dashed">
+              <CardContent className="py-4 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Payout account</p>
+                  <p className="text-xs text-slate-500">Add or update your bank account or crypto wallet to receive earnings.</p>
+                </div>
+                <Link href="/account/settings">
+                  <Button size="sm" variant="outline">
+                    <Building2 className="w-4 h-4 mr-1.5" /> Manage Payout Account
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            <AgentPayoutManager shipments={shipments} />
           </TabsContent>
         </Tabs>
       </main>

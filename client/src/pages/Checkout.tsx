@@ -170,7 +170,7 @@ function SellerPayoutPanel({ escrow }: { escrow: any }) {
               <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700">You need to add a payout account before requesting your funds.</p>
             </div>
-            <Link href="/account-settings?section=bank">
+            <Link href="/account/settings">
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
                 <Building2 className="w-4 h-4 mr-2" /> Add Payout Account
               </Button>

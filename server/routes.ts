@@ -13,6 +13,33 @@ import path from "path";
 import { saveImage, serveStoredImage } from "./imageStorage";
 import { getPiUser, approvePiPayment, completePiPayment, cancelPiPayment, getPiPayment } from "./pi";
 
+// Assigns (or clears) the shipping agent on an escrow and splits its shipping fee 75% agent / 25% platform.
+async function applyShippingAgentToEscrow(escrowId: string, agentId: string | null): Promise<void> {
+  const escrow = await storage.getEscrow(escrowId);
+  if (!escrow) return;
+
+  if (!agentId) {
+    await storage.updateEscrow(escrowId, {
+      shippingAgentId: null,
+      shippingAgentFeeAmount: null,
+      adminShippingFeeAmount: null,
+    } as any);
+    return;
+  }
+
+  const shippingFee = parseFloat(
+    String(escrow.shippingFee ?? (escrow.metadata as any)?.shipping?.cost ?? "0")
+  ) || 0;
+  const agentFee = shippingFee * 0.75;
+  const adminFee = shippingFee * 0.25;
+
+  await storage.updateEscrow(escrowId, {
+    shippingAgentId: agentId,
+    shippingAgentFeeAmount: shippingFee > 0 ? agentFee.toFixed(4) : null,
+    adminShippingFeeAmount: shippingFee > 0 ? adminFee.toFixed(4) : null,
+  } as any);
+}
+
 export async function registerRoutes(app: Express, existingServer?: HttpServer): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
@@ -2611,6 +2638,11 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
       await storage.updateShipment(id, { agentId } as any);
 
+      // Assign the agent on the escrow too and split the shipping fee 75/25 (agent/platform)
+      if (existing.escrowId) {
+        await applyShippingAgentToEscrow(existing.escrowId, agentId || null);
+      }
+
       // If assigning (not clearing), notify the agent
       if (agentId) {
         const agentUser = await storage.getUser(agentId);
@@ -3606,9 +3638,9 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  // ─── Seller Payout Request Routes ───────────────────────────────────────────
+  // ─── Payout Request Routes (sellers & shipping agents) ─────────────────────
 
-  // Seller: create a payout request for a released escrow
+  // Seller or shipping agent: create a payout request
   app.post('/api/payout-requests', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -3617,22 +3649,44 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
       const escrow = await storage.getEscrow(escrowId);
       if (!escrow) return res.status(404).json({ message: 'Escrow not found' });
-      if (escrow.sellerId !== userId) return res.status(403).json({ message: 'Only the seller can request a payout' });
-      if (!['RELEASED', 'DELIVERED'].includes(escrow.status ?? '')) {
-        return res.status(400).json({ message: 'Payout can only be requested after escrow is delivered or released' });
+
+      const user = await storage.getUser(userId);
+      const isAgentRequest = user?.role === 'DELIVERY_AGENT' && (escrow as any).shippingAgentId === userId;
+
+      let payeeType: 'seller' | 'agent';
+      let amount: string | number;
+
+      if (isAgentRequest) {
+        payeeType = 'agent';
+        if (!['DELIVERED', 'RELEASED'].includes(escrow.status ?? '')) {
+          return res.status(400).json({ message: 'Payout can only be requested after the package has been delivered' });
+        }
+        const fee = (escrow as any).shippingAgentFeeAmount;
+        if (!fee || parseFloat(String(fee)) <= 0) {
+          return res.status(400).json({ message: 'No shipping fee is payable to you for this order' });
+        }
+        amount = fee;
+      } else {
+        if (escrow.sellerId !== userId) return res.status(403).json({ message: 'Only the seller or assigned shipping agent can request a payout' });
+        payeeType = 'seller';
+        if (!['RELEASED', 'DELIVERED'].includes(escrow.status ?? '')) {
+          return res.status(400).json({ message: 'Payout can only be requested after escrow is delivered or released' });
+        }
+        amount = escrow.sellerNetAmount ?? escrow.amount;
       }
 
-      // Check for existing pending/approved request
-      const existing = await storage.getPayoutRequests({ sellerId: userId });
+      // Check for existing pending/approved request for this payee + escrow
+      const existing = await storage.getPayoutRequests(isAgentRequest ? { agentId: userId } : { sellerId: userId });
       const duplicate = existing.find(r => r.escrowId === escrowId && ['PENDING', 'APPROVED'].includes(r.status ?? ''));
       if (duplicate) return res.status(409).json({ message: 'A payout request already exists for this escrow' });
 
-      const amount = escrow.sellerNetAmount ?? escrow.amount;
       const payout = await storage.createPayoutRequest({
         escrowId,
-        sellerId: userId,
+        sellerId: isAgentRequest ? undefined : userId,
+        agentId: isAgentRequest ? userId : undefined,
+        payeeType,
         amount: String(amount),
-        currency: escrow.currency,
+        currency: isAgentRequest ? ((escrow as any).shippingFeeCurrency || escrow.currency) : escrow.currency,
         paymentMethod: paymentMethod || 'bank',
         walletId: walletId || undefined,
         bankAccountId: bankAccountId || undefined,
@@ -3645,7 +3699,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         const { users: usersTable } = await import('@shared/schema');
         const { eq: eqOp } = await import('drizzle-orm');
         const admins = await db.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
-        const seller = await storage.getUser(userId);
+        const requester = await storage.getUser(userId);
         for (const admin of admins) {
           await storage.createNotification({
             userId: admin.id,
@@ -3653,10 +3707,10 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
             data: {
               payoutRequestId: payout.id,
               escrowId,
-              sellerUsername: seller?.username ?? 'a seller',
+              sellerUsername: requester?.username ?? (isAgentRequest ? 'a shipping agent' : 'a seller'),
               amount: String(amount),
-              currency: escrow.currency,
-              message: `Seller ${seller?.username ?? ''} has requested a payout of ${amount} ${escrow.currency}. Please review.`,
+              currency: payout.currency,
+              message: `${isAgentRequest ? 'Shipping agent' : 'Seller'} ${requester?.username ?? ''} has requested a payout of ${amount} ${payout.currency}. Please review.`,
               action: 'payout_request_submitted',
             },
           });
@@ -3669,11 +3723,14 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  // Seller: view own payout requests
+  // Seller or agent: view own payout requests
   app.get('/api/payout-requests', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const requests = await storage.getPayoutRequests({ sellerId: userId });
+      const user = await storage.getUser(userId);
+      const requests = user?.role === 'DELIVERY_AGENT'
+        ? await storage.getPayoutRequests({ agentId: userId })
+        : await storage.getPayoutRequests({ sellerId: userId });
       res.json(requests);
     } catch (e: any) {
       res.status(500).json({ message: 'Failed to fetch payout requests' });
@@ -3711,15 +3768,16 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
       const updated = await storage.updatePayoutRequest(id, updateData);
 
-      // Notify seller
+      // Notify the payee (seller or shipping agent)
       const statusMessages: Record<string, string> = {
         APPROVED: `Your payout request of ${existing.amount} ${existing.currency} has been approved. Payment is being processed.`,
         REJECTED: `Your payout request was not approved.${adminNote ? ` Reason: ${adminNote}` : ''}`,
         PAID: `Your payout of ${existing.amount} ${existing.currency} has been completed!${txHash ? ` Transaction: ${txHash}` : ''}`,
       };
-      if (statusMessages[status]) {
+      const payeeId = (existing as any).agentId || existing.sellerId;
+      if (statusMessages[status] && payeeId) {
         await storage.createNotification({
-          userId: existing.sellerId,
+          userId: payeeId,
           type: 'ESCROW_UPDATE',
           data: {
             payoutRequestId: id,
@@ -3759,6 +3817,11 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       if ((existing as any).agentId) return res.status(409).json({ message: 'This shipment has already been claimed' });
 
       const updated = await storage.claimShipment(id, agentId);
+
+      // Assign the agent on the escrow too and split the shipping fee 75/25 (agent/platform)
+      if (existing.escrowId) {
+        await applyShippingAgentToEscrow(existing.escrowId, agentId);
+      }
 
       // Notify seller that an agent has claimed the shipment
       const agentUser = await storage.getUser(agentId);

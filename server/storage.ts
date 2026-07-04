@@ -214,10 +214,10 @@ export interface IStorage {
   updateBankAccount(id: string, data: Partial<InsertBankAccount>): Promise<BankAccount>;
   deleteBankAccount(id: string): Promise<void>;
 
-  // Seller payout request operations
-  createPayoutRequest(data: InsertSellerPayoutRequest): Promise<SellerPayoutRequest>;
-  getPayoutRequests(filters?: { sellerId?: string; status?: string }): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null })[]>;
-  getPayoutRequest(id: string): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null }) | undefined>;
+  // Payout request operations (sellers & shipping agents)
+  createPayoutRequest(data: Partial<InsertSellerPayoutRequest>): Promise<SellerPayoutRequest>;
+  getPayoutRequests(filters?: { sellerId?: string; agentId?: string; status?: string }): Promise<(SellerPayoutRequest & { seller: User | null; agent: User | null; escrow: any; wallet?: any; bankAccount?: BankAccount | null })[]>;
+  getPayoutRequest(id: string): Promise<(SellerPayoutRequest & { seller: User | null; agent: User | null; escrow: any; wallet?: any; bankAccount?: BankAccount | null }) | undefined>;
   updatePayoutRequest(id: string, data: Partial<SellerPayoutRequest>): Promise<SellerPayoutRequest>;
 }
 
@@ -1255,7 +1255,7 @@ export class DatabaseStorage implements IStorage {
     return s;
   }
 
-  private async _enrichShipment(shipment: Shipment): Promise<Shipment & { seller: User; buyer: User; agent?: User | null; events: ShipmentEvent[] }> {
+  private async _enrichShipment(shipment: Shipment): Promise<Shipment & { seller: User; buyer: User; agent?: User | null; escrow?: any; events: ShipmentEvent[] }> {
     const [seller] = await db.select().from(users).where(eq(users.id, shipment.sellerId));
     const [buyer] = await db.select().from(users).where(eq(users.id, shipment.buyerId));
     const events = await db
@@ -1268,7 +1268,12 @@ export class DatabaseStorage implements IStorage {
       const [a] = await db.select().from(users).where(eq(users.id, (shipment as any).agentId));
       agent = a ?? null;
     }
-    return { ...shipment, seller, buyer, agent, events };
+    let escrow: any = null;
+    if (shipment.escrowId) {
+      const [e] = await db.select().from(escrows).where(eq(escrows.id, shipment.escrowId));
+      escrow = e ?? null;
+    }
+    return { ...shipment, seller, buyer, agent, escrow, events };
   }
 
   async getShipment(id: string): Promise<(Shipment & { seller: User; buyer: User; events: ShipmentEvent[] }) | undefined> {
@@ -1605,26 +1610,36 @@ export class DatabaseStorage implements IStorage {
     await db.delete(bankAccounts).where(eq(bankAccounts.id, id));
   }
 
-  // ─── Seller Payout Requests ────────────────────────────────────────────────
+  // ─── Payout Requests (sellers & shipping agents) ──────────────────────────
 
-  async createPayoutRequest(data: InsertSellerPayoutRequest): Promise<SellerPayoutRequest> {
-    const [req] = await db.insert(sellerPayoutRequests).values(data).returning();
+  async createPayoutRequest(data: Partial<InsertSellerPayoutRequest>): Promise<SellerPayoutRequest> {
+    const [req] = await db.insert(sellerPayoutRequests).values(data as any).returning();
     return req;
   }
 
-  async getPayoutRequests(filters?: { sellerId?: string; status?: string }): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null })[]> {
+  async getPayoutRequests(filters?: { sellerId?: string; agentId?: string; status?: string }): Promise<(SellerPayoutRequest & { seller: User | null; agent: User | null; escrow: any; wallet?: any; bankAccount?: BankAccount | null })[]> {
     const rows = await db
       .select()
       .from(sellerPayoutRequests)
       .where(
         and(
           filters?.sellerId ? eq(sellerPayoutRequests.sellerId, filters.sellerId) : undefined,
+          filters?.agentId ? eq(sellerPayoutRequests.agentId, filters.agentId) : undefined,
           filters?.status ? eq(sellerPayoutRequests.status, filters.status as any) : undefined,
         )
       )
       .orderBy(desc(sellerPayoutRequests.createdAt));
     return Promise.all(rows.map(async (r) => {
-      const [seller] = await db.select().from(users).where(eq(users.id, r.sellerId));
+      let seller: User | null = null;
+      if (r.sellerId) {
+        const [s] = await db.select().from(users).where(eq(users.id, r.sellerId));
+        seller = s ?? null;
+      }
+      let agent: User | null = null;
+      if (r.agentId) {
+        const [a] = await db.select().from(users).where(eq(users.id, r.agentId));
+        agent = a ?? null;
+      }
       const [escrow] = await db.select().from(escrows).where(eq(escrows.id, r.escrowId));
       let wallet: any = null;
       if (r.walletId) {
@@ -1636,11 +1651,11 @@ export class DatabaseStorage implements IStorage {
         const [b] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, r.bankAccountId));
         bankAccount = b ?? null;
       }
-      return { ...r, seller, escrow, wallet, bankAccount };
+      return { ...r, seller, agent, escrow, wallet, bankAccount };
     }));
   }
 
-  async getPayoutRequest(id: string): Promise<(SellerPayoutRequest & { seller: User; escrow: any; wallet?: any; bankAccount?: BankAccount | null }) | undefined> {
+  async getPayoutRequest(id: string): Promise<(SellerPayoutRequest & { seller: User | null; agent: User | null; escrow: any; wallet?: any; bankAccount?: BankAccount | null }) | undefined> {
     const rows = await this.getPayoutRequests();
     return rows.find(r => r.id === id);
   }
