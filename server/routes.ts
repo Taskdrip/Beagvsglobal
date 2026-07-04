@@ -314,19 +314,26 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   app.post('/api/auth/register', async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
+      // Strip privileged fields — callers must never be able to self-assign admin roles
+      const safeUserData = {
+        ...userData,
+        role: 'USER' as const,
+        mustChangePassword: false,
+      };
+
       // Check if user already exists
-      const existingUser = await storage.getUserByEmail(userData.email!);
+      const existingUser = await storage.getUserByEmail(safeUserData.email!);
       if (existingUser) {
         return res.status(400).json({ message: "User already exists" });
       }
 
-      const existingUsername = await storage.getUserByUsername(userData.username!);
+      const existingUsername = await storage.getUserByUsername(safeUserData.username!);
       if (existingUsername) {
         return res.status(400).json({ message: "Username already taken" });
       }
 
-      const user = await storage.createUser(userData);
+      const user = await storage.createUser(safeUserData);
       res.status(201).json({ message: "User created successfully", userId: user.id });
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -537,9 +544,10 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  app.delete('/api/wallets/:id', isAuthenticatedEnhanced, async (req, res) => {
+  app.delete('/api/wallets/:id', isAuthenticatedEnhanced, async (req: any, res) => {
     try {
-      await storage.deleteWallet(req.params.id);
+      const userId = req.user?.claims?.sub;
+      await storage.deleteWallet(req.params.id, userId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting wallet:", error);

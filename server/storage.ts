@@ -278,8 +278,11 @@ export class DatabaseStorage implements IStorage {
     return newWallet;
   }
 
-  async deleteWallet(id: string): Promise<void> {
-    await db.delete(wallets).where(eq(wallets.id, id));
+  async deleteWallet(id: string, userId?: string): Promise<void> {
+    const conditions = userId
+      ? and(eq(wallets.id, id), eq(wallets.userId, userId))
+      : eq(wallets.id, id);
+    await db.delete(wallets).where(conditions);
   }
 
   // Listing operations
