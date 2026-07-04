@@ -10,6 +10,8 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import WalletManager from "@/components/WalletManager";
 import { SellerPayoutManager } from "@/components/PayoutRequestManager";
+import { ActiveOrdersPanel } from "@/components/TransactionGuide";
+import BankAccountManager from "@/components/BankAccountManager";
 import EscrowProgress from "@/components/EscrowProgress";
 import { KycStatus } from "@/components/KycStatus";
 import CryptoIcon from "@/components/CryptoIcon";
@@ -140,6 +142,48 @@ const ESCROW_STATUS_CFG: Record<string, { label: string; color: string; bg: stri
   DISPUTED:          { label: "Disputed",            color: "text-red-700",    bg: "bg-red-50",    icon: AlertCircle },
   REFUNDED:          { label: "Refunded",            color: "text-orange-700", bg: "bg-orange-50", icon: RefreshCw },
 };
+
+// ── Payout Account Guide — shown at top of payouts tab ───────────────────────
+function PayoutAccountGuide({ userId, escrows }: { userId: string; escrows: any[] }) {
+  const [showSetup, setShowSetup] = useState(false);
+  const { data: bankAccounts = [] } = useQuery<any[]>({ queryKey: ["/api/bank-accounts"] });
+  const hasDeliveredAsSeller = escrows?.some(e => e.sellerId === userId && ["DELIVERED", "RELEASED"].includes(e.status));
+  if (!hasDeliveredAsSeller) return null;
+  const hasAccount = (bankAccounts as any[]).length > 0;
+  if (hasAccount && !showSetup) {
+    return (
+      <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+          <CheckCircle className="w-4 h-4 text-emerald-600" />
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-emerald-800 text-sm">Payout account set up</p>
+          <p className="text-xs text-emerald-600">{(bankAccounts as any[]).length} account(s) saved. You're ready to receive payouts.</p>
+        </div>
+        <Button size="sm" variant="outline" className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-100" onClick={() => setShowSetup(v => !v)}>Manage</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+        <p className="font-semibold text-amber-800 text-sm">Set up your payout account</p>
+      </div>
+      <p className="text-xs text-amber-700">Add a bank account or crypto wallet so admin can send your earnings when funds are released.</p>
+      {showSetup ? (
+        <div className="bg-white rounded-lg p-4 border border-amber-100">
+          <BankAccountManager />
+          <Button size="sm" variant="ghost" className="mt-2 text-xs" onClick={() => setShowSetup(false)}>Done</Button>
+        </div>
+      ) : (
+        <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setShowSetup(true)}>
+          Add Payout Account
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [currentMode, setCurrentMode] = useState<"buyer" | "seller">("buyer");
@@ -362,6 +406,20 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
+            {/* ── Action Required Panel ── */}
+            {userEscrows && (userEscrows as any[]).filter(e => !["RELEASED","CANCELLED","REFUNDED"].includes(e.status)).length > 0 && (
+              <Card className="border-orange-100 shadow-sm">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-base flex items-center gap-2 text-slate-800">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse inline-block" />
+                    Active Transactions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <ActiveOrdersPanel escrows={userEscrows as any[]} userId={(user as any)?.id ?? ""} />
+                </CardContent>
+              </Card>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Listings */}
               <Card>
@@ -628,9 +686,25 @@ export default function Dashboard() {
                               </Link>
                             )}
                             {(escrow.status === 'SHIPPED' && escrow.buyerId === user?.id) && (
-                              <Button size="sm" className="bg-green-600 hover:bg-green-700" data-testid={`button-mark-delivered-${escrow.id}`}>
-                                Mark as Delivered
-                              </Button>
+                              <Link href={`/checkout/${escrow.id}`}>
+                                <Button size="sm" className="bg-green-600 hover:bg-green-700" data-testid={`button-mark-delivered-${escrow.id}`}>
+                                  ✓ Confirm Receipt
+                                </Button>
+                              </Link>
+                            )}
+                            {(escrow.status === 'DELIVERED' && escrow.sellerId === user?.id) && (
+                              <Link href={`/checkout/${escrow.id}`}>
+                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid={`button-request-payout-${escrow.id}`}>
+                                  Request Payout
+                                </Button>
+                              </Link>
+                            )}
+                            {(escrow.status === 'FUNDED' && escrow.sellerId === user?.id) && (
+                              <Link href={`/checkout/${escrow.id}`}>
+                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" data-testid={`button-ship-now-${escrow.id}`}>
+                                  Ship Now
+                                </Button>
+                              </Link>
                             )}
                           </div>
                         </div>
@@ -906,6 +980,8 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="payouts" className="space-y-4">
+            {/* Payout account setup prompt */}
+            <PayoutAccountGuide userId={(user as any)?.id} escrows={userEscrows as any[]} />
             <SellerPayoutManager escrows={userEscrows as any[]} />
           </TabsContent>
 

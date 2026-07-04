@@ -1530,6 +1530,13 @@ export default function Admin() {
     enabled: isAdminUser,
   });
 
+  const { data: allPayoutRequests = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/payout-requests"],
+    enabled: isAdminUser,
+    refetchInterval: 60_000,
+  });
+  const pendingPayoutCount = (allPayoutRequests as any[]).filter((r: any) => r.status === "PENDING").length;
+
   // Form setup — always called
   const walletForm = useForm<PlatformWalletFormData>({
     resolver: zodResolver(platformWalletSchema),
@@ -1870,7 +1877,7 @@ export default function Admin() {
               🔍 SEO & Indexing
             </TabsTrigger>
             <TabsTrigger value="payouts" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-payouts">
-              💰 Payouts
+              💰 Payouts{pendingPayoutCount > 0 && <span className="ml-1.5 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 font-bold">{pendingPayoutCount}</span>}
             </TabsTrigger>
           </TabsList>
 

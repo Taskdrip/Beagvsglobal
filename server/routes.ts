@@ -1063,8 +1063,8 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
           data: {
             escrowId: existing.id,
             listingTitle: (existing as any).listing?.title ?? 'your listing',
-            message: 'Buyer confirmed delivery! Funds will be released to you shortly.',
-            action: 'delivery_confirmed',
+            message: '✅ Buyer confirmed delivery! Visit your order page to submit a payout request and receive your funds.',
+            action: 'delivery_confirmed_request_payout',
           },
         });
         // Notify admins to release funds

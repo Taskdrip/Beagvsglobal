@@ -88,6 +88,135 @@ function CountdownTimer({ seconds }: { seconds: number }) {
 
 // ─── Fee Breakdown Panel ──────────────────────────────────────────────────────
 
+// ─── Seller Inline Payout Panel (shown on DELIVERED screen) ──────────────────
+
+function SellerPayoutPanel({ escrow }: { escrow: any }) {
+  const { toast } = useToast();
+  const [method, setMethod] = useState("bank");
+  const [notes, setNotes] = useState("");
+  const [selectedBankId, setSelectedBankId] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const { data: payoutRequests = [] } = useQuery<any[]>({ queryKey: ["/api/payout-requests"] });
+  const { data: bankAccounts = [] } = useQuery<any[]>({ queryKey: ["/api/bank-accounts"] });
+
+  const existingRequest = (payoutRequests as any[]).find((r: any) => r.escrowId === escrow.id);
+
+  const submitMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/payout-requests", data),
+    onSuccess: () => {
+      toast({ title: "Payout request submitted!", description: "Admin will review and process your payout." });
+      queryClient.invalidateQueries({ queryKey: ["/api/payout-requests"] });
+      setSubmitted(true);
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const STATUS_STYLE: Record<string, string> = {
+    PENDING: "bg-yellow-50 border-yellow-200 text-yellow-800",
+    APPROVED: "bg-blue-50 border-blue-200 text-blue-800",
+    REJECTED: "bg-red-50 border-red-200 text-red-800",
+    PAID: "bg-green-50 border-green-200 text-green-800",
+  };
+
+  if (existingRequest || submitted) {
+    const req = existingRequest;
+    return (
+      <Card className="shadow-md border-blue-100">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <Banknote className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-slate-900">Payout Request</h2>
+              <p className="text-xs text-slate-500">Your earnings for this order</p>
+            </div>
+          </div>
+          {req && (
+            <div className={`rounded-xl border px-4 py-3 mb-4 ${STATUS_STYLE[req.status] || "bg-slate-50 border-slate-200"}`}>
+              <p className="font-semibold text-sm capitalize">{req.status === "PAID" ? "✅ Paid!" : req.status === "APPROVED" ? "✅ Approved — processing payment" : req.status === "REJECTED" ? "❌ Rejected" : "⏳ Under Review"}</p>
+              <p className="text-xs mt-0.5">{req.status === "PAID" ? "Your payout has been sent." : req.status === "APPROVED" ? "Your request was approved. Payment is being sent." : req.status === "REJECTED" ? req.adminNote || "Please contact support." : "Admin will process your payout within 1–24 hrs."}</p>
+              {req.txHash && <p className="text-xs mt-1 font-mono text-slate-600">TX: {req.txHash}</p>}
+            </div>
+          )}
+          {!req && <p className="text-sm text-slate-500 mb-4">Your payout request has been submitted. Admin will review it shortly.</p>}
+          <Link href="/dashboard?tab=payouts">
+            <Button variant="outline" className="w-full text-sm">View All Payout Requests</Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const noBankAccounts = (bankAccounts as any[]).length === 0;
+
+  return (
+    <Card className="shadow-md border-emerald-200">
+      <CardContent className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+            <Banknote className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-slate-900">Request Your Payout</h2>
+            <p className="text-xs text-slate-500">You earned: <strong>{escrow.sellerNetAmount || escrow.amount} {escrow.currency}</strong></p>
+          </div>
+        </div>
+
+        {noBankAccounts ? (
+          <div className="space-y-3">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-2">
+              <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">You need to add a payout account before requesting your funds.</p>
+            </div>
+            <Link href="/account-settings?section=bank">
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
+                <Building2 className="w-4 h-4 mr-2" /> Add Payout Account
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-slate-700 mb-1 block">Payment method</label>
+              <select className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={method} onChange={e => setMethod(e.target.value)}>
+                <option value="bank">Bank Transfer</option>
+                <option value="crypto">Crypto Wallet</option>
+              </select>
+            </div>
+            {method === "bank" && (
+              <div>
+                <label className="text-xs font-medium text-slate-700 mb-1 block">Select bank account</label>
+                <select className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" value={selectedBankId} onChange={e => setSelectedBankId(e.target.value)}>
+                  <option value="">Choose account…</option>
+                  {(bankAccounts as any[]).map((acc: any) => (
+                    <option key={acc.id} value={acc.id}>{acc.bankName} — {acc.accountNumber} ({acc.accountName})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-medium text-slate-700 mb-1 block">Notes (optional)</label>
+              <Textarea className="text-sm h-20 resize-none" placeholder="Add any extra info for admin…" value={notes} onChange={e => setNotes(e.target.value)} />
+            </div>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700"
+              disabled={submitMutation.isPending || (method === "bank" && !selectedBankId)}
+              onClick={() => submitMutation.mutate({ escrowId: escrow.id, paymentMethod: method, bankAccountId: selectedBankId || undefined, notes })}
+            >
+              {submitMutation.isPending ? "Submitting…" : "Submit Payout Request"}
+            </Button>
+            <p className="text-xs text-center text-slate-400">Admin will process your payout within 1–24 hours.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Fee Breakdown Panel ──────────────────────────────────────────────────────
+
 export function computeShippingInfo(escrow: any, selectedShippingRate?: any) {
   const savedShippingCost = parseFloat((escrow.metadata as any)?.shipping?.cost || escrow.shippingFee || "0");
   const shippingFeeNGN = selectedShippingRate
@@ -812,11 +941,13 @@ export default function Checkout() {
     );
   }
 
-  // Buyer confirmed delivery — pending fund release
+  // Buyer confirmed delivery — payout request for seller
   if (escrow.status === 'DELIVERED') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
-        <div className="max-w-xl mx-auto pt-10">
+        <div className="max-w-xl mx-auto pt-10 space-y-5">
+
+          {/* Status card */}
           <Card className="shadow-lg border-purple-200">
             <CardContent className="p-8 text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -824,35 +955,35 @@ export default function Checkout() {
               </div>
               <h1 className="text-2xl font-bold text-purple-700 mb-2">Delivery Confirmed!</h1>
               <p className="text-slate-600 mb-1">
-                {isBuyer
-                  ? "You confirmed receiving the item."
-                  : "The buyer confirmed delivery of your item."}
+                {isBuyer ? "You confirmed receiving the item. Thank you!" : "The buyer confirmed they received your item."}
               </p>
-              <p className="text-slate-500 text-sm mb-6">
-                {isSeller
-                  ? "Funds will be released to your wallet by our team shortly."
-                  : "Admin will release the funds to the seller. The transaction is almost complete."}
-              </p>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 flex gap-2 text-left">
-                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700">
-                  Our team has been notified and will release the escrow funds within 1–24 hours.
+              {isBuyer && (
+                <p className="text-slate-500 text-sm mb-4">
+                  Funds will be released to the seller once they submit a payout request and admin approves. The transaction is almost complete.
                 </p>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <Link href={`/chat/${escrow.listingId}`}>
-                  <Button variant="outline" className="w-full gap-2">
-                    <MessageCircle className="w-4 h-4" /> Open Escrow Chat
-                  </Button>
-                </Link>
-                <Link href="/dashboard">
-                  <Button className="w-full" data-testid="button-dashboard-delivered">View Dashboard</Button>
-                </Link>
-              </div>
+              )}
+              {isBuyer && (
+                <div className="flex flex-col gap-3">
+                  <Link href={`/chat/${escrow.listingId}`}>
+                    <Button variant="outline" className="w-full gap-2">
+                      <MessageCircle className="w-4 h-4" /> Open Escrow Chat
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard">
+                    <Button className="w-full" data-testid="button-dashboard-delivered">View Dashboard</Button>
+                  </Link>
+                </div>
+              )}
+              {isSeller && (
+                <p className="text-slate-500 text-sm">
+                  Submit your payout request below to receive your funds.
+                </p>
+              )}
             </CardContent>
           </Card>
+
+          {/* Seller payout request panel */}
+          {isSeller && <SellerPayoutPanel escrow={escrow} />}
         </div>
       </div>
     );
