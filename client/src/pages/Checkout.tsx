@@ -521,7 +521,8 @@ export default function Checkout() {
   const feePct = parseFloat(escrow.platformFeePct || "10");
   const feeAmount = amount * (feePct / 100);
   const sellerReceives = amount - feeAmount;
-  const { shippingFeeNGN, sameCurrencyAsItem } = computeShippingInfo(escrow);
+  const selectedRate = shippingRates?.find((r: any) => r.option === selectedShippingOption);
+  const { shippingFeeNGN, sameCurrencyAsItem } = computeShippingInfo(escrow, selectedRate);
   // Buyer total = item price + shipping fee when they share the same currency
   const buyerTotal = sameCurrencyAsItem ? amount + shippingFeeNGN : amount;
 
