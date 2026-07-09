@@ -3,7 +3,20 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const err: any = new Error(`${res.status}: ${text}`);
+    err.status = res.status;
+    // Most API error responses are JSON ({ message, ...extraFlags }). Parse it
+    // and surface both a clean `.message` (without the "404: " status prefix)
+    // and the raw `.body` so callers can branch on structured fields like
+    // `needsSignup` without string-parsing the error message.
+    try {
+      const parsed = JSON.parse(text);
+      err.body = parsed;
+      if (parsed?.message) err.message = parsed.message;
+    } catch {
+      // Non-JSON error body — keep the default "status: text" message.
+    }
+    throw err;
   }
 }
 

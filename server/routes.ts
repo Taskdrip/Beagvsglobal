@@ -381,19 +381,38 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   // Pi Network authentication & payments
   // ---------------------------------------------------------------------
 
-  // Verify a Pi SDK access token, then find-or-create a Beagvs user linked
-  // to that Pi account and log them in via session (same pattern as email/password login).
+  // Verify a Pi SDK access token, then either log an existing Beagvs user in
+  // or create a brand-new one — but ONLY when the caller explicitly asked to
+  // sign up. A "sign in" attempt for a Pi account with no matching Beagvs
+  // user must fail with a clear "you need to sign up first" response instead
+  // of silently creating an account: that silent auto-creation was the root
+  // cause of new Pi users landing straight on a dashboard for an account they
+  // never actually chose to create.
   app.post('/api/auth/pi', async (req, res) => {
     try {
-      const { accessToken, username } = req.body;
+      const { accessToken, username, intent } = req.body;
       if (!accessToken) {
         return res.status(400).json({ message: "Missing Pi access token" });
+      }
+      if (intent !== 'signin' && intent !== 'signup') {
+        return res.status(400).json({ message: "Missing or invalid intent (expected 'signin' or 'signup')" });
       }
 
       const piUser = await getPiUser(accessToken);
 
       let user = await storage.getUserByPiUid(piUser.uid);
       let isNewUser = false;
+
+      if (!user && intent === 'signin') {
+        // No Beagvs account is linked to this Pi account — do not create one
+        // behind the user's back. Tell the client so it can route them to
+        // the Pi sign-up flow instead.
+        return res.status(404).json({
+          message: "We couldn't find a Beagvs account for this Pi account. Please sign up with Pi first.",
+          needsSignup: true,
+        });
+      }
+
       if (!user) {
         isNewUser = true;
         const baseUsername = `pi_${piUser.username || piUser.uid}`.slice(0, 50);

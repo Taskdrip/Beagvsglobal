@@ -138,7 +138,7 @@ export default function Auth() {
   };
 
   const piAuthMutation = useMutation({
-    mutationFn: async (piAuth: { accessToken: string; username?: string }) => {
+    mutationFn: async (piAuth: { accessToken: string; username?: string; intent: "signin" | "signup" }) => {
       const res = await apiRequest("POST", "/api/auth/pi", piAuth);
       return await res.json();
     },
@@ -152,10 +152,10 @@ export default function Auth() {
       queryClient.setQueryData(["/api/auth/user"], user);
 
       if (user.needsOnboarding) {
-        // New Pi user OR returning user who quit mid-onboarding — complete profile first.
+        // New Pi sign-up OR returning user who quit mid-onboarding — complete profile first.
         toast({
-          title: "Welcome!",
-          description: "Let's finish setting up your account.",
+          title: "Welcome to Beagvs Global!",
+          description: "Let's set up your account — choose how you'll use Beagvs.",
         });
         setLocation("/onboarding");
         return;
@@ -176,8 +176,20 @@ export default function Auth() {
       }
     },
     onError: (error: any) => {
+      if (error?.body?.needsSignup) {
+        // This Pi account tried to *sign in* but has no matching Beagvs
+        // account. Send them to the Pi sign-up flow instead of leaving them
+        // stuck on a failed sign-in with no path forward.
+        toast({
+          title: "No account found",
+          description: "You don't have a Beagvs account yet for this Pi account. Please sign up with Pi to create one.",
+          variant: "destructive",
+        });
+        setLocation("/auth/sign-up");
+        return;
+      }
       toast({
-        title: "Pi sign-in failed",
+        title: isSignUp ? "Pi sign-up failed" : "Pi sign-in failed",
         description: error.message || "Please try again",
         variant: "destructive",
       });
@@ -188,7 +200,8 @@ export default function Auth() {
     if (!isPiBrowser()) {
       toast({
         title: "Pi Browser required",
-        description: "Open Beagvs Global inside the Pi Browser app to sign in with Pi Network.",
+        description:
+          "Signing in or signing up with Pi on Beagvs Global is only available to Pi Network pioneers with a Pi account, using the official Pi Browser app. Please open Beagvs Global inside Pi Browser and try again.",
         variant: "destructive",
       });
       return;
@@ -197,10 +210,14 @@ export default function Auth() {
       const auth = await authenticateWithPi(() => {
         // Incomplete payment found — server routes handle reconciliation on next payment attempt.
       });
-      piAuthMutation.mutate({ accessToken: auth.accessToken, username: auth.user?.username });
+      piAuthMutation.mutate({
+        accessToken: auth.accessToken,
+        username: auth.user?.username,
+        intent: isSignUp ? "signup" : "signin",
+      });
     } catch (error: any) {
       toast({
-        title: "Pi sign-in failed",
+        title: isSignUp ? "Pi sign-up failed" : "Pi sign-in failed",
         description: error?.message || "Please try again",
         variant: "destructive",
       });

@@ -103,7 +103,8 @@ export default function Signup() {
     if (!isPiBrowser()) {
       toast({
         title: "Pi Browser required",
-        description: "Open Beagvs Global inside the Pi Browser app to sign up with Pi Network.",
+        description:
+          "Signing up with Pi on Beagvs Global is only for Pi Network pioneers with a Pi account, using the official Pi Browser app. Please open Beagvs Global inside Pi Browser and try again.",
         variant: "destructive",
       });
       return;
@@ -116,17 +117,22 @@ export default function Signup() {
       const res = await apiRequest("POST", "/api/auth/pi", {
         accessToken: auth.accessToken,
         username: auth.user?.username,
+        // This button is "Sign Up with Pi" — create the account if one
+        // doesn't exist yet. If a Beagvs account already exists for this Pi
+        // account, the server just logs them in instead of erroring.
+        intent: "signup",
       });
       const user = await res.json();
 
       // Set auth cache directly — no page reload, no race with session cookies.
-      const { needsOnboarding: _, ...cachedUser } = user;
-      queryClient.setQueryData(["/api/auth/user"], cachedUser);
+      // Keep needsOnboarding in the cache: App.tsx's OnboardingGate reads it
+      // directly from this cache to decide whether to redirect to /onboarding.
+      queryClient.setQueryData(["/api/auth/user"], user);
 
       toast({
-        title: "Welcome!",
+        title: "Welcome to Beagvs Global!",
         description: user.needsOnboarding
-          ? "Let's finish setting up your account."
+          ? "Let's set up your account — choose how you'll use Beagvs."
           : "Signed in with Pi Network.",
       });
 
@@ -135,10 +141,11 @@ export default function Signup() {
       } else if (user.role === "DELIVERY_AGENT") {
         setLocation("/agent/dashboard");
       } else if (user.needsOnboarding) {
-        // New Pi user OR returning user who quit mid-onboarding.
+        // New Pi sign-up OR returning user who quit mid-onboarding — pick
+        // buyer/seller/shipping agent before reaching any dashboard.
         setLocation("/onboarding");
       } else {
-        // Fully onboarded user — route to their dashboard.
+        // Already has a completed account — just route to their dashboard.
         setLocation("/dashboard");
       }
     } catch (error: any) {

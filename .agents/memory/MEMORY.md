@@ -2,3 +2,4 @@
 - [Pi auth routing race → 404](pi-auth-race-condition.md) — Pi sign-in race: setQueryData + setLocation fires RedirectToLogin, then isAuthenticated=true but /login has no authenticated route → 404. Fix: add /login /signup /auth redirect routes in the authenticated branch of App.tsx.
 - [Escrow auth onSuccess pattern](escrow-auth-on-success.md) — After inline GuestCheckoutAuth, always invalidate+refetch the auth query instead of window.location.reload() to preserve React Query cache and avoid auth loops.
 - [Shipping agent payout split](shipping-agent-payout-split.md) — 75/25 agent/platform shipping-fee split lives on the escrow row; payout requests use a shared `payeeType` field for both sellers and agents.
+- [Beagvs Pi auth — real pages vs dead code](beagvs-pi-auth-pages.md) — Auth.tsx is unrouted dead code; Login.tsx/Signup.tsx are the real Pi auth pages. /api/auth/pi requires intent:'signin'|'signup'.

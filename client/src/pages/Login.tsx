@@ -41,7 +41,8 @@ export default function Login() {
     if (!isPiBrowser()) {
       toast({
         title: "Pi Browser required",
-        description: "Open Beagvs Global inside the Pi Browser app to sign in with Pi Network.",
+        description:
+          "Signing in with Pi on Beagvs Global is only for Pi Network pioneers with a Pi account, using the official Pi Browser app. Please open Beagvs Global inside Pi Browser and try again.",
         variant: "destructive",
       });
       return;
@@ -54,6 +55,10 @@ export default function Login() {
       const res = await apiRequest("POST", "/api/auth/pi", {
         accessToken: auth.accessToken,
         username: auth.user?.username,
+        // This button is "Sign In with Pi" — never silently create an
+        // account here. The server returns needsSignup:true below if there
+        // is no Beagvs account for this Pi account yet.
+        intent: "signin",
       });
       const user = await res.json();
 
@@ -64,22 +69,34 @@ export default function Login() {
 
       // Set auth cache directly so the router sees isAuthenticated = true
       // immediately — no page reload, no race condition with session cookies.
-      const { needsOnboarding: _, ...cachedUser } = user;
-      queryClient.setQueryData(["/api/auth/user"], cachedUser);
+      // Keep needsOnboarding in the cache: App.tsx's OnboardingGate reads it
+      // directly from this cache to decide whether to redirect to /onboarding.
+      queryClient.setQueryData(["/api/auth/user"], user);
 
       if (user.role === "ADMIN") {
         setLocation("/admin");
       } else if (user.role === "DELIVERY_AGENT") {
         setLocation("/agent/dashboard");
       } else if (user.needsOnboarding) {
-        // New Pi user OR returning Pi user who quit before finishing the
-        // onboarding form — send them back to complete their profile.
+        // Returning Pi user who quit before finishing the onboarding form —
+        // send them back to complete their profile.
         setLocation("/onboarding");
       } else {
         // Returning Pi user with a completed profile — route by account type.
         setLocation("/dashboard");
       }
     } catch (error: any) {
+      if (error?.body?.needsSignup) {
+        // No Beagvs account exists for this Pi account — send them to the
+        // dedicated Pi sign-up flow instead of leaving them on a dead end.
+        toast({
+          title: "No account found",
+          description: "You don't have a Beagvs account yet for this Pi account. Please sign up with Pi to create one.",
+          variant: "destructive",
+        });
+        setLocation("/signup");
+        return;
+      }
       toast({
         title: "Pi sign-in failed",
         description: error?.message || "Please try again",
