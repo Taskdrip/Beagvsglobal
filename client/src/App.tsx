@@ -66,6 +66,35 @@ function RedirectToDashboard() {
   return null;
 }
 
+// Single centralized onboarding gate, applied once above the whole route
+// tree rather than per-route (per-route wrapping is easy to miss on new
+// routes and left gaps in an earlier version of this guard, e.g.
+// /agent/dashboard and static content pages).
+//
+// A Pi user whose account was auto-created but who hasn't picked
+// buyer/seller/shipping-agent yet (or refreshed mid-onboarding) must finish
+// that step before reaching ANY other authenticated page — otherwise they
+// land on a dashboard for an account they never actually finished creating.
+const ONBOARDING_EXEMPT_PATHS = new Set(["/onboarding", "/admin/login", "/admin/change-password"]);
+
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated } = useAuth();
+  const [location, nav] = useLocation();
+  const needsOnboarding = isAuthenticated && !!(user as any)?.needsOnboarding;
+  const blocked = needsOnboarding && !ONBOARDING_EXEMPT_PATHS.has(location);
+
+  useEffect(() => {
+    if (blocked) {
+      nav("/onboarding");
+    }
+  }, [blocked, nav]);
+
+  if (blocked) {
+    return null;
+  }
+  return <>{children}</>;
+}
+
 // Full-screen loader shown while the session is being resolved.
 function AuthLoader() {
   return (
@@ -89,6 +118,7 @@ function Router() {
   }
 
   return (
+    <OnboardingGate>
     <Switch>
       {/* Admin login & change-password are always accessible */}
       <Route path="/admin/login" component={AdminLogin} />
@@ -106,8 +136,8 @@ function Router() {
           <Route path="/login" component={RedirectToDashboard} />
           <Route path="/signup" component={RedirectToDashboard} />
           <Route path="/auth" component={RedirectToDashboard} />
-          <Route path="/" component={Home} />
           <Route path="/onboarding" component={PiOnboarding} />
+          <Route path="/" component={Home} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/marketplace" component={Marketplace} />
           <Route path="/listing/:slug" component={ListingDetail} />
@@ -174,6 +204,7 @@ function Router() {
       )}
       <Route component={NotFound} />
     </Switch>
+    </OnboardingGate>
   );
 }
 

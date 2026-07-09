@@ -145,8 +145,11 @@ export default function Auth() {
     onSuccess: (user: any) => {
       // Push the authenticated user straight into the React Query cache so the
       // router sees isAuthenticated = true immediately — no page reload needed.
-      const { needsOnboarding: _, ...cachedUser } = user;
-      queryClient.setQueryData(["/api/auth/user"], cachedUser);
+      // Keep needsOnboarding in the cached shape: App.tsx's OnboardingGate reads
+      // it directly from this cache to decide whether to redirect to
+      // /onboarding, and stripping it here would let a brand-new Pi user slip
+      // past the gate until the next /api/auth/user refetch.
+      queryClient.setQueryData(["/api/auth/user"], user);
 
       if (user.needsOnboarding) {
         // New Pi user OR returning user who quit mid-onboarding — complete profile first.

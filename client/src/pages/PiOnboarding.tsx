@@ -39,6 +39,12 @@ const ACCOUNT_TYPES = [
     description: "Full access — buy from others and sell your own listings.",
     icon: Users,
   },
+  {
+    value: "SHIPPING_AGENT",
+    title: "Shipping Agent",
+    description: "Deliver shipments and earn fees fulfilling orders.",
+    icon: Truck,
+  },
 ];
 
 export default function PiOnboarding() {

@@ -330,6 +330,13 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       
       // Remove sensitive data
       const { passwordHash: _, ...publicUser } = user;
+
+      // Surface the same onboarding gate on every session check (not just the
+      // initial Pi login response) so a page refresh or direct navigation
+      // can't skip the account-type picker for a Pi user who hasn't finished
+      // setting up their profile yet.
+      (publicUser as any).needsOnboarding = !!user.piUid && (!user.firstName || !user.passwordHash);
+
       res.json(publicUser);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -1480,7 +1487,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         return res.status(400).json({ message: `Missing required fields: ${missing.join(', ')}.` });
       }
 
-      const validTypes = ['BUYER', 'SELLER', 'BOTH'];
+      const validTypes = ['BUYER', 'SELLER', 'BOTH', 'SHIPPING_AGENT'];
       if (!validTypes.includes(accountType)) {
         return res.status(400).json({ message: "Invalid account type." });
       }
@@ -1509,6 +1516,10 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         whatsapp: phone.trim(),
         passwordHash,
         accountType,
+        // Shipping agents get the DELIVERY_AGENT role so they're routed to the
+        // agent dashboard and gated by the same middleware as agents created
+        // via the dedicated /signup/agent flow.
+        role: accountType === 'SHIPPING_AGENT' ? 'DELIVERY_AGENT' : currentUser.role,
       });
 
       const { passwordHash: _, ...publicUser } = updated;
