@@ -136,22 +136,17 @@ export default function Signup() {
           : "Signed in with Pi Network.",
       });
 
-      // Use window.location.href (full page reload) instead of setLocation so
-      // that Pi Browser's WebView fully resets its touch/input state after the
-      // Pi SDK authentication overlay is dismissed. Client-side navigation leaves
-      // residual WebView state that blocks text input on the next page.
-      // This also mirrors the regular signup flow which already uses href.
       if (user.role === "ADMIN") {
-        window.location.href = "/admin";
+        setLocation("/admin");
       } else if (user.role === "DELIVERY_AGENT") {
-        window.location.href = "/agent/dashboard";
+        setLocation("/agent/dashboard");
       } else if (user.needsOnboarding) {
         // New Pi sign-up OR returning user who quit mid-onboarding — pick
         // buyer/seller/shipping agent before reaching any dashboard.
-        window.location.href = "/onboarding";
+        setLocation("/onboarding");
       } else {
         // Already has a completed account — just route to their dashboard.
-        window.location.href = "/dashboard";
+        setLocation("/dashboard");
       }
     } catch (error: any) {
       toast({

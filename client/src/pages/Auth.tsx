@@ -153,13 +153,11 @@ export default function Auth() {
 
       if (user.needsOnboarding) {
         // New Pi sign-up OR returning user who quit mid-onboarding — complete profile first.
-        // Use window.location.href to fully reset Pi Browser WebView state so
-        // inputs on the onboarding form work correctly after Pi SDK auth completes.
         toast({
           title: "Welcome to Beagvs Global!",
           description: "Let's set up your account — choose how you'll use Beagvs.",
         });
-        window.location.href = "/onboarding";
+        setLocation("/onboarding");
         return;
       }
 
@@ -169,12 +167,12 @@ export default function Auth() {
         description: "Signed in with Pi Network.",
       });
       if (user.role === "ADMIN") {
-        window.location.href = "/admin";
+        setLocation("/admin");
       } else if (user.role === "DELIVERY_AGENT") {
-        window.location.href = "/agent/dashboard";
+        setLocation("/agent/dashboard");
       } else {
         // BUYER, SELLER, BOTH — all use the unified dashboard.
-        window.location.href = "/dashboard";
+        setLocation("/dashboard");
       }
     },
     onError: (error: any) => {
@@ -187,7 +185,7 @@ export default function Auth() {
           description: "You don't have a Beagvs account yet for this Pi account. Please sign up with Pi to create one.",
           variant: "destructive",
         });
-        window.location.href = "/signup";
+        setLocation("/signup");
         return;
       }
       toast({

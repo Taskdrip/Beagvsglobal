@@ -82,17 +82,22 @@ export default function PiOnboarding() {
         description: "Taking you to your dashboard…",
       });
 
-      // Use window.location.href (full page reload) for two reasons:
-      // 1. Pi Browser WebView: resets touch/input state after Pi SDK overlay.
-      // 2. Routing safety: avoids OnboardingGate race where needsOnboarding is
-      //    still true in the cache while location changes to /dashboard, causing
-      //    the gate to redirect back to /onboarding. A full reload re-fetches
-      //    /api/auth/user which now returns needsOnboarding: false (firstName +
-      //    passwordHash are both saved), so the gate does not intercept.
+      // Explicitly clear needsOnboarding in the cache BEFORE navigating.
+      // Without this, the OnboardingGate sees needsOnboarding:true while
+      // location changes to /dashboard, briefly sets blocked:true, and
+      // redirects back to /onboarding. The server response from PATCH
+      // /api/user/pi-profile doesn't include needsOnboarding, so we set
+      // it to false here — the background /api/auth/user refetch will
+      // confirm this from the server (firstName + passwordHash now set).
+      queryClient.setQueryData(["/api/auth/user"], {
+        ...updatedUser,
+        needsOnboarding: false,
+      });
+
       if (updatedUser.accountType === "SHIPPING_AGENT" || updatedUser.role === "DELIVERY_AGENT") {
-        window.location.href = "/agent/dashboard";
+        setLocation("/agent/dashboard");
       } else {
-        window.location.href = "/dashboard";
+        setLocation("/dashboard");
       }
     },
     onError: (error: any) => {

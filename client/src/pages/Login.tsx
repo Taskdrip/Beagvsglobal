@@ -73,35 +73,29 @@ export default function Login() {
       // directly from this cache to decide whether to redirect to /onboarding.
       queryClient.setQueryData(["/api/auth/user"], user);
 
-      // Use window.location.href (full page reload) after Pi auth so that
-      // Pi Browser's WebView fully resets its touch/input state. Client-side
-      // navigation (setLocation) leaves residual state that blocks text input
-      // on the destination page — particularly critical when routing to /onboarding.
       if (user.role === "ADMIN") {
-        window.location.href = "/admin";
+        setLocation("/admin");
       } else if (user.role === "DELIVERY_AGENT") {
-        window.location.href = "/agent/dashboard";
+        setLocation("/agent/dashboard");
       } else if (user.needsOnboarding) {
         // Returning Pi user who quit before finishing the onboarding form —
         // send them back to complete their profile.
-        window.location.href = "/onboarding";
+        setLocation("/onboarding");
       } else {
         // Returning Pi user with a completed profile — route by account type.
         // The dashboard component handles BUYER / SELLER / BOTH differentiation.
-        window.location.href = "/dashboard";
+        setLocation("/dashboard");
       }
     } catch (error: any) {
       if (error?.body?.needsSignup) {
         // No Beagvs account exists for this Pi account — send them to the
         // dedicated Pi sign-up flow instead of leaving them on a dead end.
-        // Use window.location.href (not setLocation) to fully reset Pi Browser
-        // WebView state so inputs on the signup page work correctly.
         toast({
           title: "No account found",
           description: "You don't have a Beagvs account yet for this Pi account. Please sign up with Pi to create one.",
           variant: "destructive",
         });
-        window.location.href = "/signup";
+        setLocation("/signup");
         return;
       }
       toast({
