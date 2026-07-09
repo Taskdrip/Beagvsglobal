@@ -86,6 +86,12 @@ export default function PiOnboarding() {
   const isShippingAgent = accountType === "SHIPPING_AGENT";
   const isCompany = agentType === "COMPANY";
 
+  // The onboarding token was included in the /api/auth/pi response and stored
+  // in the React Query cache. We send it as a Bearer token so the server can
+  // authenticate the request without relying on session cookies, which Pi
+  // Browser's sandboxed WebView does not reliably persist across fetch() calls.
+  const onboardingToken = (user as any)?.onboardingToken as string | undefined;
+
   const saveProfile = useMutation({
     mutationFn: async (payload: {
       firstName: string;
@@ -97,7 +103,20 @@ export default function PiOnboarding() {
       agentType?: string;
       companyName?: string;
     }) => {
-      const res = await apiRequest("PATCH", "/api/user/pi-profile", payload);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (onboardingToken) headers["Authorization"] = `Bearer ${onboardingToken}`;
+      const res = await fetch("/api/user/pi-profile", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let message = `${res.status}: ${text}`;
+        try { const parsed = JSON.parse(text); if (parsed?.message) message = parsed.message; } catch { /* keep default */ }
+        throw new Error(message);
+      }
       return await res.json();
     },
     onSuccess: (updatedUser: any) => {

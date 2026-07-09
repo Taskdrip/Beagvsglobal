@@ -40,6 +40,20 @@ async function applyShippingAgentToEscrow(escrowId: string, agentId: string | nu
   } as any);
 }
 
+// Short-lived tokens issued with every Pi auth response when needsOnboarding:true.
+// The client stores the token in its React Query cache and sends it as
+// "Authorization: Bearer <token>" on the PATCH /api/user/pi-profile request.
+// This bypasses session-cookie issues in Pi Browser's sandboxed WebView, where
+// cookies set by fetch() responses are not reliably sent on subsequent fetch() calls.
+const onboardingTokenStore = new Map<string, { userId: string; expiresAt: number }>();
+// Prune expired tokens every 10 minutes so the map doesn't grow unbounded.
+setInterval(() => {
+  const now = Date.now();
+  for (const [tok, data] of onboardingTokenStore) {
+    if (data.expiresAt <= now) onboardingTokenStore.delete(tok);
+  }
+}, 10 * 60 * 1000).unref();
+
 export async function registerRoutes(app: Express, existingServer?: HttpServer): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
@@ -470,6 +484,20 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
           });
         });
       });
+
+      // When the user still needs to complete the onboarding form, issue a
+      // short-lived onboarding token so the PATCH /api/user/pi-profile request
+      // can authenticate without relying on session cookies (which Pi Browser's
+      // sandboxed WebView does not reliably persist across fetch() calls).
+      if (needsOnboarding) {
+        const { randomBytes } = await import('crypto');
+        const onboardingToken = randomBytes(32).toString('hex');
+        onboardingTokenStore.set(onboardingToken, {
+          userId: user!.id,
+          expiresAt: Date.now() + 15 * 60 * 1000, // 15 min — plenty for one form
+        });
+        (publicUser as any).onboardingToken = onboardingToken;
+      }
 
       res.json(publicUser);
     } catch (error: any) {
@@ -1483,9 +1511,49 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
   // Strictly gated to Pi-authenticated users who have NOT yet set a password
   // (i.e. first-time Pi sign-ups only). This prevents it from becoming an
   // unauthenticated password-reset path for existing manual-auth accounts.
-  app.patch('/api/user/pi-profile', isAuthenticatedEnhanced, async (req: any, res) => {
+  //
+  // Auth strategy (tried in order):
+  //  1. Custom session  (req.session.userId + isCustomAuth)
+  //  2. Replit OIDC     (req.isAuthenticated)
+  //  3. Onboarding token (Authorization: Bearer <token>) — needed for Pi Browser,
+  //     where the WebView does not reliably send cookies set by fetch() responses.
+  app.patch('/api/user/pi-profile', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // --- inline auth ---
+      let userId: string | null = null;
+
+      // 1. Custom session
+      if (req.session?.userId && req.session?.isCustomAuth) {
+        try {
+          const sessionUser = await storage.getUser(req.session.userId);
+          if (sessionUser) userId = sessionUser.id;
+        } catch { /* fall through */ }
+      }
+
+      // 2. Replit OIDC
+      if (!userId && req.isAuthenticated?.()) {
+        userId = req.user?.claims?.sub ?? null;
+      }
+
+      // 3. Onboarding token (Pi Browser fallback)
+      if (!userId) {
+        const authHeader: string | undefined = req.headers['authorization'];
+        const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        if (bearerToken) {
+          const tokenData = onboardingTokenStore.get(bearerToken);
+          if (tokenData && tokenData.expiresAt > Date.now()) {
+            userId = tokenData.userId;
+            // Remove after a successful auth lookup (single-use for safety;
+            // client will get a fresh token on next Pi auth if needed).
+            onboardingTokenStore.delete(bearerToken);
+          }
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      // --- end inline auth ---
 
       // Load the current user record so we can enforce the Pi-onboarding gate.
       const currentUser = await storage.getUser(userId);
