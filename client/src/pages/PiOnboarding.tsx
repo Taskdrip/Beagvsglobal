@@ -81,15 +81,18 @@ export default function PiOnboarding() {
         title: "You're all set!",
         description: "Taking you to your dashboard…",
       });
-      // Update the auth cache with the full updated profile so the router
-      // keeps the user authenticated without a page reload.
-      queryClient.setQueryData(["/api/auth/user"], updatedUser);
 
-      // Route to the appropriate dashboard based on chosen account type.
+      // Use window.location.href (full page reload) for two reasons:
+      // 1. Pi Browser WebView: resets touch/input state after Pi SDK overlay.
+      // 2. Routing safety: avoids OnboardingGate race where needsOnboarding is
+      //    still true in the cache while location changes to /dashboard, causing
+      //    the gate to redirect back to /onboarding. A full reload re-fetches
+      //    /api/auth/user which now returns needsOnboarding: false (firstName +
+      //    passwordHash are both saved), so the gate does not intercept.
       if (updatedUser.accountType === "SHIPPING_AGENT" || updatedUser.role === "DELIVERY_AGENT") {
-        setLocation("/agent/dashboard");
+        window.location.href = "/agent/dashboard";
       } else {
-        setLocation("/dashboard");
+        window.location.href = "/dashboard";
       }
     },
     onError: (error: any) => {
