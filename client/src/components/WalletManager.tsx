@@ -48,7 +48,7 @@ export default function WalletManager() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
-  const { data: wallets, isLoading } = useQuery({
+  const { data: wallets, isLoading } = useQuery<any[]>({
     queryKey: ["/api/wallets"],
     retry: (failureCount, error) => {
       if (isUnauthorizedError(error as Error)) {
@@ -58,7 +58,7 @@ export default function WalletManager() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return false;
       }
@@ -96,7 +96,7 @@ export default function WalletManager() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -127,7 +127,7 @@ export default function WalletManager() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, clearPiSessionToken } from "@/lib/queryClient";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Truck, Building2, User, Eye, EyeOff, Mail, Lock, Phone, MapPin, CheckCircle } from "lucide-react";
@@ -66,6 +66,9 @@ export default function AgentSignup() {
         whatsapp: data.whatsapp,
         location: data.location,
       };
+      // Clear any stale Pi session token so the new cookie-based session is
+      // the sole auth credential after a non-Pi signup.
+      clearPiSessionToken();
       await apiRequest("POST", "/api/auth/signup/agent", payload);
       toast({ title: "Agent account created!", description: "Welcome! You can now start accepting deliveries." });
       // Full page reload so the new session cookie is picked up correctly

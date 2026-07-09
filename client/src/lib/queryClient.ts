@@ -1,5 +1,44 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// ---------------------------------------------------------------------------
+// Pi Browser session token helpers
+// Pi Browser's sandboxed WebView does not reliably persist session cookies
+// across fetch() calls, so after a Pi login the server issues a bearer token
+// that we store in localStorage and attach to every API request.
+// ---------------------------------------------------------------------------
+export function getPiSessionToken(): string | null {
+  try {
+    return localStorage.getItem("pi_session_token");
+  } catch {
+    return null;
+  }
+}
+
+export function setPiSessionToken(token: string): void {
+  try {
+    localStorage.setItem("pi_session_token", token);
+  } catch {
+    // localStorage may be blocked in some browser contexts — fail silently.
+  }
+}
+
+export function clearPiSessionToken(): void {
+  try {
+    localStorage.removeItem("pi_session_token");
+  } catch {
+    // fail silently
+  }
+}
+
+function buildAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getPiSessionToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -25,9 +64,12 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const headers = buildAuthHeaders(
+    data ? { "Content-Type": "application/json" } : undefined,
+  );
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -68,6 +110,7 @@ export const getQueryFn: <T>(options: {
     
     const res = await fetch(url, {
       credentials: "include",
+      headers: buildAuthHeaders(),
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

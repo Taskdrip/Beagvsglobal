@@ -134,7 +134,8 @@ export default function Auth() {
   };
 
   const handleReplitAuth = () => {
-    window.location.href = "/api/login";
+    // Replit OAuth is not active on this deployment; route to the standard login page.
+    window.location.href = "/login";
   };
 
   const piAuthMutation = useMutation({

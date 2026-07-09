@@ -47,12 +47,27 @@ async function applyShippingAgentToEscrow(escrowId: string, agentId: string | nu
 // cookies set by fetch() responses are not reliably sent on subsequent fetch() calls.
 const onboardingTokenStore = new Map<string, { userId: string; expiresAt: number }>();
 // Prune expired tokens every 10 minutes so the map doesn't grow unbounded.
+// Use .forEach() — for...of on Map requires --downlevelIteration in older TS targets.
 setInterval(() => {
   const now = Date.now();
-  for (const [tok, data] of onboardingTokenStore) {
+  onboardingTokenStore.forEach((data, tok) => {
     if (data.expiresAt <= now) onboardingTokenStore.delete(tok);
-  }
+  });
 }, 10 * 60 * 1000).unref();
+
+// Long-lived session tokens for Pi Browser users.
+// Pi Browser's sandboxed WebView does not reliably persist session cookies
+// across fetch() calls, so every Pi auth response also issues a bearer token
+// that the client stores in localStorage and sends on every API request via
+// "Authorization: Bearer <token>". The server checks this before falling back
+// to session cookies, giving Pi users seamless authenticated access.
+const piSessionTokenStore = new Map<string, { userId: string; expiresAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  piSessionTokenStore.forEach((data, tok) => {
+    if (data.expiresAt <= now) piSessionTokenStore.delete(tok);
+  });
+}, 30 * 60 * 1000).unref();
 
 export async function registerRoutes(app: Express, existingServer?: HttpServer): Promise<Server> {
   // Auth middleware
@@ -158,8 +173,13 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     }
   });
 
-  app.post('/api/auth/logout', (req, res) => {
-    (req as any).session.destroy((err: any) => {
+  app.post('/api/auth/logout', (req: any, res) => {
+    // Revoke Pi bearer token so it cannot be reused after logout.
+    const authHeader = req.headers.authorization as string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      piSessionTokenStore.delete(authHeader.slice(7));
+    }
+    req.session.destroy((err: any) => {
       if (err) {
         console.error("Logout error:", err);
         return res.status(500).json({ message: "Failed to log out" });
@@ -316,12 +336,41 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
   // Enhanced auth middleware that handles both Replit auth and custom auth
   const isAuthenticatedEnhanced = async (req: any, res: any, next: any) => {
-    // Check for custom auth session first
+    // 1. Check Pi session bearer token first — used by Pi Browser whose sandboxed
+    //    WebView doesn't reliably persist session cookies across fetch() calls.
+    const authHeader = req.headers.authorization as string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      const tokenData = piSessionTokenStore.get(token);
+      if (tokenData && tokenData.expiresAt > Date.now()) {
+        try {
+          const user = await storage.getUser(tokenData.userId);
+          if (user) {
+            req.user = { claims: { sub: user.id }, customAuth: true };
+            return next();
+          }
+        } catch (error) {
+          console.error("Bearer token user lookup error:", error);
+        }
+      }
+    }
+
+    // 2. Check for custom auth session (cookie-based).
+    //    If a session exists for a DIFFERENT user than the bearer token resolved,
+    //    the bearer token is stale (e.g. left from a previous Pi login on the same
+    //    device). Revoke it and honour the active session instead.
     if (req.session?.userId && req.session?.isCustomAuth) {
       try {
-        const user = await storage.getUser(req.session.userId);
-        if (user) {
-          req.user = { claims: { sub: user.id }, customAuth: true };
+        const sessionUser = await storage.getUser(req.session.userId);
+        if (sessionUser) {
+          // Detect identity mismatch — bearer token resolved to a different user.
+          if (req.user && req.user.claims?.sub !== sessionUser.id) {
+            // Revoke the stale bearer token so it cannot be reused.
+            if (authHeader?.startsWith('Bearer ')) {
+              piSessionTokenStore.delete(authHeader.slice(7));
+            }
+          }
+          req.user = { claims: { sub: sessionUser.id }, customAuth: true };
           return next();
         }
       } catch (error) {
@@ -329,7 +378,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       }
     }
     
-    // Fall back to Replit auth
+    // 3. Fall back to Replit auth
     return isAuthenticated(req, res, next);
   };
 
@@ -485,12 +534,22 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         });
       });
 
-      // When the user still needs to complete the onboarding form, issue a
-      // short-lived onboarding token so the PATCH /api/user/pi-profile request
-      // can authenticate without relying on session cookies (which Pi Browser's
-      // sandboxed WebView does not reliably persist across fetch() calls).
+      const { randomBytes } = await import('crypto');
+
+      // Always issue a long-lived Pi session token so the client can send it as
+      // "Authorization: Bearer <token>" on every API request. This is the primary
+      // auth mechanism for Pi Browser users whose WebView doesn't reliably persist
+      // session cookies across fetch() calls.
+      const piSessionToken = randomBytes(32).toString('hex');
+      piSessionTokenStore.set(piSessionToken, {
+        userId: user!.id,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+      });
+      (publicUser as any).piSessionToken = piSessionToken;
+
+      // When the user still needs to complete the onboarding form, also issue a
+      // short-lived onboarding token for the PATCH /api/user/pi-profile request.
       if (needsOnboarding) {
-        const { randomBytes } = await import('crypto');
         const onboardingToken = randomBytes(32).toString('hex');
         onboardingTokenStore.set(onboardingToken, {
           userId: user!.id,

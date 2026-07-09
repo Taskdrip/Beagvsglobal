@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, setPiSessionToken, clearPiSessionToken } from "@/lib/queryClient";
 import { isPiBrowser, authenticateWithPi } from "@/lib/pi";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -124,6 +124,13 @@ export default function Signup() {
       });
       const user = await res.json();
 
+      // Store the Pi session token so every subsequent API request can send it
+      // as "Authorization: Bearer <token>", bypassing Pi Browser's unreliable
+      // session-cookie behaviour.
+      if (user.piSessionToken) {
+        setPiSessionToken(user.piSessionToken);
+      }
+
       // Set auth cache directly — no page reload, no race with session cookies.
       // Keep needsOnboarding in the cache: App.tsx's OnboardingGate reads it
       // directly from this cache to decide whether to redirect to /onboarding.
@@ -190,6 +197,10 @@ export default function Signup() {
     setIsLoading(true);
     try {
       const { confirmPassword, ...signupData } = data;
+
+      // Clear any stale Pi session token so the new cookie-based session is
+      // the sole auth credential after a non-Pi signup.
+      clearPiSessionToken();
 
       if (data.accountType === "SHIPPING_AGENT") {
         await apiRequest("POST", "/api/auth/signup/agent", {

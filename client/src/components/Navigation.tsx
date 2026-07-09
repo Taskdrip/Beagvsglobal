@@ -40,12 +40,17 @@ export default function Navigation({ dark = false }: NavigationProps) {
   const currentNavItems = isAuthenticated ? authenticatedNavItems : navItems;
 
   const handleSignOut = async () => {
+    // Always clear the Pi session bearer token stored in localStorage, regardless
+    // of whether the server-side session destroy succeeds.
+    try { localStorage.removeItem("pi_session_token"); } catch { /* ignore */ }
     try {
       const response = await fetch("/api/auth/logout", { method: "POST" });
-      if (response.ok) window.location.href = "/";
-    } catch {
-      window.location.href = "/api/logout";
-    }
+      if (response.ok) {
+        window.location.href = "/";
+        return;
+      }
+    } catch { /* fall through */ }
+    window.location.href = "/login";
   };
 
   const isDark = dark;

@@ -314,7 +314,7 @@ export default function CreateListing() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
           <h1 className="text-2xl font-bold text-slate-dark mb-4">Authentication Required</h1>
           <p className="text-slate-medium mb-8">Please sign in to create or edit listings</p>
-          <a href="/api/login"><Button>Sign In</Button></a>
+          <a href="/login"><Button>Sign In</Button></a>
         </div>
       </div>
     );

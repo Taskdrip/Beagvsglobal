@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, setPiSessionToken, clearPiSessionToken } from "@/lib/queryClient";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
@@ -62,6 +62,13 @@ export default function Login() {
       });
       const user = await res.json();
 
+      // Store the Pi session token so every subsequent API request can send it
+      // as "Authorization: Bearer <token>", bypassing Pi Browser's unreliable
+      // session-cookie behaviour.
+      if (user.piSessionToken) {
+        setPiSessionToken(user.piSessionToken);
+      }
+
       toast({
         title: "Welcome!",
         description: "Signed in with Pi Network.",
@@ -113,6 +120,10 @@ export default function Login() {
     try {
       const res = await apiRequest("POST", "/api/auth/login", data);
       const user = await res.json();
+
+      // Clear any stale Pi session token from a previous Pi login on this device
+      // so the new cookie-based session is the sole auth credential.
+      clearPiSessionToken();
 
       toast({
         title: "Welcome back!",

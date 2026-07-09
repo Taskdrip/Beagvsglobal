@@ -1045,7 +1045,7 @@ export default function ShippingHub() {
                     </Button>
                   </>
                 ) : (
-                  <a href="/api/login">
+                  <a href="/login">
                     <Button className="h-12 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 font-semibold">
                       Sign In to Book
                     </Button>
