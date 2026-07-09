@@ -208,7 +208,16 @@ function Router() {
   );
 }
 
+// The floating WhatsApp/chat buttons are fixed to the bottom-right corner.
+// On short mobile viewports (e.g. inside WhatsApp's in-app browser, which
+// eats vertical space with its own toolbar) they visually sit on top of the
+// last form fields on these single-task pages — most visibly the password
+// fields on the Pi onboarding form — making them impossible to tap.
+// Hide the widget on these focused flows instead of trying to out-position it.
+const CHAT_WIDGET_HIDDEN_PATHS = new Set(["/onboarding", "/login", "/signup", "/signup/agent"]);
+
 function App() {
+  const [location] = useLocation();
   useEffect(() => {
     // Initialize the Pi SDK as early as possible (rather than lazily right
     // before the user clicks "Sign in with Pi") so the native Pi Browser
@@ -229,7 +238,7 @@ function App() {
         <Toaster />
         <GoogleAnalytics />
         <Router />
-        <ChatWidget />
+        {!CHAT_WIDGET_HIDDEN_PATHS.has(location) && <ChatWidget />}
       </TooltipProvider>
     </QueryClientProvider>
   );
