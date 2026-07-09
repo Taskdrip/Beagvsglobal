@@ -14,10 +14,12 @@ import {
   EyeOff,
   CheckCircle,
   ArrowRight,
+  Building2,
+  User,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 
 const ACCOUNT_TYPES = [
@@ -47,6 +49,21 @@ const ACCOUNT_TYPES = [
   },
 ];
 
+const AGENT_TYPES = [
+  {
+    value: "INDIVIDUAL",
+    title: "Individual",
+    description: "Register as an independent delivery agent.",
+    icon: User,
+  },
+  {
+    value: "COMPANY",
+    title: "Company",
+    description: "Register a logistics company with multiple drivers.",
+    icon: Building2,
+  },
+];
+
 export default function PiOnboarding() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -62,7 +79,12 @@ export default function PiOnboarding() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [accountType, setAccountType] = useState<string | null>(null);
+  const [agentType, setAgentType] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isShippingAgent = accountType === "SHIPPING_AGENT";
+  const isCompany = agentType === "COMPANY";
 
   const saveProfile = useMutation({
     mutationFn: async (payload: {
@@ -72,6 +94,8 @@ export default function PiOnboarding() {
       phone: string;
       password: string;
       accountType: string;
+      agentType?: string;
+      companyName?: string;
     }) => {
       const res = await apiRequest("PATCH", "/api/user/pi-profile", payload);
       return await res.json();
@@ -85,10 +109,8 @@ export default function PiOnboarding() {
       // Explicitly clear needsOnboarding in the cache BEFORE navigating.
       // Without this, the OnboardingGate sees needsOnboarding:true while
       // location changes to /dashboard, briefly sets blocked:true, and
-      // redirects back to /onboarding. The server response from PATCH
-      // /api/user/pi-profile doesn't include needsOnboarding, so we set
-      // it to false here — the background /api/auth/user refetch will
-      // confirm this from the server (firstName + passwordHash now set).
+      // redirects back to /onboarding. The background /api/auth/user refetch
+      // will confirm this from the server (firstName + passwordHash now set).
       queryClient.setQueryData(["/api/auth/user"], {
         ...updatedUser,
         needsOnboarding: false,
@@ -128,6 +150,12 @@ export default function PiOnboarding() {
       e.confirmPassword = "Passwords do not match.";
     }
     if (!accountType) e.accountType = "Please choose an account type.";
+    if (isShippingAgent && !agentType) {
+      e.agentType = "Please select Individual or Company.";
+    }
+    if (isShippingAgent && agentType === "COMPANY" && !companyName.trim()) {
+      e.companyName = "Company name is required.";
+    }
     return e;
   }
 
@@ -136,14 +164,20 @@ export default function PiOnboarding() {
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    saveProfile.mutate({
+
+    const payload: Parameters<typeof saveProfile.mutate>[0] = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim(),
       phone: phone.trim(),
       password,
       accountType: accountType!,
-    });
+    };
+    if (isShippingAgent && agentType) {
+      payload.agentType = agentType;
+      if (agentType === "COMPANY") payload.companyName = companyName.trim();
+    }
+    saveProfile.mutate(payload);
   }
 
   return (
@@ -283,7 +317,7 @@ export default function PiOnboarding() {
                 {errors.accountType && (
                   <p className="text-red-400 text-xs">{errors.accountType}</p>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {ACCOUNT_TYPES.map((type) => {
                     const Icon = type.icon;
                     const isSelected = accountType === type.value;
@@ -291,7 +325,14 @@ export default function PiOnboarding() {
                       <button
                         key={type.value}
                         type="button"
-                        onClick={() => setAccountType(type.value)}
+                        onClick={() => {
+                          setAccountType(type.value);
+                          // Reset agent sub-selection when switching away
+                          if (type.value !== "SHIPPING_AGENT") {
+                            setAgentType(null);
+                            setCompanyName("");
+                          }
+                        }}
                         className={`rounded-xl border-2 p-4 text-left transition-all hover:shadow-lg ${
                           isSelected
                             ? "border-crypto-blue bg-crypto-blue/10"
@@ -317,6 +358,70 @@ export default function PiOnboarding() {
                 </div>
               </div>
 
+              {/* Agent type — only shown when Shipping Agent is selected */}
+              {isShippingAgent && (
+                <div className="space-y-2">
+                  <Label className="text-slate-200">Agent Type *</Label>
+                  <p className="text-xs text-slate-400">
+                    Are you registering as an individual driver or a logistics company?
+                  </p>
+                  {errors.agentType && (
+                    <p className="text-red-400 text-xs">{errors.agentType}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    {AGENT_TYPES.map((at) => {
+                      const Icon = at.icon;
+                      const isSelected = agentType === at.value;
+                      return (
+                        <button
+                          key={at.value}
+                          type="button"
+                          onClick={() => {
+                            setAgentType(at.value);
+                            if (at.value !== "COMPANY") setCompanyName("");
+                          }}
+                          className={`rounded-xl border-2 p-4 text-left transition-all hover:shadow-lg ${
+                            isSelected
+                              ? "border-crypto-blue bg-crypto-blue/10"
+                              : "border-slate-600 bg-slate-700 hover:border-slate-500"
+                          }`}
+                        >
+                          <Icon
+                            className={`w-7 h-7 mb-2 ${
+                              isSelected ? "text-crypto-blue" : "text-slate-400"
+                            }`}
+                          />
+                          <p
+                            className={`font-semibold text-sm ${
+                              isSelected ? "text-white" : "text-slate-300"
+                            }`}
+                          >
+                            {at.title}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">{at.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Company name — only shown when COMPANY is selected */}
+                  {isCompany && (
+                    <div className="space-y-1 mt-2">
+                      <Label className="text-slate-200">Company Name *</Label>
+                      <Input
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder="e.g. Swift Logistics Ltd"
+                        className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                      />
+                      {errors.companyName && (
+                        <p className="text-red-400 text-xs">{errors.companyName}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Submit */}
               <Button
                 type="submit"
@@ -331,22 +436,6 @@ export default function PiOnboarding() {
                   </>
                 )}
               </Button>
-
-              <div className="text-center pt-1">
-                <p className="text-sm text-slate-400 mb-2">
-                  Want to work as a shipping agent instead?
-                </p>
-                <Link href="/signup/agent">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-slate-500 text-slate-300 hover:border-crypto-blue hover:text-white"
-                  >
-                    <Truck className="w-4 h-4 mr-2" />
-                    Apply as a Shipping Agent
-                  </Button>
-                </Link>
-              </div>
             </form>
           </CardContent>
         </Card>

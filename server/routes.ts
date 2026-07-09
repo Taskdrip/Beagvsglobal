@@ -447,23 +447,27 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const needsOnboarding = isNewUser || !user.firstName || !user.passwordHash;
       (publicUser as any).needsOnboarding = needsOnboarding;
 
-      // Persist the session.  We skip session.regenerate() here because it can
-      // fail in environments where the session store doesn't support regeneration
-      // (e.g. MemoryStore under certain race conditions), and a failed regenerate
-      // silently leaves the session without userId — the next auth check then
-      // returns 401 and kicks the user back to the login page.
-      // Directly writing to the existing session and saving is simpler and more
-      // reliable; the regeneration security-hardening can be added separately.
-      (req as any).session.userId = user!.id;
-      (req as any).session.isCustomAuth = true;
+      // Persist the session using regenerate() to guarantee a fresh session ID
+      // and a new Set-Cookie header. This is identical to the agent signup route
+      // and prevents the "Unauthorized" error on the follow-up PATCH request
+      // that happened when no Set-Cookie was issued (because the existing session
+      // was reused without regeneration).
       await new Promise<void>((resolve, reject) => {
-        (req as any).session.save((saveErr: any) => {
-          if (saveErr) {
-            console.error('[pi-login] session.save error:', saveErr);
-            reject(new Error('Session could not be saved. Please try again.'));
-          } else {
-            resolve();
+        (req as any).session.regenerate((regenErr: any) => {
+          if (regenErr) {
+            // regenerate() failed — fall back to writing to the current session.
+            console.error('[pi-login] session.regenerate error (non-fatal):', regenErr);
           }
+          (req as any).session.userId = user!.id;
+          (req as any).session.isCustomAuth = true;
+          (req as any).session.save((saveErr: any) => {
+            if (saveErr) {
+              console.error('[pi-login] session.save error:', saveErr);
+              reject(new Error('Session could not be saved. Please try again.'));
+            } else {
+              resolve();
+            }
+          });
         });
       });
 
@@ -1497,7 +1501,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         return res.status(403).json({ message: "Profile already set up. Use Account Settings to make changes." });
       }
 
-      const { firstName, lastName, email, phone, password, accountType } = req.body;
+      const { firstName, lastName, email, phone, password, accountType, agentType, companyName } = req.body;
 
       // Server-side validation (client validation is UX-only; always validate here too).
       const missing = ['firstName', 'lastName', 'email', 'phone', 'password', 'accountType']
@@ -1509,6 +1513,16 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const validTypes = ['BUYER', 'SELLER', 'BOTH', 'SHIPPING_AGENT'];
       if (!validTypes.includes(accountType)) {
         return res.status(400).json({ message: "Invalid account type." });
+      }
+
+      // Shipping agents must specify individual or company.
+      if (accountType === 'SHIPPING_AGENT') {
+        if (!agentType || !['INDIVIDUAL', 'COMPANY'].includes(agentType)) {
+          return res.status(400).json({ message: "Shipping agents must select Individual or Company." });
+        }
+        if (agentType === 'COMPANY' && !companyName?.trim()) {
+          return res.status(400).json({ message: "Company name is required for company accounts." });
+        }
       }
 
       const normalizedEmail = email.trim().toLowerCase();
@@ -1539,6 +1553,11 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         // agent dashboard and gated by the same middleware as agents created
         // via the dedicated /signup/agent flow.
         role: accountType === 'SHIPPING_AGENT' ? 'DELIVERY_AGENT' : currentUser.role,
+        // Preserve agentType and companyName for shipping agents.
+        ...(accountType === 'SHIPPING_AGENT' && {
+          agentType,
+          companyName: agentType === 'COMPANY' ? companyName?.trim() : null,
+        }),
       });
 
       const { passwordHash: _, ...publicUser } = updated;
