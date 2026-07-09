@@ -200,7 +200,7 @@ export default function Dashboard() {
     if (tab) setActiveTab(tab);
   }, [location]);
   
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<any>({
     queryKey: ["/api/auth/user"],
   });
 
@@ -211,19 +211,19 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  const { data: userListings } = useQuery({
+  const { data: userListings } = useQuery<any[]>({
     queryKey: ["/api/user/listings"],
   });
 
-  const { data: userEscrows } = useQuery({
+  const { data: userEscrows } = useQuery<any[]>({
     queryKey: ["/api/user/escrows"],
   });
 
-  const { data: userWallets } = useQuery({
+  const { data: userWallets } = useQuery<any[]>({
     queryKey: ["/api/wallets"],
   });
 
-  const { data: notifications } = useQuery({
+  const { data: notifications } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
   });
 
@@ -231,11 +231,11 @@ export default function Dashboard() {
     queryKey: ["/api/chat/threads"],
   });
 
-  const { data: followers } = useQuery({
+  const { data: followers } = useQuery<any[]>({
     queryKey: ["/api/user/followers"],
   });
 
-  const { data: following } = useQuery({
+  const { data: following } = useQuery<any[]>({
     queryKey: ["/api/user/following"],
   });
 
@@ -282,52 +282,50 @@ export default function Dashboard() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Dashboard Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+        <div className="flex flex-col gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold gradient-text mb-2" data-testid="text-dashboard-title">
+            <h1 className="text-2xl sm:text-3xl font-bold gradient-text mb-1 leading-tight" data-testid="text-dashboard-title">
               Welcome back, {(user && (user.username || user.firstName)) || 'User'}!
             </h1>
-            <p className="text-slate-medium">
+            <p className="text-slate-medium text-sm">
               {currentMode === "buyer" ? "Browse and manage your purchases" : "Manage your listings and sales"}
             </p>
           </div>
-          <div className="flex items-center gap-4 mt-4 md:mt-0">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Account Mode Switcher for BOTH account types */}
             {user?.accountType === "BOTH" && (
-              <div className="flex items-center gap-2">
-                <Select value={currentMode} onValueChange={(value) => setCurrentMode(value as "buyer" | "seller")}>
-                  <SelectTrigger className="w-48" data-testid="select-account-mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="buyer">
-                      <div className="flex items-center gap-2">
-                        <ShoppingCart className="w-4 h-4" />
-                        Buyer Mode
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="seller">
-                      <div className="flex items-center gap-2">
-                        <Store className="w-4 h-4" />
-                        Seller Mode
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={currentMode} onValueChange={(value) => setCurrentMode(value as "buyer" | "seller")}>
+                <SelectTrigger className="w-40 sm:w-48" data-testid="select-account-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="buyer">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="w-4 h-4" />
+                      Buyer Mode
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="seller">
+                    <div className="flex items-center gap-2">
+                      <Store className="w-4 h-4" />
+                      Seller Mode
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             )}
             
             {(currentMode === "seller" || user?.accountType === "SELLER") && (
               <Link href="/sell/new">
                 <Button className="button-primary" data-testid="button-create-listing">
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="w-4 h-4 mr-1.5" />
                   Create Listing
                 </Button>
               </Link>
             )}
             
             <Link href="/account/settings">
-              <Button variant="outline" data-testid="button-account-settings">
+              <Button variant="outline" size="sm" data-testid="button-account-settings">
                 Account Settings
               </Button>
             </Link>
@@ -342,7 +340,7 @@ export default function Dashboard() {
         )}
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <Card data-testid="card-active-listings" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab("listings")}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Listings</CardTitle>
@@ -390,20 +388,26 @@ export default function Dashboard() {
 
         {/* Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="flex w-full overflow-x-auto gap-0.5 h-auto flex-wrap">
-            <TabsTrigger value="overview" className="flex-1 min-w-fit" data-testid="tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="transactions" className="flex-1 min-w-fit" data-testid="tab-transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="messages" className="flex-1 min-w-fit" data-testid="tab-messages">Messages</TabsTrigger>
-            <TabsTrigger value="listings" className="flex-1 min-w-fit" data-testid="tab-listings">Listings</TabsTrigger>
-            <TabsTrigger value="escrows" className="flex-1 min-w-fit" data-testid="tab-escrows">Escrows</TabsTrigger>
-            <TabsTrigger value="shipments" className="flex-1 min-w-fit" data-testid="tab-shipments">Shipments</TabsTrigger>
-            <TabsTrigger value="wallets" className="flex-1 min-w-fit" data-testid="tab-wallets">Wallets</TabsTrigger>
-            <TabsTrigger value="notifications" className="flex-1 min-w-fit" data-testid="tab-notifications">
-              Notifications {unreadNotifications > 0 && <span className="ml-1 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5">{unreadNotifications}</span>}
-            </TabsTrigger>
-            <TabsTrigger value="social" className="flex-1 min-w-fit" data-testid="tab-social">Social</TabsTrigger>
-            <TabsTrigger value="payouts" className="flex-1 min-w-fit" data-testid="tab-payouts">Payouts</TabsTrigger>
-          </TabsList>
+          {/* Horizontally scrollable tab bar — no wrapping on mobile */}
+          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 pb-1">
+            <TabsList className="flex w-max min-w-full gap-0.5 h-auto bg-muted rounded-lg p-1">
+              <TabsTrigger value="overview" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-overview">Overview</TabsTrigger>
+              <TabsTrigger value="transactions" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-transactions">Transactions</TabsTrigger>
+              <TabsTrigger value="messages" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-messages">Messages</TabsTrigger>
+              <TabsTrigger value="listings" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-listings">Listings</TabsTrigger>
+              <TabsTrigger value="escrows" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-escrows">Escrows</TabsTrigger>
+              <TabsTrigger value="shipments" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-shipments">Shipments</TabsTrigger>
+              <TabsTrigger value="wallets" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-wallets">Wallets</TabsTrigger>
+              <TabsTrigger value="notifications" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 relative" data-testid="tab-notifications">
+                Alerts
+                {unreadNotifications > 0 && (
+                  <span className="ml-1 text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5">{unreadNotifications}</span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="social" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-social">Social</TabsTrigger>
+              <TabsTrigger value="payouts" className="whitespace-nowrap text-xs sm:text-sm px-2.5 sm:px-3 py-1.5" data-testid="tab-payouts">Payouts</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="overview" className="space-y-4">
             {/* ── Action Required Panel ── */}
@@ -625,7 +629,7 @@ export default function Dashboard() {
                           </span>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                           <div>
                             <p className="text-sm text-slate-medium">Amount</p>
                             <div className="flex items-center gap-1 font-semibold">
