@@ -723,7 +723,7 @@ export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
 
 // ─── Seller Payout Requests ───────────────────────────────────────────────────
 
-export const payoutStatusEnum = pgEnum('payout_status', ['PENDING', 'APPROVED', 'REJECTED', 'PAID']);
+export const payoutStatusEnum = pgEnum('payout_status', ['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'COMPLETED']);
 
 export const sellerPayoutRequests = pgTable("seller_payout_requests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -744,6 +744,7 @@ export const sellerPayoutRequests = pgTable("seller_payout_requests", {
   reviewedAt: timestamp("reviewed_at"),
   paidAt: timestamp("paid_at"),
   txHash: varchar("tx_hash"),
+  confirmedAt: timestamp("confirmed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

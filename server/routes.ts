@@ -3925,9 +3925,9 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         amount = String(netVal ?? fallback);
       }
 
-      // Check for existing pending/approved request for this payee + escrow
+      // Block duplicate requests — only allow retry if previous was explicitly REJECTED
       const existing = await storage.getPayoutRequests(isAgentRequest ? { agentId: userId } : { sellerId: userId });
-      const duplicate = existing.find(r => r.escrowId === escrowId && ['PENDING', 'APPROVED'].includes(r.status ?? ''));
+      const duplicate = existing.find(r => r.escrowId === escrowId && ['PENDING', 'APPROVED', 'PAID', 'COMPLETED'].includes(r.status ?? ''));
       if (duplicate) return res.status(409).json({ message: 'A payout request already exists for this escrow' });
 
       const payout = await storage.createPayoutRequest({
@@ -4041,6 +4041,54 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       res.json(updated);
     } catch (e: any) {
       res.status(500).json({ message: e.message || 'Failed to update payout request' });
+    }
+  });
+
+  // Seller or agent: confirm payment received → marks request COMPLETED
+  app.post('/api/payout-requests/:id/confirm', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const existing = await storage.getPayoutRequest(id);
+      if (!existing) return res.status(404).json({ message: 'Payout request not found' });
+
+      // Only the payee (seller or agent) can confirm
+      const payeeId = (existing as any).agentId || existing.sellerId;
+      if (payeeId !== userId) return res.status(403).json({ message: 'Only the payee can confirm payment receipt' });
+
+      if (existing.status !== 'PAID') {
+        return res.status(400).json({ message: 'Payout must be marked PAID by admin before you can confirm receipt' });
+      }
+
+      const updated = await storage.updatePayoutRequest(id, {
+        status: 'COMPLETED' as any,
+        confirmedAt: new Date(),
+      } as any);
+
+      // Notify admins of confirmation
+      try {
+        const { db } = await import('./db');
+        const { users: usersTable } = await import('@shared/schema');
+        const { eq: eqOp } = await import('drizzle-orm');
+        const admins = await db.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
+        const confirmer = await storage.getUser(userId);
+        for (const admin of admins) {
+          await storage.createNotification({
+            userId: admin.id,
+            type: 'ESCROW_UPDATE',
+            data: {
+              payoutRequestId: id,
+              escrowId: existing.escrowId,
+              message: `${confirmer?.username ?? 'Payee'} confirmed receipt of payout ${existing.amount} ${existing.currency}. Transaction is now COMPLETED.`,
+              action: 'payout_confirmed',
+            },
+          });
+        }
+      } catch (e) { console.warn('Could not notify admins of payout confirmation:', e); }
+
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || 'Failed to confirm payout' });
     }
   });
 

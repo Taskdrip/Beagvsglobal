@@ -54,6 +54,11 @@ export async function runSafetySQL(): Promise<void> {
     console.warn("[migrate] user_role DELIVERY_AGENT:", e.message?.split("\n")[0]);
   });
 
+  // Add COMPLETED to payout_status enum (must be outside transaction)
+  await pool.query(`ALTER TYPE "public"."payout_status" ADD VALUE IF NOT EXISTS 'COMPLETED'`).catch((e: any) => {
+    console.warn("[migrate] payout_status COMPLETED:", e.message?.split("\n")[0]);
+  });
+
   // ── Phase 1: enum types (must exist before columns that reference them) ────
   // Run these in a single DO block so each is independent and idempotent.
   await pool.query(`
@@ -211,8 +216,8 @@ export async function runSafetySQL(): Promise<void> {
     // ── account_type enum: add SHIPPING_AGENT value ────────────────────────────
     `DO $$ BEGIN ALTER TYPE "public"."account_type" ADD VALUE IF NOT EXISTS 'SHIPPING_AGENT'; EXCEPTION WHEN others THEN NULL; END $$`,
 
-    // ── payout_status enum ─────────────────────────────────────────────────────
-    `DO $$ BEGIN CREATE TYPE "public"."payout_status" AS ENUM('PENDING','APPROVED','REJECTED','PAID'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    // ── payout_status enum (include COMPLETED so fresh DBs get it immediately) ──
+    `DO $ BEGIN CREATE TYPE "public"."payout_status" AS ENUM('PENDING','APPROVED','REJECTED','PAID','COMPLETED'); EXCEPTION WHEN duplicate_object THEN NULL; END $`,
 
     // ── bank_accounts table ────────────────────────────────────────────────────
     `CREATE TABLE IF NOT EXISTS "bank_accounts" (
@@ -255,6 +260,13 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "shipping_fee" numeric(18,4)`,
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "shipping_fee_currency" varchar DEFAULT 'NGN'`,
     `ALTER TABLE "escrows" ADD COLUMN IF NOT EXISTS "shipping_agent_id" varchar REFERENCES "users"("id") ON DELETE SET NULL`,
+
+    // ── seller_payout_requests: agent support & confirm flow ──────────────────
+    // Make seller_id nullable so agent-only payouts are valid
+    `ALTER TABLE "seller_payout_requests" ALTER COLUMN "seller_id" DROP NOT NULL`,
+    `ALTER TABLE "seller_payout_requests" ADD COLUMN IF NOT EXISTS "payee_type" varchar DEFAULT 'seller'`,
+    `ALTER TABLE "seller_payout_requests" ADD COLUMN IF NOT EXISTS "agent_id" varchar REFERENCES "users"("id") ON DELETE CASCADE`,
+    `ALTER TABLE "seller_payout_requests" ADD COLUMN IF NOT EXISTS "confirmed_at" timestamp`,
   ];
 
   let applied = 0;
