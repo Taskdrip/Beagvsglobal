@@ -2163,22 +2163,89 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const userId = req.user.claims.sub;
       const { facialImageUrl, documentUrl, documentForm } = req.body;
 
+      if (!facialImageUrl) return res.status(400).json({ message: 'Facial photo is required. Please complete the facial verification step.' });
+      if (!documentUrl) return res.status(400).json({ message: 'ID document is required. Please upload your document.' });
+
       // Update user KYC status
       await storage.updateUserKycStatus(userId, 'UNDER_REVIEW');
 
-      // Create notification
+      // Notify the user
       await storage.createNotification({
         userId,
         type: 'KYC_STATUS',
-        data: { status: 'UNDER_REVIEW' },
+        data: { status: 'UNDER_REVIEW', message: 'Your KYC verification is under review. We\'ll notify you within 1–2 business days.' },
       });
 
-      res.json({ 
-        message: 'KYC verification submitted successfully'
-      });
+      // Notify all admins
+      try {
+        const { db: db2 } = await import('./db');
+        const { users: usersTable } = await import('@shared/schema');
+        const { eq: eqOp } = await import('drizzle-orm');
+        const admins = await db2.select().from(usersTable).where(eqOp(usersTable.role, 'ADMIN'));
+        const submitter = await storage.getUser(userId);
+        for (const admin of admins) {
+          await storage.createNotification({
+            userId: admin.id,
+            type: 'KYC_STATUS',
+            data: {
+              submittedBy: userId,
+              username: submitter?.username ?? submitter?.email ?? 'A user',
+              message: `${submitter?.username ?? 'A user'} submitted KYC for review.`,
+            },
+          });
+        }
+      } catch (e) { console.warn('Could not notify admins of KYC submission:', e); }
+
+      res.json({ message: 'KYC verification submitted successfully' });
     } catch (error: any) {
       console.error("Error submitting KYC:", error);
-      res.status(400).json({ message: error.message || "Failed to submit KYC verification" });
+      res.status(500).json({ message: error.message || "Failed to submit KYC verification. Please try again." });
+    }
+  });
+
+  // ─── Admin KYC Review ──────────────────────────────────────────────────────
+
+  // List all KYC applications (non-NOT_STARTED)
+  app.get('/api/admin/kyc-applications', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
+    try {
+      const applications = await storage.getKycApplications();
+      res.json(applications);
+    } catch (error: any) {
+      console.error('Error fetching KYC applications:', error);
+      res.status(500).json({ message: 'Failed to fetch KYC applications' });
+    }
+  });
+
+  // Approve or reject a user's KYC
+  app.patch('/api/admin/kyc/:userId', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { status, rejectionReason } = req.body;
+
+      if (!['APPROVED', 'REJECTED'].includes(status)) {
+        return res.status(400).json({ message: 'Status must be APPROVED or REJECTED' });
+      }
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ message: 'User not found' });
+
+      await storage.updateUserKycStatus(userId, status, rejectionReason ?? undefined);
+
+      // Notify the applicant
+      const msg = status === 'APPROVED'
+        ? 'Your KYC verification has been approved! 🎉 You now have full access to all platform features and a verified badge.'
+        : `Your KYC verification was not approved.${rejectionReason ? ` Reason: ${rejectionReason}` : ' Please contact support for assistance.'}`;
+
+      await storage.createNotification({
+        userId,
+        type: 'KYC_STATUS',
+        data: { status, message: msg },
+      });
+
+      res.json({ message: `KYC ${status.toLowerCase()} successfully`, status });
+    } catch (error: any) {
+      console.error('Error updating KYC status:', error);
+      res.status(500).json({ message: error.message || 'Failed to update KYC status' });
     }
   });
 
@@ -3848,7 +3915,14 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
         if (!['RELEASED', 'DELIVERED'].includes(escrow.status ?? '')) {
           return res.status(400).json({ message: 'Payout can only be requested after escrow is delivered or released' });
         }
-        amount = escrow.sellerNetAmount ?? escrow.amount;
+        const rawNet = escrow.sellerNetAmount;
+        const rawAmt = escrow.amount;
+        const netVal = rawNet != null && parseFloat(String(rawNet)) > 0 ? rawNet : null;
+        const fallback = rawAmt != null ? rawAmt : null;
+        if (!netVal && !fallback) {
+          return res.status(400).json({ message: 'Escrow amount is not set — please contact support.' });
+        }
+        amount = String(netVal ?? fallback);
       }
 
       // Check for existing pending/approved request for this payee + escrow

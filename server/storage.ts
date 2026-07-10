@@ -154,7 +154,8 @@ export interface IStorage {
   getPaymentMethodsByType(type: string): Promise<PaymentMethod[]>;
   
   // KYC operations
-  updateUserKycStatus(userId: string, status: string): Promise<User>;
+  updateUserKycStatus(userId: string, status: string, rejectionReason?: string): Promise<User>;
+  getKycApplications(): Promise<User[]>;
   
   // Admin operations
   updateUserRole(userId: string, role: string): Promise<User>;
@@ -1231,13 +1232,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // KYC operations
-  async updateUserKycStatus(userId: string, status: string): Promise<User> {
-    const now = new Date().toISOString();
-    const updateData: any = { 
+  async updateUserKycStatus(userId: string, status: string, rejectionReason?: string): Promise<User> {
+    const now = new Date();
+    const updateData: any = {
       kycStatus: status as any,
       kycSubmittedAt: status === 'UNDER_REVIEW' ? now : undefined,
       kycApprovedAt: status === 'APPROVED' ? now : undefined,
       kycRejectedAt: status === 'REJECTED' ? now : undefined,
+      kycRejectionReason: rejectionReason ?? undefined,
     };
 
     const [user] = await db
@@ -1247,6 +1249,16 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return user;
+  }
+
+  async getKycApplications(): Promise<User[]> {
+    return db
+      .select()
+      .from(users)
+      .where(
+        sql`${users.kycStatus} IS DISTINCT FROM 'NOT_STARTED'::kyc_status`
+      )
+      .orderBy(desc(users.kycSubmittedAt));
   }
 
   // Shipment operations

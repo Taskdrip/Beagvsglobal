@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft,
   Calendar,
@@ -17,9 +18,12 @@ import {
   Clock,
   FileText,
   Tag,
+  Copy,
+  MessageCircle,
 } from "lucide-react";
 
 export default function BlogPost() {
+  const { toast } = useToast();
   const { slug } = useParams();
 
   const { data: blogPost, isLoading } = useQuery({
@@ -87,7 +91,23 @@ export default function BlogPost() {
   ).slice(0, 3) || [];
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const shareTitle = blogPost.title;
+  const shareTitle = (blogPost as any).ogTitle || blogPost.title;
+  const shareText = (blogPost as any).excerpt || (blogPost as any).metaDescription || '';
+  const shareCoverImage = (blogPost as any).coverImageUrl || '';
+
+  const handleNativeShare = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+      } catch { /* cancelled */ }
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareUrl);
+  };
 
   // Simple markdown to HTML conversion for basic formatting
   const renderMarkdown = (content: string) => {
@@ -151,15 +171,19 @@ export default function BlogPost() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <span className="text-sm text-slate-medium">Share:</span>
-                <div className="flex space-x-2">
+                <div className="flex items-center gap-1 flex-wrap">
+                  {shareCoverImage && (
+                    <img src={shareCoverImage} alt="" className="w-7 h-7 rounded object-cover border border-slate-200 mr-1 flex-shrink-0" />
+                  )}
                   <a
-                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`}
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText ? `${shareTitle} — ${shareText}` : shareTitle)}&url=${encodeURIComponent(shareUrl)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
                     data-testid="button-share-twitter"
+                    title="Share on X (Twitter)"
                   >
                     <Twitter className="w-4 h-4" />
                   </a>
@@ -169,6 +193,7 @@ export default function BlogPost() {
                     rel="noopener noreferrer"
                     className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
                     data-testid="button-share-facebook"
+                    title="Share on Facebook"
                   >
                     <Facebook className="w-4 h-4" />
                   </a>
@@ -178,17 +203,29 @@ export default function BlogPost() {
                     rel="noopener noreferrer"
                     className="p-2 text-slate-400 hover:text-blue-700 transition-colors"
                     data-testid="button-share-linkedin"
+                    title="Share on LinkedIn"
                   >
                     <Linkedin className="w-4 h-4" />
+                  </a>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(`${shareTitle} — ${shareUrl}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 text-slate-400 hover:text-green-600 transition-colors"
+                    data-testid="button-share-whatsapp"
+                    title="Share on WhatsApp"
+                  >
+                    <MessageCircle className="w-4 h-4" />
                   </a>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => navigator.clipboard.writeText(shareUrl)}
+                    onClick={() => { handleCopyLink(); toast({ title: "Link copied!", description: "Share URL copied to clipboard." }); }}
                     className="p-2 text-slate-400 hover:text-slate-600"
                     data-testid="button-copy-link"
+                    title="Copy link"
                   >
-                    <Share2 className="w-4 h-4" />
+                    <Copy className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -252,15 +289,24 @@ export default function BlogPost() {
 
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-slate-medium">Share this post:</span>
-                <div className="flex space-x-2">
+                <div className="flex gap-1 flex-wrap">
                   <a
-                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`}
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText ? `${shareTitle} — ${shareText}` : shareTitle)}&url=${encodeURIComponent(shareUrl)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-lg transition-colors"
                     data-testid="button-footer-share-twitter"
                   >
                     <Twitter className="w-4 h-4" />
+                  </a>
+                  <a
+                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-lg transition-colors"
+                    data-testid="button-footer-share-facebook"
+                  >
+                    <Facebook className="w-4 h-4" />
                   </a>
                   <a
                     href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`}
@@ -271,6 +317,24 @@ export default function BlogPost() {
                   >
                     <Linkedin className="w-4 h-4" />
                   </a>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(`${shareTitle} — ${shareUrl}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-slate-100 hover:bg-green-100 text-slate-600 hover:text-green-700 rounded-lg transition-colors"
+                    data-testid="button-footer-share-whatsapp"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { handleNativeShare(); toast({ title: "Link copied!", description: "Share URL copied to clipboard." }); }}
+                    className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg"
+                    data-testid="button-footer-share-copy"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
             </div>

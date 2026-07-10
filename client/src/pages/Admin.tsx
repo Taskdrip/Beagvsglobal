@@ -20,6 +20,7 @@ import AdminPageEditor from "@/components/AdminPageEditor";
 import AdminBlogManager from "@/components/AdminBlogManager";
 import CompetitorDashboard from "@/components/CompetitorDashboard";
 import AdminSEOTab from "@/components/AdminSEOTab";
+import AdminKycManager from "@/components/AdminKycManager";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -1876,6 +1877,9 @@ export default function Admin() {
             <TabsTrigger value="seo" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-seo">
               🔍 SEO & Indexing
             </TabsTrigger>
+            <TabsTrigger value="kyc" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-kyc">
+              🛡️ KYC
+            </TabsTrigger>
             <TabsTrigger value="payouts" className="text-sm px-3 py-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900" data-testid="tab-payouts">
               💰 Payouts{pendingPayoutCount > 0 && <span className="ml-1.5 text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5 font-bold">{pendingPayoutCount}</span>}
             </TabsTrigger>
@@ -3049,6 +3053,11 @@ export default function Admin() {
 
           <TabsContent value="payouts" className="space-y-4">
             <AdminPayoutManager />
+          </TabsContent>
+
+          {/* ── KYC Review Tab ── */}
+          <TabsContent value="kyc" className="space-y-4">
+            <AdminKycManager />
           </TabsContent>
         </Tabs>
 

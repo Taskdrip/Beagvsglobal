@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,9 @@ import {
   Thermometer, FileText, Weight, X, Plus, Layers
 } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type ShipmentStatus = 'PENDING' | 'PICKED_UP' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'FAILED' | 'RETURNED';
 
@@ -172,6 +175,9 @@ function EventFeed({ events }: { events: any[] }) {
 
 // ── Shipment Result ──────────────────────────────────────────────────────────
 function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+
   const { data: shipment, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/tracking", trackingNumber],
     queryFn: async () => {
@@ -180,6 +186,18 @@ function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
       return res.json();
     },
     retry: false,
+  });
+
+  const confirmReceiptMutation = useMutation({
+    mutationFn: (escrowId: string) =>
+      apiRequest("PATCH", `/api/escrows/${escrowId}`, { status: "DELIVERED" }),
+    onSuccess: () => {
+      toast({ title: "Receipt confirmed! ✓", description: "The seller will be notified that you've received your order." });
+      queryClient.invalidateQueries({ queryKey: ["/api/tracking", trackingNumber] });
+      queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/escrows-as-buyer"] });
+    },
+    onError: (e: any) => toast({ title: "Failed to confirm receipt", description: e.message, variant: "destructive" }),
   });
 
   if (isLoading) return (
@@ -286,6 +304,47 @@ function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
                   </div>
                 </>
               )}
+
+              {/* ── Buyer "I received it" button ── */}
+              {shipment.escrowId && user && (user as any)?.id === shipment.buyerId &&
+                ['SHIPPED', 'OUT_FOR_DELIVERY'].includes(shipment.status) && (
+                  <>
+                    <Separator className="my-4 bg-white/8" />
+                    <div className="p-4 rounded-xl bg-cyan-400/8 border border-cyan-400/20 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-cyan-300 font-semibold text-sm">Have you received your order?</p>
+                          <p className="text-white/45 text-xs mt-0.5">
+                            Confirming receipt releases funds to the seller. Only do this once you have your item.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
+                        disabled={confirmReceiptMutation.isPending}
+                        onClick={() => {
+                          if (confirm("Confirm you have received this order? This will release funds to the seller.")) {
+                            confirmReceiptMutation.mutate(shipment.escrowId);
+                          }
+                        }}
+                      >
+                        {confirmReceiptMutation.isPending ? (
+                          <span className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Confirming…
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Yes, I Received My Order ✓
+                          </span>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )
+              }
 
               {shipment.specialInstructions && (
                 <>
