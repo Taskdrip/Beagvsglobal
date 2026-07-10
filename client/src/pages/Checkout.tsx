@@ -107,6 +107,7 @@ function SellerPayoutPanel({ escrow }: { escrow: any }) {
     onSuccess: () => {
       toast({ title: "Payout request submitted!", description: "Admin will review and process your payout." });
       queryClient.invalidateQueries({ queryKey: ["/api/payout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/payout-requests"] });
       setSubmitted(true);
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -413,6 +414,7 @@ export default function Checkout() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/escrows", escrowId] });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
     },
     onError: (error: any) => {
       toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
@@ -452,6 +454,7 @@ export default function Checkout() {
       setStep(3);
       if (thread?.id) setChatThreadId(thread.id);
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
       queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
       toast({ title: "Payment submitted for review!", description: "Admin will verify your payment shortly. You're now in the escrow chat." });
     },
@@ -472,6 +475,7 @@ export default function Checkout() {
       setPaymentConfirmed(true);
       queryClient.invalidateQueries({ queryKey: ["/api/escrows", escrowId] });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
       try {
         const threadRes = await apiRequest("POST", "/api/chat/threads", {
           listingId: escrow?.listingId,

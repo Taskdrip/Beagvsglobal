@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, Component } from "react";
+import type { ReactNode, ErrorInfo } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -44,6 +45,43 @@ import Notifications from "@/pages/Notifications";
 import DeliveryAgentDashboard from "@/pages/DeliveryAgentDashboard";
 import AgentSignup from "@/pages/AgentSignup";
 import PiOnboarding from "@/pages/PiOnboarding";
+
+// ── Error boundary — catches JS crashes and shows a recovery UI instead of
+// a completely blank white page.
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(_error: Error, info: ErrorInfo) {
+    console.error("[AppErrorBoundary]", _error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+          <div className="max-w-md w-full text-center space-y-4">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <h2 className="text-xl font-semibold text-slate-800">Something went wrong</h2>
+            <p className="text-slate-500 text-sm">{this.state.error.message}</p>
+            <button
+              className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+              onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+            >
+              Reload page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Client-side redirect that never triggers a full-page reload.
 // Using window.location.replace() here would wipe the React Query cache and
@@ -233,14 +271,16 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <GoogleAnalytics />
-        <Router />
-        {!CHAT_WIDGET_HIDDEN_PATHS.has(location) && <ChatWidget />}
-      </TooltipProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <GoogleAnalytics />
+          <Router />
+          {!CHAT_WIDGET_HIDDEN_PATHS.has(location) && <ChatWidget />}
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
 

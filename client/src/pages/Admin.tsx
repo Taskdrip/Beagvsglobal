@@ -1555,6 +1555,8 @@ export default function Admin() {
     onSuccess: () => {
       toast({ title: "Escrow updated successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/escrows", { admin: true }] });
       setSelectedEscrow(null);
       setEditingEscrowTracking(null);
     },

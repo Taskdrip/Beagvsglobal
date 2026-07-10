@@ -196,6 +196,7 @@ function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
       queryClient.invalidateQueries({ queryKey: ["/api/tracking", trackingNumber] });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows-as-buyer"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
     },
     onError: (e: any) => toast({ title: "Failed to confirm receipt", description: e.message, variant: "destructive" }),
   });

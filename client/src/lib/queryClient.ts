@@ -128,10 +128,15 @@ export const getQueryFn: <T>(options: {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
+      queryFn: getQueryFn({ on401: "returnNull" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      // Refetch when the user returns to the tab so data is never stale
+      // after another device or admin changes something.
+      refetchOnWindowFocus: true,
+      // 30 s gives a good balance: data stays fresh without hammering the
+      // server on every keystroke, and mutations + invalidateQueries()
+      // always override this for anything that just changed.
+      staleTime: 30_000,
       retry: false,
     },
     mutations: {

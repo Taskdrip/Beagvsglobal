@@ -675,6 +675,7 @@ export default function Dashboard() {
                                     toast({ title: "Receipt confirmed! ✓", description: "Funds will be released to the seller." });
                                     queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
                                     queryClient.invalidateQueries({ queryKey: ["/api/escrows-as-buyer"] });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
                                   } catch (e: any) {
                                     toast({ title: "Error", description: e.message, variant: "destructive" });
                                   }

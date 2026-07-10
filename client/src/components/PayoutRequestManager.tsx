@@ -184,6 +184,7 @@ function PayoutForm({ eligibleEscrows, role = "seller", onClose }: PayoutFormPro
         description: "Admin will review and process your payment within 1–24 hours.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/payout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/payout-requests"] });
       onClose();
     },
     onError: (e: any) => toast({ title: "Submission failed", description: e.message, variant: "destructive" }),
@@ -362,6 +363,7 @@ function ConfirmPaymentCard({ req }: { req: PayoutRequest }) {
     onSuccess: () => {
       toast({ title: "✅ Payment confirmed!", description: "Transaction has been marked as completed. Thank you!" });
       queryClient.invalidateQueries({ queryKey: ["/api/payout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/payout-requests"] });
     },
     onError: (e: any) => toast({ title: "Confirmation failed", description: e.message, variant: "destructive" }),
   });
@@ -708,6 +710,7 @@ export function AdminPayoutManager() {
     onSuccess: () => {
       toast({ title: "✅ Payout request updated", description: "Seller/agent has been notified." });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/payout-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payout-requests"] });
       setReviewingId(null);
       setReviewForm({ status: "", adminNote: "", txHash: "" });
     },
