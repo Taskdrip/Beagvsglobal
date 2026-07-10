@@ -21,6 +21,9 @@ import {
   shippingRates,
   bankAccounts,
   sellerPayoutRequests,
+  kycVerifications,
+  kycDocuments,
+  facialVerifications,
   type User,
   type UpsertUser,
   type InsertWallet,
@@ -156,6 +159,9 @@ export interface IStorage {
   // KYC operations
   updateUserKycStatus(userId: string, status: string, rejectionReason?: string): Promise<User>;
   getKycApplications(): Promise<User[]>;
+  saveKycSubmission(userId: string, facialImageUrl: string, documentUrl: string, documentForm: { documentType: string; country: string; documentNumber: string; expiryDate?: string }): Promise<void>;
+  getKycApplicationsWithDocuments(): Promise<any[]>;
+  getOrCreateDirectChatThread(adminId: string, userId: string): Promise<ChatThread>;
   
   // Admin operations
   updateUserRole(userId: string, role: string): Promise<User>;
@@ -1232,6 +1238,133 @@ export class DatabaseStorage implements IStorage {
   }
 
   // KYC operations
+  async saveKycSubmission(userId: string, facialImageUrl: string, documentUrl: string, documentForm: { documentType: string; country: string; documentNumber: string; expiryDate?: string }): Promise<void> {
+    // Create the verification record
+    const [verification] = await db
+      .insert(kycVerifications)
+      .values({
+        userId,
+        verificationType: 'DOCUMENT' as any,
+        status: 'UNDER_REVIEW' as any,
+        metadata: { facialImageUrl, documentUrl, documentForm } as any,
+      })
+      .returning();
+
+    // Save facial verification record
+    await db.insert(facialVerifications).values({
+      verificationId: verification.id,
+      userId,
+      imageUrl: facialImageUrl,
+    });
+
+    // Save document record
+    if (documentForm.documentType) {
+      await db.insert(kycDocuments).values({
+        verificationId: verification.id,
+        userId,
+        documentType: documentForm.documentType as any,
+        country: documentForm.country,
+        documentNumber: documentForm.documentNumber || undefined,
+        expiryDate: documentForm.expiryDate ? new Date(documentForm.expiryDate) : undefined,
+        fileUrl: documentUrl,
+        fileName: documentUrl.split('/').pop() || 'document',
+        mimeType: documentUrl.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
+      });
+    }
+  }
+
+  async getKycApplicationsWithDocuments(): Promise<any[]> {
+    // Select only safe fields — never return passwordHash, piAccessToken, or 2FA secrets
+    const apps = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profileImageUrl: users.profileImageUrl,
+        role: users.role,
+        accountType: users.accountType,
+        kycStatus: users.kycStatus,
+        kycSubmittedAt: users.kycSubmittedAt,
+        kycApprovedAt: users.kycApprovedAt,
+        kycRejectedAt: users.kycRejectedAt,
+        kycRejectionReason: users.kycRejectionReason,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .where(sql`${users.kycStatus} != 'NOT_STARTED'`)
+      .orderBy(desc(users.kycSubmittedAt));
+
+    // For each user, fetch their latest verification record with documents
+    const enriched = await Promise.all(apps.map(async (user) => {
+      const [latestVerification] = await db
+        .select()
+        .from(kycVerifications)
+        .where(eq(kycVerifications.userId, user.id))
+        .orderBy(desc(kycVerifications.createdAt))
+        .limit(1);
+
+      if (!latestVerification) return { ...user, facialImageUrl: null, documents: [] };
+
+      const [facial] = await db
+        .select()
+        .from(facialVerifications)
+        .where(eq(facialVerifications.verificationId, latestVerification.id))
+        .limit(1);
+
+      const docs = await db
+        .select()
+        .from(kycDocuments)
+        .where(eq(kycDocuments.verificationId, latestVerification.id));
+
+      // Also try metadata fallback for older submissions
+      const meta = latestVerification.metadata as any;
+
+      return {
+        ...user,
+        verificationId: latestVerification.id,
+        facialImageUrl: facial?.imageUrl ?? meta?.facialImageUrl ?? null,
+        documents: docs,
+        documentUrl: docs[0]?.fileUrl ?? meta?.documentUrl ?? null,
+        documentForm: docs[0] ? {
+          documentType: docs[0].documentType,
+          country: docs[0].country,
+          documentNumber: docs[0].documentNumber,
+          expiryDate: docs[0].expiryDate,
+        } : (meta?.documentForm ?? null),
+        verificationMetadata: meta,
+      };
+    }));
+
+    return enriched;
+  }
+
+  async getOrCreateDirectChatThread(adminId: string, userId: string): Promise<ChatThread> {
+    // Canonical ordering: smaller id is always buyerId to avoid duplicate threads
+    const [buyerId, sellerId] = [adminId, userId].sort();
+
+    // Upsert: insert and silently skip on conflict (direct threads share buyerId+sellerId+null listingId)
+    await db
+      .insert(chatThreads)
+      .values({ buyerId, sellerId })
+      .onConflictDoNothing();
+
+    const [thread] = await db
+      .select()
+      .from(chatThreads)
+      .where(
+        and(
+          sql`${chatThreads.listingId} IS NULL`,
+          eq(chatThreads.buyerId, buyerId),
+          eq(chatThreads.sellerId, sellerId)
+        )
+      )
+      .limit(1);
+
+    return thread;
+  }
+
   async updateUserKycStatus(userId: string, status: string, rejectionReason?: string): Promise<User> {
     const now = new Date();
     const updateData: any = {

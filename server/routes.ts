@@ -2165,8 +2165,11 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
       if (!facialImageUrl) return res.status(400).json({ message: 'Facial photo is required. Please complete the facial verification step.' });
       if (!documentUrl) return res.status(400).json({ message: 'ID document is required. Please upload your document.' });
+      if (!documentForm?.documentType) return res.status(400).json({ message: 'Document type is required.' });
+      if (!documentForm?.country) return res.status(400).json({ message: 'Issuing country is required.' });
 
-      // Update user KYC status
+      // Save documents to DB then update status (fail the request if either fails)
+      await storage.saveKycSubmission(userId, facialImageUrl, documentUrl, documentForm);
       await storage.updateUserKycStatus(userId, 'UNDER_REVIEW');
 
       // Notify the user
@@ -2205,10 +2208,10 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
 
   // ─── Admin KYC Review ──────────────────────────────────────────────────────
 
-  // List all KYC applications (non-NOT_STARTED)
+  // List all KYC applications (non-NOT_STARTED) with document/facial data
   app.get('/api/admin/kyc-applications', isAuthenticatedEnhanced, isAdmin, async (_req, res) => {
     try {
-      const applications = await storage.getKycApplications();
+      const applications = await storage.getKycApplicationsWithDocuments();
       res.json(applications);
     } catch (error: any) {
       console.error('Error fetching KYC applications:', error);
@@ -2246,6 +2249,67 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     } catch (error: any) {
       console.error('Error updating KYC status:', error);
       res.status(500).json({ message: error.message || 'Failed to update KYC status' });
+    }
+  });
+
+  // Admin: send custom notification to a KYC applicant
+  app.post('/api/admin/kyc/:userId/notify', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { message } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: 'Message is required' });
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ message: 'User not found' });
+
+      await storage.createNotification({
+        userId,
+        type: 'KYC_STATUS',
+        data: { status: 'NOTE', message: message.trim() },
+      });
+
+      res.json({ message: 'Notification sent successfully' });
+    } catch (error: any) {
+      console.error('Error sending KYC notification:', error);
+      res.status(500).json({ message: error.message || 'Failed to send notification' });
+    }
+  });
+
+  // Admin: open/get a direct chat thread with a KYC applicant
+  app.post('/api/admin/kyc/:userId/start-chat', isAuthenticatedEnhanced, isAdmin, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const { userId } = req.params;
+      const { message } = req.body;
+
+      if (adminId === userId) return res.status(400).json({ message: 'Cannot start chat with yourself' });
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) return res.status(404).json({ message: 'User not found' });
+
+      const thread = await storage.getOrCreateDirectChatThread(adminId, userId);
+
+      // Send initial message if provided
+      if (message?.trim()) {
+        await storage.createMessage({
+          threadId: thread.id,
+          senderId: adminId,
+          recipientId: userId,
+          content: message.trim(),
+          messageType: 'text',
+        });
+        // Also create notification
+        await storage.createNotification({
+          userId,
+          type: 'MESSAGE',
+          data: { threadId: thread.id, message: message.trim() },
+        });
+      }
+
+      res.json({ thread, threadId: thread.id });
+    } catch (error: any) {
+      console.error('Error starting KYC chat:', error);
+      res.status(500).json({ message: error.message || 'Failed to start chat' });
     }
   });
 

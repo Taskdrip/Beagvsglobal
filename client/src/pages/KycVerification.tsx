@@ -682,7 +682,17 @@ export default function KycVerification() {
                 </Button>
                 
                 <Button
-                  onClick={() => submitKycMutation.mutate()}
+                  onClick={() => {
+                    if (!facialImageUrl) {
+                      toast({
+                        title: "Facial photo required",
+                        description: "Please go back and complete the facial verification step first.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    submitKycMutation.mutate();
+                  }}
                   disabled={
                     !documentUploaded ||
                     !documentForm.documentType ||
