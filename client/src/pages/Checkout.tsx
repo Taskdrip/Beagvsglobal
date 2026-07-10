@@ -375,7 +375,7 @@ export default function Checkout() {
   }, [escrow?.metadata]); // eslint-disable-line react-hooks/exhaustive-deps
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isProductListing = escrow?.listing?.listingType === 'PRODUCT' || escrow?.listing?.type === 'PRODUCT';
+  const isProductListing = ['PRODUCT', 'SHIPPING_SERVICE'].includes(escrow?.listing?.listingType || escrow?.listing?.type);
 
   const { data: shippingRates } = useQuery<any[]>({
     queryKey: ["/api/shipping-rates"],
@@ -873,6 +873,103 @@ export default function Checkout() {
               </div>
             </CardContent>
           </Card>
+
+          {isGoodsEscrow && isBuyer && (
+            <Card className="border-blue-200 shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-blue-800 text-base">
+                  <MapPin className="w-4 h-4" /> Delivery Address
+                </CardTitle>
+                <p className="text-sm text-blue-600">Make sure the seller knows where to send your item.</p>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const saved = (escrow?.metadata as any)?.shipping?.address;
+                  const hasSaved = saved?.recipientName || saved?.city;
+                  if (hasSaved && !showShippingForm) {
+                    return (
+                      <div className="space-y-2">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                          <div className="text-sm text-green-800">
+                            <p className="font-medium">{saved.recipientName}</p>
+                            {saved.addressLine1 && <p className="text-xs">{saved.addressLine1}{saved.addressLine2 ? `, ${saved.addressLine2}` : ""}</p>}
+                            <p className="text-xs">{[saved.city, saved.country, saved.postalCode].filter(Boolean).join(", ")}</p>
+                            {saved.recipientPhone && <p className="text-xs text-green-700">{saved.recipientPhone}</p>}
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => setShowShippingForm(true)} className="text-xs" data-testid="button-edit-address-funded">
+                          <MapPin className="w-3.5 h-3.5 mr-1" /> Edit Address
+                        </Button>
+                      </div>
+                    );
+                  }
+                  if (!showShippingForm) {
+                    return (
+                      <Button onClick={() => setShowShippingForm(true)} className="w-full bg-blue-600 hover:bg-blue-700" data-testid="button-add-address-funded">
+                        <MapPin className="w-4 h-4 mr-2" /> Add Delivery Address
+                      </Button>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Recipient Name *</label>
+                          <Input value={shippingAddress.recipientName} onChange={e => setShippingAddress(p => ({ ...p, recipientName: e.target.value }))} placeholder="Full name" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Phone Number</label>
+                          <Input value={shippingAddress.recipientPhone} onChange={e => setShippingAddress(p => ({ ...p, recipientPhone: e.target.value }))} placeholder="+234 800 000 0000" />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Street Address *</label>
+                          <Input value={shippingAddress.addressLine1} onChange={e => setShippingAddress(p => ({ ...p, addressLine1: e.target.value }))} placeholder="Street, P.O. Box" />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Address Line 2</label>
+                          <Input value={shippingAddress.addressLine2} onChange={e => setShippingAddress(p => ({ ...p, addressLine2: e.target.value }))} placeholder="Apartment, suite (optional)" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">City *</label>
+                          <Input value={shippingAddress.city} onChange={e => setShippingAddress(p => ({ ...p, city: e.target.value }))} placeholder="City" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Country *</label>
+                          <Input value={shippingAddress.country} onChange={e => setShippingAddress(p => ({ ...p, country: e.target.value }))} placeholder="Country" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 block mb-1">Postal / ZIP Code</label>
+                          <Input value={shippingAddress.postalCode} onChange={e => setShippingAddress(p => ({ ...p, postalCode: e.target.value }))} placeholder="e.g. 100001" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button variant="outline" onClick={() => setShowShippingForm(false)} className="flex-1">Cancel</Button>
+                        <Button
+                          onClick={async () => {
+                            if (!shippingAddress.recipientName || !shippingAddress.city || !shippingAddress.country) {
+                              toast({ title: "Please fill in required fields (Name, City, Country)", variant: "destructive" }); return;
+                            }
+                            try {
+                              await apiRequest("PATCH", `/api/escrows/${escrowId}`, { shippingAddress });
+                              toast({ title: "Delivery address saved!", description: "The seller will see your address." });
+                              queryClient.invalidateQueries({ queryKey: ["/api/escrows", escrowId] });
+                              setShowShippingForm(false);
+                            } catch (e: any) { toast({ title: "Failed to save", description: e.message, variant: "destructive" }); }
+                          }}
+                          disabled={!shippingAddress.recipientName || !shippingAddress.city || !shippingAddress.country}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700"
+                          data-testid="button-save-address-funded"
+                        >
+                          <Truck className="w-4 h-4 mr-2" /> Save Address
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     );

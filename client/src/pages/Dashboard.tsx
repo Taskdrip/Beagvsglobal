@@ -683,14 +683,14 @@ export default function Dashboard() {
                           </p>
                           <div className="flex items-center gap-2 flex-wrap">
                             {(escrow.status === 'SHIPPED' || escrow.status === 'DELIVERED') && (
-                              <Link href={`/shipments?escrow=${escrow.id}`}>
+                              <Link href={`/shipping?escrowId=${escrow.id}`}>
                                 <Button size="sm" variant="outline" data-testid={`button-track-shipment-${escrow.id}`}>
                                   <Truck className="w-3 h-3 mr-1" /> Track Shipment
                                 </Button>
                               </Link>
                             )}
                             {(escrow.status === 'FUNDED' && escrow.sellerId === user?.id) && (
-                              <Link href={`/shipments?create=1&escrowId=${escrow.id}`}>
+                              <Link href={`/shipping?tab=create&escrowId=${escrow.id}`}>
                                 <Button size="sm" variant="outline" data-testid={`button-add-shipment-${escrow.id}`}>
                                   <Truck className="w-3 h-3 mr-1" /> Add Tracking
                                 </Button>

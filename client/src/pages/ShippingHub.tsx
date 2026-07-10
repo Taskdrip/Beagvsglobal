@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useRoute, useLocation, Link } from "wouter";
+import { useState, useEffect } from "react";
+import { useRoute, useLocation, useSearch, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -185,6 +185,13 @@ function CreateShipmentForm({ escrowId, buyerId }: { escrowId?: string; buyerId?
   const [, navigate] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState("GENERAL");
 
+  const { data: linkedEscrow } = useQuery<any>({
+    queryKey: ["/api/escrows", escrowId],
+    enabled: !!escrowId,
+  });
+
+  const savedAddress = (linkedEscrow?.metadata as any)?.shipping?.address;
+
   const form = useForm<z.infer<typeof createShipmentSchema>>({
     resolver: zodResolver(createShipmentSchema),
     defaultValues: {
@@ -195,6 +202,23 @@ function CreateShipmentForm({ escrowId, buyerId }: { escrowId?: string; buyerId?
       insuranceValue: "", insuranceCurrency: "USDT",
     },
   });
+
+  // Prefill destination/recipient/buyer fields from the linked escrow's saved delivery address once it loads
+  useEffect(() => {
+    if (!linkedEscrow) return;
+    if (linkedEscrow.buyerId) form.setValue("buyerId", linkedEscrow.buyerId);
+    if (!savedAddress) return;
+    if (savedAddress.recipientName) form.setValue("recipientName", savedAddress.recipientName);
+    if (savedAddress.recipientPhone) form.setValue("recipientPhone", savedAddress.recipientPhone);
+    if (savedAddress.city) form.setValue("destination", savedAddress.city);
+    if (savedAddress.country) form.setValue("destinationCountry", savedAddress.country);
+    const addressLines = [savedAddress.addressLine1, savedAddress.addressLine2, savedAddress.postalCode].filter(Boolean).join(", ");
+    if (addressLines) {
+      const existing = form.getValues("specialInstructions");
+      if (!existing) form.setValue("specialInstructions", `Deliver to: ${addressLines}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedEscrow, savedAddress]);
 
   const mutation = useMutation({
     mutationFn: async (values: z.infer<typeof createShipmentSchema>) => {
@@ -1000,8 +1024,28 @@ function PublicBookingForm() {
 export default function ShippingHub() {
   const [matchDetail, paramsDetail] = useRoute("/shipments/:id");
   const [, navigate] = useLocation();
+  const search = useSearch();
   const { isAuthenticated } = useAuth();
   const shipmentId = paramsDetail?.id;
+
+  const searchParams = new URLSearchParams(search);
+  const initialTab = searchParams.get("tab") === "create" ? "create" : "my-shipments";
+  const escrowIdParam = searchParams.get("escrowId") || undefined;
+
+  const { data: escrowForShipment } = useQuery<any>({
+    queryKey: ["/api/shipments/escrow", escrowIdParam],
+    queryFn: async () => {
+      const res = await fetch(`/api/shipments/escrow/${escrowIdParam}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!escrowIdParam && initialTab !== "create",
+  });
+
+  // If we came from "Track Shipment" with an escrowId, jump straight to that shipment's detail page
+  useEffect(() => {
+    if (escrowForShipment?.id) navigate(`/shipments/${escrowForShipment.id}`);
+  }, [escrowForShipment, navigate]);
 
   const SERVICES = [
     { icon: Plane, title: "Air Freight", time: "1–7 days", desc: "Express and standard air cargo for time-sensitive shipments", color: "text-blue-400", bg: "bg-blue-400/10" },
@@ -1122,7 +1166,7 @@ export default function ShippingHub() {
 
             {/* Management tabs — only for logged-in users */}
             {isAuthenticated && (
-              <Tabs defaultValue="my-shipments" id="shipment-tabs">
+              <Tabs defaultValue={initialTab} id="shipment-tabs">
                 <TabsList className="bg-white/5 border border-white/10 mb-6">
                   <TabsTrigger value="my-shipments" data-testid="tab-my-shipments" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300">
                     <Box className="w-4 h-4 mr-2" /> My Shipments
@@ -1150,7 +1194,7 @@ export default function ShippingHub() {
                       <CardDescription className="text-white/50">Register your cargo and generate a tracking number for your recipient.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <CreateShipmentForm />
+                      <CreateShipmentForm escrowId={escrowIdParam} />
                     </CardContent>
                   </Card>
                 </TabsContent>
