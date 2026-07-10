@@ -4066,7 +4066,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     try {
       const adminId = req.user.claims.sub;
       const { id } = req.params;
-      const { status, adminNote, txHash } = req.body;
+      const { status, adminNote, txHash, receiptUrl } = req.body;
 
       const existing = await storage.getPayoutRequest(id);
       if (!existing) return res.status(404).json({ message: 'Payout request not found' });
@@ -4079,6 +4079,7 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       };
       if (status === 'PAID') updateData.paidAt = new Date();
       if (txHash) updateData.txHash = txHash;
+      if (receiptUrl) updateData.receiptUrl = receiptUrl;
 
       const updated = await storage.updatePayoutRequest(id, updateData);
 

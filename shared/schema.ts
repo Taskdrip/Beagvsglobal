@@ -744,6 +744,7 @@ export const sellerPayoutRequests = pgTable("seller_payout_requests", {
   reviewedAt: timestamp("reviewed_at"),
   paidAt: timestamp("paid_at"),
   txHash: varchar("tx_hash"),
+  receiptUrl: varchar("receipt_url"),
   confirmedAt: timestamp("confirmed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

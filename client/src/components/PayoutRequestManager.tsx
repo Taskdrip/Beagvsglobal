@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   Loader2, Wallet, TrendingUp, Gift, Star, ArrowRight,
   BadgeCheck, AlertTriangle, Banknote, RefreshCw, CircleDollarSign,
   PartyPopper, ChevronDown, ChevronUp, ExternalLink, Shield,
+  Upload, FileText, Download, Eye,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ type PayoutRequest = {
   paidAt?: string;
   confirmedAt?: string;
   txHash?: string;
+  receiptUrl?: string;
   createdAt: string;
   payeeType?: "seller" | "agent";
   agentId?: string;
@@ -369,17 +371,41 @@ function ConfirmPaymentCard({ req }: { req: PayoutRequest }) {
   });
 
   return (
-    <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 space-y-2.5">
+      <div className="flex items-center gap-2">
         <Shield className="w-4 h-4 text-emerald-600" />
         <p className="text-sm font-semibold text-emerald-800">Admin has sent your payment!</p>
       </div>
       {req.txHash && (
-        <p className="text-xs text-emerald-600 mb-2 font-mono bg-white/70 rounded px-2 py-1">
+        <p className="text-xs text-emerald-600 font-mono bg-white/70 rounded px-2 py-1 break-all">
           TX: {req.txHash}
         </p>
       )}
-      <p className="text-xs text-emerald-700 mb-3">
+      {req.receiptUrl && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-white border border-emerald-200">
+          <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700">Payment Receipt Attached</p>
+            <p className="text-xs text-slate-400">Admin has attached a receipt for this payment</p>
+          </div>
+          <a
+            href={req.receiptUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex-shrink-0"
+          >
+            <Eye className="w-3 h-3" /> View
+          </a>
+          <a
+            href={req.receiptUrl}
+            download
+            className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-800 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex-shrink-0"
+          >
+            <Download className="w-3 h-3" /> Save
+          </a>
+        </div>
+      )}
+      <p className="text-xs text-emerald-700">
         Please confirm you received{" "}
         <span className="font-bold">{fmt(req.amount, req.currency)}</span>.
         This will close the transaction.
@@ -471,6 +497,27 @@ function RequestCard({ req }: { req: PayoutRequest }) {
               <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2 font-mono">
                 <ExternalLink className="w-3.5 h-3.5" />
                 TX: {req.txHash}
+              </div>
+            )}
+            {req.receiptUrl && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-200">
+                <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <span className="text-xs text-slate-700 font-medium flex-1">Payment Receipt</span>
+                <a
+                  href={req.receiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 px-2 py-1 rounded bg-white hover:bg-blue-50 border border-blue-200 transition-colors"
+                >
+                  <Eye className="w-3 h-3" /> View
+                </a>
+                <a
+                  href={req.receiptUrl}
+                  download
+                  className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-800 px-2 py-1 rounded bg-white hover:bg-slate-100 border border-slate-200 transition-colors"
+                >
+                  <Download className="w-3 h-3" /> Save
+                </a>
               </div>
             )}
             {req.notes && (
@@ -692,13 +739,74 @@ export function AgentPayoutManager({ shipments }: AgentPayoutManagerProps) {
   );
 }
 
+// ─── Receipt viewer ───────────────────────────────────────────────────────────
+
+function ReceiptViewer({ url, label = "View Receipt" }: { url: string; label?: string }) {
+  const isPdf = url.toLowerCase().includes(".pdf") || url.toLowerCase().includes("application/pdf");
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"
+    >
+      {isPdf ? <FileText className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      {label}
+      <Download className="w-3 h-3 opacity-60" />
+    </a>
+  );
+}
+
 // ─── Admin Payout Manager ─────────────────────────────────────────────────────
 
 export function AdminPayoutManager() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [reviewForm, setReviewForm] = useState({ status: "", adminNote: "", txHash: "" });
+  const reviewingIdRef = useRef<string | null>(null);
+  const [reviewForm, setReviewForm] = useState({ status: "", adminNote: "", txHash: "", receiptUrl: "" });
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+  function openReview(id: string) {
+    reviewingIdRef.current = id;
+    setReviewingId(id);
+    setReviewForm({ status: "", adminNote: "", txHash: "", receiptUrl: "" });
+  }
+
+  function closeReview() {
+    reviewingIdRef.current = null;
+    setReviewingId(null);
+  }
+
+  async function uploadReceiptFile(file: File) {
+    const targetId = reviewingIdRef.current; // capture before async
+    setUploadingReceipt(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch("/api/admin/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64, filename: file.name }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      // Only apply if still reviewing the same request (guards against cancel/switch race)
+      if (reviewingIdRef.current === targetId && targetId !== null) {
+        setReviewForm(f => ({ ...f, receiptUrl: url }));
+        toast({ title: "Receipt uploaded", description: "File attached and ready to send." });
+      }
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setUploadingReceipt(false);
+    }
+  }
 
   const { data: requests = [], isLoading, refetch, isFetching } = useQuery<PayoutRequest[]>({
     queryKey: ["/api/admin/payout-requests"],
@@ -712,7 +820,7 @@ export function AdminPayoutManager() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/payout-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/payout-requests"] });
       setReviewingId(null);
-      setReviewForm({ status: "", adminNote: "", txHash: "" });
+      setReviewForm({ status: "", adminNote: "", txHash: "", receiptUrl: "" });
     },
     onError: (e: any) => toast({ title: "Update failed", description: e.message, variant: "destructive" }),
   });
@@ -880,9 +988,23 @@ export function AdminPayoutManager() {
                         </p>
                       )}
                       {req.txHash && (
-                        <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-1.5 border border-green-200 font-mono">
+                        <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-1.5 border border-green-200 font-mono break-all">
                           TX: {req.txHash}
                         </p>
+                      )}
+                      {req.receiptUrl && (
+                        <div className="flex items-center gap-2 text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+                          <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                          <span className="text-slate-600 font-medium flex-1">Receipt attached</span>
+                          <a href={req.receiptUrl} target="_blank" rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline flex items-center gap-0.5">
+                            <Eye className="w-3 h-3" /> View
+                          </a>
+                          <a href={req.receiptUrl} download
+                            className="text-slate-500 hover:underline flex items-center gap-0.5 ml-1">
+                            <Download className="w-3 h-3" /> Save
+                          </a>
+                        </div>
                       )}
 
                       {/* Dates */}
@@ -900,7 +1022,7 @@ export function AdminPayoutManager() {
                           <Button
                             size="sm"
                             className={`w-full gap-1.5 ${req.status === "PENDING" ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-slate-800 hover:bg-slate-900 text-white"}`}
-                            onClick={() => { setReviewingId(req.id); setReviewForm({ status: "", adminNote: "", txHash: "" }); }}
+                            onClick={() => openReview(req.id)}
                           >
                             {req.status === "PENDING" ? "Review & Action" : "Send Payment"}
                             <ArrowRight className="w-3.5 h-3.5" />
@@ -918,12 +1040,54 @@ export function AdminPayoutManager() {
                               </SelectContent>
                             </Select>
                             {reviewForm.status === "PAID" && (
-                              <Input
-                                className="text-xs bg-white h-9"
-                                placeholder="TX hash / reference (optional)"
-                                value={reviewForm.txHash}
-                                onChange={e => setReviewForm(f => ({ ...f, txHash: e.target.value }))}
-                              />
+                              <>
+                                <Input
+                                  className="text-xs bg-white h-9"
+                                  placeholder="TX hash / reference (optional)"
+                                  value={reviewForm.txHash}
+                                  onChange={e => setReviewForm(f => ({ ...f, txHash: e.target.value }))}
+                                />
+                                {/* Receipt upload */}
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
+                                    Payment Receipt
+                                  </label>
+                                  {reviewForm.receiptUrl ? (
+                                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-1.5">
+                                      <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                      <span className="text-xs text-slate-600 truncate flex-1">Receipt uploaded ✓</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setReviewForm(f => ({ ...f, receiptUrl: "" }))}
+                                        className="text-xs text-red-500 hover:text-red-700 flex-shrink-0"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className="flex items-center gap-2 cursor-pointer px-2 py-2 rounded-lg border border-dashed border-slate-300 bg-white hover:bg-slate-50 transition-colors">
+                                      {uploadingReceipt
+                                        ? <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin" />
+                                        : <Upload className="w-3.5 h-3.5 text-slate-400" />
+                                      }
+                                      <span className="text-xs text-slate-500">
+                                        {uploadingReceipt ? "Uploading…" : "Attach receipt (PDF/image)"}
+                                      </span>
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        accept="image/*,.pdf"
+                                        disabled={uploadingReceipt}
+                                        onChange={e => {
+                                          const file = e.target.files?.[0];
+                                          if (file) uploadReceiptFile(file);
+                                          e.target.value = "";
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              </>
                             )}
                             <Input
                               className="text-xs bg-white h-9"
@@ -936,14 +1100,14 @@ export function AdminPayoutManager() {
                                 size="sm"
                                 variant="outline"
                                 className="flex-1 text-xs h-8"
-                                onClick={() => setReviewingId(null)}
+                                onClick={() => closeReview()}
                               >
                                 Cancel
                               </Button>
                               <Button
                                 size="sm"
                                 className="flex-1 text-xs h-8 bg-slate-900 hover:bg-slate-800 text-white"
-                                disabled={!reviewForm.status || updateMutation.isPending}
+                                disabled={!reviewForm.status || updateMutation.isPending || uploadingReceipt}
                                 onClick={() => updateMutation.mutate({ id: req.id, data: reviewForm })}
                               >
                                 {updateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}

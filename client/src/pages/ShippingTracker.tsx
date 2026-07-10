@@ -9,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Package, Truck, MapPin, CheckCircle, Clock, AlertCircle,
   Search, ArrowRight, Globe, Box, RotateCcw, Plane, Shield,
   Thermometer, FileText, Weight, X, Plus, Layers
@@ -177,6 +181,7 @@ function EventFeed({ events }: { events: any[] }) {
 function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const { data: shipment, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/tracking", trackingNumber],
@@ -193,12 +198,16 @@ function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
       apiRequest("PATCH", `/api/escrows/${escrowId}`, { status: "DELIVERED" }),
     onSuccess: () => {
       toast({ title: "Receipt confirmed! ✓", description: "The seller will be notified that you've received your order." });
+      setShowConfirmDialog(false);
       queryClient.invalidateQueries({ queryKey: ["/api/tracking", trackingNumber] });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows"] });
       queryClient.invalidateQueries({ queryKey: ["/api/escrows-as-buyer"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/escrows"] });
     },
-    onError: (e: any) => toast({ title: "Failed to confirm receipt", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      toast({ title: "Failed to confirm receipt", description: e.message, variant: "destructive" });
+      setShowConfirmDialog(false);
+    },
   });
 
   if (isLoading) return (
@@ -308,7 +317,7 @@ function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
 
               {/* ── Buyer "I received it" button ── */}
               {shipment.escrowId && user && (user as any)?.id === shipment.buyerId &&
-                ['SHIPPED', 'OUT_FOR_DELIVERY'].includes(shipment.status) && (
+                shipment.escrow?.status === 'SHIPPED' && (
                   <>
                     <Separator className="my-4 bg-white/8" />
                     <div className="p-4 rounded-xl bg-cyan-400/8 border border-cyan-400/20 space-y-3">
@@ -317,18 +326,14 @@ function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
                         <div>
                           <p className="text-cyan-300 font-semibold text-sm">Have you received your order?</p>
                           <p className="text-white/45 text-xs mt-0.5">
-                            Confirming receipt releases funds to the seller. Only do this once you have your item.
+                            Confirming receipt releases the escrow funds to the seller. Only confirm once you have inspected and received your item.
                           </p>
                         </div>
                       </div>
                       <Button
                         className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
                         disabled={confirmReceiptMutation.isPending}
-                        onClick={() => {
-                          if (confirm("Confirm you have received this order? This will release funds to the seller.")) {
-                            confirmReceiptMutation.mutate(shipment.escrowId);
-                          }
-                        }}
+                        onClick={() => setShowConfirmDialog(true)}
                       >
                         {confirmReceiptMutation.isPending ? (
                           <span className="flex items-center gap-2">
@@ -338,10 +343,66 @@ function ShipmentResult({ trackingNumber }: { trackingNumber: string }) {
                         ) : (
                           <span className="flex items-center gap-2">
                             <CheckCircle className="w-4 h-4" />
-                            Yes, I Received My Order ✓
+                            Confirm Shipment Received ✓
                           </span>
                         )}
                       </Button>
+                    </div>
+
+                    {/* Confirmation dialog */}
+                    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                      <AlertDialogContent className="bg-[#0a1628] border border-cyan-400/20 text-white">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="text-white flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-cyan-400" />
+                            Confirm Order Receipt
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="text-white/60 space-y-2">
+                            <span className="block">
+                              You are confirming that you have received and inspected the following shipment:
+                            </span>
+                            <span className="block font-mono text-cyan-300 text-sm bg-white/5 px-3 py-2 rounded-lg">
+                              {shipment.trackingNumber}
+                            </span>
+                            <span className="block text-amber-400/80 text-xs">
+                              ⚠ This action releases the escrow funds to the seller and cannot be undone. Only confirm if you have physically received your item.
+                            </span>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel
+                            className="bg-white/5 border-white/15 text-white hover:bg-white/10"
+                            onClick={() => setShowConfirmDialog(false)}
+                          >
+                            Not Yet
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
+                            onClick={() => confirmReceiptMutation.mutate(shipment.escrowId)}
+                            disabled={confirmReceiptMutation.isPending}
+                          >
+                            {confirmReceiptMutation.isPending ? (
+                              <span className="flex items-center gap-2">
+                                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Confirming…
+                              </span>
+                            ) : "Yes, I Received It"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                )
+              }
+
+              {/* ── Already confirmed banner ── */}
+              {shipment.escrowId && user && (user as any)?.id === shipment.buyerId &&
+                ['DELIVERED', 'RELEASED', 'COMPLETED'].includes(shipment.escrow?.status) && (
+                  <>
+                    <Separator className="my-4 bg-white/8" />
+                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-green-400/8 border border-green-400/20">
+                      <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                      <p className="text-green-400 text-sm font-medium">You have confirmed receipt of this shipment. Funds have been released to the seller.</p>
                     </div>
                   </>
                 )
