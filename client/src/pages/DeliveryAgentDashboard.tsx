@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -67,9 +67,21 @@ const NEXT_STATUS: Record<string, { status: string; label: string; color: string
 
 export default function DeliveryAgentDashboard() {
   const { user, isLoading: authLoading } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    const valid = ["overview", "pickups", "deliveries", "earnings", "messages"];
+    return tab && valid.includes(tab) ? tab : "overview";
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    const valid = ["overview", "pickups", "deliveries", "earnings", "messages"];
+    if (tab && valid.includes(tab)) setActiveTab(tab);
+  }, [location]);
   const [locationFilter, setLocationFilter] = useState("");
 
   const { data: shipments = [], isLoading, refetch } = useQuery<any[]>({

@@ -164,10 +164,17 @@ export default function Dashboard() {
     queryKey: ["/api/auth/user"],
   });
 
-  // Redirect delivery agents to their specialized portal
+  // Redirect delivery agents to their specialized portal, mapping the tab param
   useEffect(() => {
     if (user && (user as any).role === 'DELIVERY_AGENT') {
-      navigate('/agent/dashboard');
+      // "payouts" on the seller dashboard maps to "earnings" on the agent dashboard
+      const tabMap: Record<string, string> = { payouts: "earnings" };
+      const mappedTab = tabMap[activeTab] ?? activeTab;
+      const validAgentTabs = ["overview", "pickups", "deliveries", "earnings", "messages"];
+      const dest = validAgentTabs.includes(mappedTab)
+        ? `/agent/dashboard?tab=${mappedTab}`
+        : "/agent/dashboard";
+      navigate(dest);
     }
   }, [user]);
 
@@ -965,8 +972,8 @@ export default function Dashboard() {
 
           <TabsContent value="payouts" className="space-y-4">
             {/* Payout account setup prompt */}
-            <PayoutAccountGuide userId={(user as any)?.id} escrows={userEscrows as any[]} />
-            <SellerPayoutManager escrows={userEscrows as any[]} />
+            <PayoutAccountGuide userId={(user as any)?.id} escrows={userEscrows ?? []} />
+            <SellerPayoutManager escrows={userEscrows ?? []} />
           </TabsContent>
 
           <TabsContent value="social" className="space-y-4">
