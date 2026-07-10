@@ -92,7 +92,8 @@ export default function BlogPost() {
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
   const shareTitle = (blogPost as any).ogTitle || blogPost.title;
-  const shareText = (blogPost as any).excerpt || (blogPost as any).metaDescription || '';
+  const shareSummary = (blogPost as any).excerpt || (blogPost as any).metaDescription || '';
+  const shareText = `${shareSummary ? `${shareSummary} ` : ''}Check out this read from Beagvs Global 👇`.trim();
   const shareCoverImage = (blogPost as any).coverImageUrl || '';
 
   const handleNativeShare = async () => {
@@ -329,7 +330,7 @@ export default function BlogPost() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => { handleNativeShare(); toast({ title: "Link copied!", description: "Share URL copied to clipboard." }); }}
+                    onClick={() => { handleCopyLink(); toast({ title: "Link copied!", description: "Share URL copied to clipboard." }); }}
                     className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg"
                     data-testid="button-footer-share-copy"
                   >

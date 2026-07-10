@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
+import { injectBlogPostMeta, getRequestBaseUrl } from "./seoMeta";
 
 // Compatible with both Node.js 18 and Node.js 20+
 const __filename = fileURLToPath(import.meta.url);
@@ -69,7 +70,8 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
-      const page = await vite.transformIndexHtml(url, template);
+      let page = await vite.transformIndexHtml(url, template);
+      page = await injectBlogPostMeta(page, req.originalUrl, getRequestBaseUrl(req));
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
@@ -101,7 +103,15 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html for client-side routing
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  app.use("*", async (req, res) => {
+    try {
+      const indexPath = path.resolve(distPath, "index.html");
+      let html = await fs.promises.readFile(indexPath, "utf-8");
+      html = await injectBlogPostMeta(html, req.originalUrl, getRequestBaseUrl(req));
+      res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    } catch (e) {
+      console.error("[static] Failed to serve index.html with meta injection:", e);
+      res.sendFile(path.resolve(distPath, "index.html"));
+    }
   });
 }
