@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -12,15 +12,22 @@ import {
   ArrowLeft,
   Calendar,
   Share2,
-  Twitter,
-  Facebook,
-  Linkedin,
   Clock,
   FileText,
   Tag,
   Copy,
-  MessageCircle,
+  Mail,
+  Check,
 } from "lucide-react";
+import {
+  SiX,
+  SiFacebook,
+  SiLinkedin,
+  SiWhatsapp,
+  SiTelegram,
+  SiReddit,
+  SiPinterest,
+} from "react-icons/si";
 
 export default function BlogPost() {
   const { toast } = useToast();
@@ -103,12 +110,73 @@ export default function BlogPost() {
       } catch { /* cancelled */ }
     } else {
       navigator.clipboard.writeText(shareUrl);
+      toast({ title: "Link copied!", description: "Share URL copied to clipboard." });
     }
   };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);
+    toast({ title: "Link copied!", description: "Share URL copied to clipboard." });
   };
+
+  const shareLinks = [
+    {
+      key: "x",
+      label: "Share on X (Twitter)",
+      icon: SiX,
+      className: "bg-black hover:bg-slate-800 text-white",
+      href: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText ? `${shareTitle} — ${shareText}` : shareTitle)}&url=${encodeURIComponent(shareUrl)}`,
+    },
+    {
+      key: "facebook",
+      label: "Share on Facebook",
+      icon: SiFacebook,
+      className: "bg-[#1877F2] hover:bg-[#1465d1] text-white",
+      href: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText || shareTitle)}`,
+    },
+    {
+      key: "linkedin",
+      label: "Share on LinkedIn",
+      icon: SiLinkedin,
+      className: "bg-[#0A66C2] hover:bg-[#0955a3] text-white",
+      href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
+    },
+    {
+      key: "whatsapp",
+      label: "Share on WhatsApp",
+      icon: SiWhatsapp,
+      className: "bg-[#25D366] hover:bg-[#1ebe59] text-white",
+      href: `https://wa.me/?text=${encodeURIComponent(`${shareTitle} — ${shareText} ${shareUrl}`)}`,
+    },
+    {
+      key: "telegram",
+      label: "Share on Telegram",
+      icon: SiTelegram,
+      className: "bg-[#229ED9] hover:bg-[#1c86b8] text-white",
+      href: `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText || shareTitle)}`,
+    },
+    {
+      key: "reddit",
+      label: "Share on Reddit",
+      icon: SiReddit,
+      className: "bg-[#FF4500] hover:bg-[#e03d00] text-white",
+      href: `https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(shareTitle)}`,
+    },
+    {
+      key: "pinterest",
+      label: "Share on Pinterest",
+      icon: SiPinterest,
+      className: "bg-[#E60023] hover:bg-[#c5001e] text-white",
+      href: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(shareUrl)}&media=${encodeURIComponent(shareCoverImage || `${typeof window !== 'undefined' ? window.location.origin : ''}/og-image.png`)}&description=${encodeURIComponent(shareText || shareTitle)}`,
+    },
+    {
+      key: "email",
+      label: "Share via Email",
+      icon: Mail,
+      className: "bg-slate-600 hover:bg-slate-700 text-white",
+      href: `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(`${shareText}\n\n${shareUrl}`)}`,
+    },
+  ];
 
   // Simple markdown to HTML conversion for basic formatting
   const renderMarkdown = (content: string) => {
