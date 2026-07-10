@@ -47,6 +47,28 @@ Preferred communication style: Simple, everyday language.
 - **Database Migrations**: Drizzle Kit for schema management and migrations
 - **Development Tools**: Hot reload, runtime error overlay, and development banner integration
 
+# Replit Setup
+
+## Running the App
+- **Dev**: `npm run dev` (starts on port 5000, hot-reload enabled)
+- **Build**: `npm run build` (Vite frontend + esbuild backend → `dist/`)
+- **Production**: `npm run start` (serves built output, `NODE_ENV=production`)
+
+## Required Environment Variables
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | PostgreSQL connection string (Neon or any Postgres) — required for all data and sessions |
+| `SESSION_SECRET` | 64+ character secret for signing session cookies — required for auth |
+
+## Optional Environment Variables
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCS service account JSON — enables KYC document uploads |
+| `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | GCS bucket name for file storage |
+| `ADMIN_EMAIL` / `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Seed an initial admin account via `server/seed-railway.ts` |
+
+If `DATABASE_URL` is missing the app will fail to start. If `SESSION_SECRET` is missing, sessions will not persist across restarts.
+
 # External Dependencies
 
 ## Database & Storage
