@@ -26,7 +26,7 @@ const SOCIAL_LINKS = [
 const FOOTER_DEFAULTS = {
   companyName: "Beagvs Marine Services",
   companyTagline: "Nig Ltd",
-  companyDescription: "Licensed freight forwarder and customs agent. Providing cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and worldwide.",
+  companyDescription: "Licensed freight forwarder and customs agent — and a real-world utility marketplace for the Pi Network ecosystem. Pay with Pi for real estate, shipping, and everyday goods, all protected by secure escrow.",
   address1: "Head Office: No 24, 1st Avenue Ottooba, Great Estate, Bagidan Ijede, Ikorodu, Lagos",
   address2: "Branch: No 21, Nevis Street, off Mission Road, Benin City",
   phone1: "+234 803 723 2210",
@@ -341,6 +341,9 @@ export default function Footer() {
               </span>
             ))}
           </div>
+          <p className="mt-4 text-center text-slate-500 text-xs max-w-2xl mx-auto" data-testid="text-footer-pi-solution">
+            Real-world utility for the Pi Network ecosystem — sign in with Pi, pay natively from your Pi Wallet, and spend Pi on escrow-protected real estate, shipping, and marketplace goods.
+          </p>
         </div>
       </div>
     </footer>

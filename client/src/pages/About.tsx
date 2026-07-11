@@ -25,6 +25,9 @@ import {
   Truck,
   Youtube,
   Instagram,
+  Wallet,
+  LogIn,
+  Store,
 } from "lucide-react";
 import { SiTelegram, SiTiktok, SiX } from "react-icons/si";
 
@@ -38,9 +41,9 @@ const SOCIAL_LINKS = [
 
 const ABOUT_DEFAULTS = {
   heroTitle: "Your Trusted Partner in Global Cargo & Freight",
-  heroSubtitle: "A licensed freight forwarder and customs agent providing comprehensive cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and beyond — now powered by secure cryptocurrency transactions.",
+  heroSubtitle: "A licensed freight forwarder and customs agent providing comprehensive cargo services, consolidation, door-to-door delivery, and import/export solutions across Nigeria and beyond — and a real-world utility marketplace where Pi Network pioneers can spend Pi on real estate, shipping, and everyday goods.",
   missionTitle: "Our Mission",
-  missionContent: "Beagvs Marine Services Nig Ltd is dedicated to providing seamless, reliable, and cost-effective freight forwarding and customs clearance services. We handle cargo with the utmost care — from consolidation at major Nigerian ports to final door-to-door delivery — while integrating modern cryptocurrency payment options for global trade security.",
+  missionContent: "Beagvs Marine Services Nig Ltd is dedicated to providing seamless, reliable, and cost-effective freight forwarding and customs clearance services. We handle cargo with the utmost care — from consolidation at major Nigerian ports to final door-to-door delivery — while giving the Pi Network community a genuine, escrow-protected marketplace to put their Pi to work.",
   stat1Value: "5,000+",
   stat1Label: "Shipments Cleared",
   stat2Value: "20+",
@@ -90,6 +93,63 @@ export default function About() {
           <p className="text-xl text-slate-medium leading-relaxed" data-testid="text-mission-content">
             {c.missionContent}
           </p>
+        </div>
+      </section>
+
+      {/* Pi Network Solution */}
+      <section className="py-20 bg-slate-900 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(168,85,247,0.4), transparent 40%), radial-gradient(circle at 80% 60%, rgba(59,130,246,0.35), transparent 45%)" }} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-purple-400/30 bg-purple-500/10 text-purple-300 text-sm font-medium mb-4">
+              <Coins className="w-4 h-4" /> Our Pi Network Solution
+            </div>
+            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4" data-testid="text-pi-solution-title">
+              Real-World Utility for Pi Pioneers
+            </h2>
+            <p className="text-lg text-slate-300 max-w-3xl mx-auto">
+              Beagvs Global gives the Pi Network community a genuine marketplace to spend and earn Pi — buying real estate,
+              booking shipping services, and trading everyday products, with every transaction held safely in escrow.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="rounded-2xl border border-purple-500/20 bg-white/5 backdrop-blur p-6" data-testid="card-pi-native-checkout">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-5">
+                <Wallet className="w-6 h-6 text-purple-300" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Native Pi Payments</h3>
+              <p className="text-slate-400 text-sm">
+                Pay directly from your Pi Wallet inside the Pi Browser using the official Pi SDK — no manual transfers, no third-party exchanges.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-purple-500/20 bg-white/5 backdrop-blur p-6" data-testid="card-pi-escrow">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-5">
+                <Shield className="w-6 h-6 text-purple-300" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Escrow-Protected Pi</h3>
+              <p className="text-slate-400 text-sm">
+                Every Pi payment is held in escrow until delivery is confirmed, so pioneers can trade with confidence on every order.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-purple-500/20 bg-white/5 backdrop-blur p-6" data-testid="card-pi-signin">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-5">
+                <LogIn className="w-6 h-6 text-purple-300" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Sign In With Pi</h3>
+              <p className="text-slate-400 text-sm">
+                Pioneers can create an account or check out using their Pi Network identity — no separate email signup required.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-purple-500/20 bg-white/5 backdrop-blur p-6" data-testid="card-pi-marketplace">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-5">
+                <Store className="w-6 h-6 text-purple-300" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Spend Pi On Real Goods</h3>
+              <p className="text-slate-400 text-sm">
+                From real estate and shipping services to everyday products via our Pi Merchant storefront — real utility for real Pi.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -260,9 +320,9 @@ export default function About() {
             <Card className="text-center border border-slate-100" data-testid="card-value-innovation">
               <CardContent className="p-8">
                 <Coins className="w-16 h-16 text-crypto-blue mx-auto mb-6" />
-                <h3 className="text-xl font-bold text-slate-dark mb-4">Crypto-Powered</h3>
+                <h3 className="text-xl font-bold text-slate-dark mb-4">Pi Network & Crypto-Powered</h3>
                 <p className="text-slate-medium">
-                  Accept and make payments using Pi Network, USDT, and other major cryptocurrencies — enabling secure, borderless transactions for global trade.
+                  Sign in, pay, and transact natively with Pi Network — plus USDT and other major cryptocurrencies — for secure, borderless commerce.
                 </p>
               </CardContent>
             </Card>
