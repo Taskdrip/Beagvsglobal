@@ -217,7 +217,7 @@ export async function runSafetySQL(): Promise<void> {
     `DO $$ BEGIN ALTER TYPE "public"."account_type" ADD VALUE IF NOT EXISTS 'SHIPPING_AGENT'; EXCEPTION WHEN others THEN NULL; END $$`,
 
     // ── payout_status enum (include COMPLETED so fresh DBs get it immediately) ──
-    `DO $ BEGIN CREATE TYPE "public"."payout_status" AS ENUM('PENDING','APPROVED','REJECTED','PAID','COMPLETED'); EXCEPTION WHEN duplicate_object THEN NULL; END $`,
+    `DO $$ BEGIN CREATE TYPE "public"."payout_status" AS ENUM('PENDING','APPROVED','REJECTED','PAID','COMPLETED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
 
     // ── bank_accounts table ────────────────────────────────────────────────────
     `CREATE TABLE IF NOT EXISTS "bank_accounts" (
@@ -267,6 +267,16 @@ export async function runSafetySQL(): Promise<void> {
     `ALTER TABLE "seller_payout_requests" ADD COLUMN IF NOT EXISTS "payee_type" varchar DEFAULT 'seller'`,
     `ALTER TABLE "seller_payout_requests" ADD COLUMN IF NOT EXISTS "agent_id" varchar REFERENCES "users"("id") ON DELETE CASCADE`,
     `ALTER TABLE "seller_payout_requests" ADD COLUMN IF NOT EXISTS "confirmed_at" timestamp`,
+
+    // ── users: enforce one Beagvs account per Pi Network account ──────────────
+    // FIX: pi_uid had no uniqueness constraint, so two rapid/duplicate Pi
+    // sign-up attempts (e.g. a slow first request retried by the client) could
+    // insert two user rows with the same pi_uid. getUserByPiUid() then returns
+    // whichever row Postgres happens to return first, so the same Pi account
+    // could intermittently "sign in" to two different Beagvs accounts. This
+    // partial unique index still allows unlimited NULL pi_uid rows (regular
+    // email/password users).
+    `CREATE UNIQUE INDEX IF NOT EXISTS "users_pi_uid_unique" ON "users" ("pi_uid") WHERE "pi_uid" IS NOT NULL`,
   ];
 
   let applied = 0;

@@ -66,8 +66,15 @@ Preferred communication style: Simple, everyday language.
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCS service account JSON — enables KYC document uploads |
 | `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | GCS bucket name for file storage |
 | `ADMIN_EMAIL` / `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Seed an initial admin account via `server/seed-railway.ts` |
+| `PI_MERCHANT_PASSWORD` | Fixed password for the "Pi Merchant" seller account (see below). Without it, a random password is generated and logged on every restart. |
 
 If `DATABASE_URL` is missing the app will fail to start. If `SESSION_SECRET` is missing, sessions will not persist across restarts.
+
+## Pi Merchant seller account
+A dedicated platform-owned seller account is auto-seeded at startup so products can be listed as sold by "Pi Merchant" instead of the admin's personal identity:
+- Email: `pimerchant@beagvsglobal.com` / username: `pi_merchant`
+- Sign in at `/login` with this account, then use "Create Listing" as normal (price in `PI` currency / `Pi Mainnet` network so Pi Network buyers get the native "Pay with Pi" button at checkout).
+- Set `PI_MERCHANT_PASSWORD` as an env var for a fixed password (otherwise one is generated and logged on first run, same pattern as `ADMIN_PASSWORD`).
 
 # External Dependencies
 

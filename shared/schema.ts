@@ -1,6 +1,7 @@
 import { sql, relations } from 'drizzle-orm';
 import {
   index,
+  uniqueIndex,
   jsonb,
   pgTable,
   timestamp,
@@ -76,7 +77,10 @@ export const users = pgTable("users", {
   piUsername: varchar("pi_username"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  // One Beagvs account per Pi Network account — NULLs (non-Pi users) are unrestricted.
+  uniqueIndex("users_pi_uid_unique").on(table.piUid).where(sql`${table.piUid} IS NOT NULL`),
+]);
 
 export const wallets = pgTable("wallets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

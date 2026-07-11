@@ -8,6 +8,7 @@ const DEPRECATED_SLUGS = [
 ];
 
 const ADMIN_EMAIL = "admin@beagvsglobal.com";
+const PI_MERCHANT_EMAIL = "pimerchant@beagvsglobal.com";
 const WHATSAPP = "+2348037232210";
 
 export async function seedAdmin() {
@@ -36,8 +37,37 @@ export async function seedAdmin() {
     console.log("[startup-seed] Admin user created.");
   }
 
+  await seedPiMerchant();
   await seedProperties(adminId);
   await seedBlog(adminId);
+}
+
+// A dedicated, platform-owned seller account named "Pi Merchant" that the
+// admin can log into separately to list products for sale directly (as if
+// the platform itself were the seller) — distinct from the ADMIN account so
+// storefront listings aren't mixed in with admin-only actions.
+async function seedPiMerchant() {
+  const existing = await db.select().from(users).where(eq(users.email, PI_MERCHANT_EMAIL)).limit(1);
+
+  if (existing.length > 0) {
+    await db.update(users).set({ role: "USER", accountType: "SELLER" })
+      .where(eq(users.email, PI_MERCHANT_EMAIL));
+    console.log("[startup-seed] Pi Merchant seller account verified.");
+    return;
+  }
+
+  const rawPassword = process.env.PI_MERCHANT_PASSWORD || `PiMerchant-${Math.random().toString(36).slice(2, 10)}!`;
+  if (!process.env.PI_MERCHANT_PASSWORD) {
+    console.warn(`[startup-seed] PI_MERCHANT_PASSWORD not set — generated one-time password: ${rawPassword}`);
+    console.warn("[startup-seed] Set PI_MERCHANT_PASSWORD env var before next deploy to use a fixed password.");
+  }
+  const passwordHash = await bcrypt.hash(rawPassword, 12);
+  await db.insert(users).values({
+    email: PI_MERCHANT_EMAIL, username: "pi_merchant", firstName: "Pi", lastName: "Merchant",
+    passwordHash, role: "USER", accountType: "SELLER", mustChangePassword: true,
+    bio: "Official Beagvs Global storefront — pay easily with Pi.",
+  });
+  console.log("[startup-seed] Pi Merchant seller account created. Sign in at /login with pimerchant@beagvsglobal.com to list products under this seller.");
 }
 
 async function seedProperties(adminId: string) {

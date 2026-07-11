@@ -95,7 +95,14 @@ function SellerFeeBreakdown({ price, currency, listingType, network }: {
 
   const feeKey = FEE_KEY_MAP[listingType] || 'fee_product';
   const feeSettingRaw = platformSettings?.find((s: any) => s.key === feeKey);
-  const feePct = feeSettingRaw ? parseFloat(String(feeSettingRaw.value)) : (DEFAULT_FEES[listingType] ?? 10);
+  // Fee settings are stored as jsonb, e.g. { percentage: 10 } — fall back to a
+  // bare number/string for older rows. String(<object>) used to yield
+  // "[object Object]" here, which parseFloat turned into NaN.
+  const rawFeeValue = feeSettingRaw?.value;
+  const parsedFeePct = Number(
+    rawFeeValue && typeof rawFeeValue === "object" ? (rawFeeValue as any).percentage : rawFeeValue
+  );
+  const feePct = !isNaN(parsedFeePct) ? parsedFeePct : (DEFAULT_FEES[listingType] ?? 10);
 
   const priceNum = parseFloat(price || "0");
   const isValid = !isNaN(priceNum) && priceNum > 0 && currency;

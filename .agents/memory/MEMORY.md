@@ -4,3 +4,5 @@
 - [Shipping agent payout split](shipping-agent-payout-split.md) — 75/25 agent/platform shipping-fee split lives on the escrow row; payout requests use a shared `payeeType` field for both sellers and agents.
 - [Beagvs Pi auth — real pages vs dead code](beagvs-pi-auth-pages.md) — Auth.tsx is unrouted dead code; Login.tsx/Signup.tsx are the real Pi auth pages. /api/auth/pi requires intent:'signin'|'signup'.
 - [Express wildcard route path](express-wildcard-route-path.md) — inside app.use("*", ...), req.path is always "/"; use req.originalUrl for real URL-based logic (e.g. per-page SSR meta injection).
+- [Platform fee jsonb shape](platform-fee-jsonb-shape.md) — platform_settings.value is `{percentage:n}`; String(value) → "[object Object]" → NaN if read wrong.
+- [Pi uid race condition](pi-uid-race-condition.md) — users.piUid needs a unique index + duplicate-key recovery to prevent duplicate-account sign-in races.

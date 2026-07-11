@@ -59,7 +59,13 @@ function EscrowConfirmBreakdown({ listing, onConfirm, onCancel, isPending }: {
 
   const feeKey = FEE_KEY_MAP[listing?.type] || 'fee_product';
   const feeSettingRaw = platformSettings?.find((s: any) => s.key === feeKey);
-  const feePct = feeSettingRaw ? parseFloat(String(feeSettingRaw.value)) : (DEFAULT_FEES[listing?.type] ?? 10);
+  // Fee settings are stored as jsonb, e.g. { percentage: 10 } — reading the
+  // whole object with String() used to produce "[object Object]" -> NaN.
+  const rawFeeValue = feeSettingRaw?.value;
+  const parsedFeePct = Number(
+    rawFeeValue && typeof rawFeeValue === "object" ? (rawFeeValue as any).percentage : rawFeeValue
+  );
+  const feePct = !isNaN(parsedFeePct) ? parsedFeePct : (DEFAULT_FEES[listing?.type] ?? 10);
 
   const price = parseFloat(listing?.priceCrypto || "0");
   const feeAmount = price * (feePct / 100);

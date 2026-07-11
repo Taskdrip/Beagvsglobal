@@ -57,9 +57,23 @@ export async function getPiUser(accessToken: string) {
   const res = await fetch(`${PI_PLATFORM_API_URL}/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  const data = await res.json();
+  // Parse defensively: the Pi Platform API occasionally returns a non-JSON
+  // body (HTML error page, empty body) on outages/rate limits. Calling
+  // res.json() directly in that case throws an unhandled SyntaxError that
+  // surfaces to the user as a cryptic "Unexpected token..." sign-in failure
+  // instead of a clear message.
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
   if (!res.ok) {
-    throw new Error(data?.error_message || "Invalid Pi access token");
+    throw new Error(data?.error_message || `Invalid Pi access token (Pi API returned ${res.status})`);
+  }
+  if (!data?.uid) {
+    throw new Error("Pi Network did not return a valid account. Please try signing in again.");
   }
   return data as { uid: string; username: string };
 }

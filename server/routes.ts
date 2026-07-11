@@ -487,16 +487,35 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
           if (!existing) break;
           candidateUsername = `${baseUsername.slice(0, 44)}_${Math.random().toString(36).slice(2, 6)}`;
         }
-        user = await storage.createUser({
-          piUid: piUser.uid,
-          piUsername: piUser.username || username,
-          username: candidateUsername,
-          // New Pi users haven't gone through the account-type picker that the
-          // regular signup form uses, so mark them for onboarding on the client
-          // instead of assuming an account type for them.
-          accountType: 'BUYER',
-          role: 'USER',
-        });
+        try {
+          user = await storage.createUser({
+            piUid: piUser.uid,
+            piUsername: piUser.username || username,
+            username: candidateUsername,
+            // New Pi users haven't gone through the account-type picker that the
+            // regular signup form uses, so mark them for onboarding on the client
+            // instead of assuming an account type for them.
+            accountType: 'BUYER',
+            role: 'USER',
+          });
+        } catch (createErr: any) {
+          // A duplicate pi_uid (unique constraint "users_pi_uid_unique") means
+          // a concurrent sign-up request for the same Pi account already won
+          // the race — e.g. the client retried a slow first request. Recover
+          // by looking up the account that request just created instead of
+          // failing this one with a confusing 500/duplicate-key error.
+          if (createErr?.code === '23505') {
+            const winner = await storage.getUserByPiUid(piUser.uid);
+            if (winner) {
+              user = winner;
+              isNewUser = false;
+            } else {
+              throw createErr;
+            }
+          } else {
+            throw createErr;
+          }
+        }
       } else if (piUser.username && piUser.username !== user.piUsername) {
         user = await storage.updateUser(user.id, { piUsername: piUser.username });
       }
@@ -928,7 +947,14 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
           const feeKey = listing ? feeKeyMap[listing.type] || 'fee_product' : 'fee_product';
           const setting = await storage.getPlatformSetting(feeKey);
           if (setting && setting.value !== null && setting.value !== undefined) {
-            const parsed = parseFloat(String(setting.value));
+            // Fee settings are stored as jsonb, e.g. { percentage: 10 } — reading
+            // the whole object with String() used to produce "[object Object]",
+            // which parseFloat turned into NaN (silently falling back to 10%
+            // instead of the admin-configured rate).
+            const rawValue: any = setting.value;
+            const parsed = Number(
+              rawValue && typeof rawValue === 'object' ? rawValue.percentage : rawValue
+            );
             if (!isNaN(parsed)) platformFeePct = parsed;
           }
         }

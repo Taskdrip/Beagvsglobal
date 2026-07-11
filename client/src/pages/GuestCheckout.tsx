@@ -57,7 +57,13 @@ export default function GuestCheckout() {
   const feeKey = FEE_KEY_MAP[listing?.type] || "fee_product";
   const feePct = (() => {
     const raw = platformSettings?.find((s: any) => s.key === feeKey);
-    return raw ? parseFloat(String(raw.value)) : (DEFAULT_FEES[listing?.type] ?? 10);
+    // Fee settings are stored as jsonb, e.g. { percentage: 10 } — reading the
+    // whole object with String() used to produce "[object Object]" -> NaN.
+    const rawValue = raw?.value;
+    const parsed = Number(
+      rawValue && typeof rawValue === "object" ? (rawValue as any).percentage : rawValue
+    );
+    return !isNaN(parsed) ? parsed : (DEFAULT_FEES[listing?.type] ?? 10);
   })();
   const price = parseFloat(listing?.priceCrypto || "0");
   const feeAmount = price * (feePct / 100);
