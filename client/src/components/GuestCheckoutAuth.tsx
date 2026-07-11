@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, setPiSessionToken } from "@/lib/queryClient";
 import { Eye, EyeOff, Loader2, Lock, UserPlus, LogIn, ShieldCheck } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { isPiBrowser, authenticateWithPi } from "@/lib/pi";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,86 @@ function SignInForm({ onSuccess, ctaLabel }: { onSuccess: (user: any) => void; c
   );
 }
 
+// ─── Pi Network Auth Button ──────────────────────────────────────────────────
+
+function PiAuthButton({ intent, onSuccess }: { intent: "signup" | "signin"; onSuccess: (user: any) => void }) {
+  const { toast } = useToast();
+  const [isPiLoading, setIsPiLoading] = useState(false);
+
+  const handlePiAuth = async () => {
+    if (!isPiBrowser()) {
+      toast({
+        title: "Pi Browser required",
+        description:
+          "Continuing with Pi on Beagvs Global is only for Pi Network pioneers with a Pi account, using the official Pi Browser app. Please open Beagvs Global inside Pi Browser and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsPiLoading(true);
+    try {
+      const auth = await authenticateWithPi(() => {
+        // Incomplete payment found — reconciled on next payment attempt.
+      });
+      const res = await apiRequest("POST", "/api/auth/pi", {
+        accessToken: auth.accessToken,
+        username: auth.user?.username,
+        intent,
+      });
+      const user = await res.json();
+
+      // Store the Pi session token so every subsequent API request (including
+      // the escrow creation right after this) can send it as
+      // "Authorization: Bearer <token>", bypassing Pi Browser's unreliable
+      // session-cookie behaviour.
+      if (user.piSessionToken) {
+        setPiSessionToken(user.piSessionToken);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+
+      toast({
+        title: intent === "signup" ? "Welcome to Beagvs Global!" : "Welcome back!",
+        description: "Signed in with Pi Network.",
+      });
+      onSuccess(user);
+    } catch (error: any) {
+      if (error?.body?.needsSignup) {
+        toast({
+          title: "No account found",
+          description: "You don't have a Beagvs account yet for this Pi account. Switch to \"New Account\" and continue with Pi to create one.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: intent === "signup" ? "Pi sign-up failed" : "Pi sign-in failed",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPiLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      onClick={handlePiAuth}
+      disabled={isPiLoading}
+      className="w-full bg-purple-700 hover:bg-purple-800 text-white font-semibold"
+      data-testid="button-pi-auth"
+    >
+      {isPiLoading ? (
+        <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Connecting to Pi Network…</span>
+      ) : (
+        <span>π {intent === "signup" ? "Sign Up" : "Sign In"} with Pi Network</span>
+      )}
+    </Button>
+  );
+}
+
 // ─── Main Export: GuestCheckoutAuth ──────────────────────────────────────────
 
 interface GuestCheckoutAuthProps {
@@ -158,6 +239,8 @@ interface GuestCheckoutAuthProps {
 }
 
 export default function GuestCheckoutAuth({ onAuthSuccess, ctaContext, defaultTab = "signup" }: GuestCheckoutAuthProps) {
+  const [activeTab, setActiveTab] = useState<"signup" | "signin">(defaultTab);
+
   return (
     <div className="space-y-4">
       {/* Trust banner */}
@@ -171,7 +254,7 @@ export default function GuestCheckoutAuth({ onAuthSuccess, ctaContext, defaultTa
         </div>
       </div>
 
-      <Tabs defaultValue={defaultTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "signup" | "signin")} className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-4">
           <TabsTrigger value="signup" className="text-sm font-medium" data-testid="tab-signup">
             <UserPlus className="w-3.5 h-3.5 mr-1.5" /> New Account
@@ -181,11 +264,21 @@ export default function GuestCheckoutAuth({ onAuthSuccess, ctaContext, defaultTa
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="signup">
+        <TabsContent value="signup" className="space-y-3">
+          <PiAuthButton intent="signup" onSuccess={onAuthSuccess} />
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+            <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">Or sign up with email</span></div>
+          </div>
           <SignUpForm onSuccess={onAuthSuccess} ctaLabel="Create Account & Continue" />
         </TabsContent>
 
-        <TabsContent value="signin">
+        <TabsContent value="signin" className="space-y-3">
+          <PiAuthButton intent="signin" onSuccess={onAuthSuccess} />
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+            <div className="relative flex justify-center text-xs"><span className="px-2 bg-white text-slate-400">Or sign in with email</span></div>
+          </div>
           <SignInForm onSuccess={onAuthSuccess} ctaLabel="Sign In & Continue" />
         </TabsContent>
       </Tabs>
