@@ -347,6 +347,7 @@ export default function BlogPost() {
                 alt={blogPost.title}
                 className="w-full h-96 object-cover rounded-lg shadow-lg"
                 data-testid="img-blog-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             </div>
           )}
@@ -516,16 +517,17 @@ export default function BlogPost() {
               {recentPublishedPosts.map((post: any) => (
                 <Card key={post.id} className="group hover:shadow-lg transition-shadow" data-testid={`related-post-${post.id}`}>
                   <div className="relative overflow-hidden rounded-t-lg">
-                    {post.coverImageUrl ? (
+                    {/* Fallback gradient as base; image overlaid and hides itself on error */}
+                    <div className="w-full h-32 bg-gradient-to-r from-crypto-blue to-crypto-teal flex items-center justify-center">
+                      <FileText className="w-8 h-8 text-white" />
+                    </div>
+                    {post.coverImageUrl && (
                       <img
                         src={post.coverImageUrl}
                         alt={post.title}
-                        className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                       />
-                    ) : (
-                      <div className="w-full h-32 bg-gradient-to-r from-crypto-blue to-crypto-teal flex items-center justify-center">
-                        <FileText className="w-8 h-8 text-white" />
-                      </div>
                     )}
                   </div>
                   <CardContent className="p-4">

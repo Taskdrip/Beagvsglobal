@@ -77,16 +77,18 @@ export default function Blog() {
             {filteredPosts.map((post: any) => (
               <Card key={post.id} className="group hover:shadow-xl transition-all duration-300 border-slate-100 hover:border-crypto-blue/30" data-testid={`blog-post-${post.id}`}>
                 <div className="relative overflow-hidden rounded-t-lg">
-                  {post.coverImageUrl ? (
-                    <img 
-                      src={post.coverImageUrl} 
+                  {/* Fallback gradient always rendered as base layer */}
+                  <div className="w-full h-48 bg-gradient-to-r from-crypto-blue to-crypto-teal flex items-center justify-center">
+                    <FileText className="w-16 h-16 text-white" />
+                  </div>
+                  {/* Cover image overlaid; hides itself on load error, revealing gradient */}
+                  {post.coverImageUrl && (
+                    <img
+                      src={post.coverImageUrl}
                       alt={post.title}
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="absolute inset-0 w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                     />
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-r from-crypto-blue to-crypto-teal flex items-center justify-center">
-                      <FileText className="w-16 h-16 text-white" />
-                    </div>
                   )}
                   <div className="absolute top-3 right-3">
                     <Badge className="bg-white/90 text-slate-dark">

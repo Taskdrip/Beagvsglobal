@@ -107,50 +107,91 @@ function CoverImageUpload({ value, onChange }: CoverImageUploadProps) {
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Label>Cover Image</Label>
-      <div
-        className="border-2 border-dashed border-slate-200 rounded-lg p-3 hover:border-blue-300 cursor-pointer transition-colors"
-        onClick={() => fileRef.current?.click()}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const f = e.dataTransfer.files[0];
-          if (f) handleFile(f);
-        }}
-        data-testid="cover-image-uploader"
-      >
-        {value ? (
-          <div className="relative group">
-            <img src={value} alt="Cover" className="w-full h-40 object-cover rounded" />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center gap-2">
-              <Button size="sm" variant="outline" className="bg-white" onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}>
-                <Upload className="w-3 h-3 mr-1" /> Replace
-              </Button>
-              <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); onChange(""); }}>
-                <X className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-6">
-            {uploading ? (
-              <Loader2 className="w-8 h-8 text-blue-400 mx-auto mb-2 animate-spin" />
-            ) : (
-              <ImagePlus className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            )}
-            <p className="text-xs text-slate-500">{uploading ? "Uploading…" : "Click or drag image here"}</p>
-            <p className="text-xs text-slate-400">PNG, JPG, WebP up to 5MB</p>
-          </div>
-        )}
+
+      {/* Primary: external URL (persists across deploys) */}
+      <div>
+        <p className="text-xs font-medium text-slate-700 mb-1">Image URL <span className="text-green-600">(recommended — always works)</span></p>
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://images.unsplash.com/photo-... or any public image URL"
+          className="text-xs"
+          data-testid="input-blog-cover-url"
+        />
+        <p className="text-xs text-slate-400 mt-1">Paste an Unsplash, Imgur, or any CDN URL. External URLs persist through every deploy.</p>
       </div>
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Or paste image URL"
-        className="text-xs"
-        data-testid="input-blog-cover-url"
-      />
+
+      {/* Secondary: file upload */}
+      <div>
+        <p className="text-xs font-medium text-slate-700 mb-1">Or upload a file <span className="text-amber-600">(local only — lost on redeploy)</span></p>
+        <div
+          className="border-2 border-dashed border-slate-200 rounded-lg p-3 hover:border-blue-300 cursor-pointer transition-colors"
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const f = e.dataTransfer.files[0];
+            if (f) handleFile(f);
+          }}
+          data-testid="cover-image-uploader"
+        >
+          {value && !value.startsWith("http") ? (
+            <div className="relative group">
+              <img
+                src={value}
+                alt="Cover"
+                className="w-full h-40 object-cover rounded"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center gap-2">
+                <Button size="sm" variant="outline" className="bg-white" onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}>
+                  <Upload className="w-3 h-3 mr-1" /> Replace
+                </Button>
+                <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); onChange(""); }}>
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              {uploading ? (
+                <Loader2 className="w-7 h-7 text-blue-400 mx-auto mb-2 animate-spin" />
+              ) : (
+                <Upload className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+              )}
+              <p className="text-xs text-slate-500">{uploading ? "Uploading…" : "Click or drag image here"}</p>
+              <p className="text-xs text-slate-400">PNG, JPG, WebP up to 5 MB</p>
+            </div>
+          )}
+        </div>
+        <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+          <span className="mt-0.5">⚠️</span>
+          <span>Uploaded files are stored on the server's local disk. They will be lost if the server is redeployed or restarted. Use an external URL above for images that must persist.</span>
+        </div>
+      </div>
+
+      {/* Preview (shows for any current value) */}
+      {value && (
+        <div className="relative group rounded-lg overflow-hidden border bg-slate-100">
+          <div className="flex items-center justify-center h-40 bg-gradient-to-r from-crypto-blue to-crypto-teal">
+            <ImagePlus className="w-8 h-8 text-white/50" />
+          </div>
+          <img
+            src={value}
+            alt="Cover preview"
+            className="absolute inset-0 w-full h-40 object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <Button size="sm" variant="destructive" onClick={() => onChange("")}>
+              <X className="w-3 h-3 mr-1" /> Remove
+            </Button>
+          </div>
+        </div>
+      )}
+
       <input
         ref={fileRef}
         type="file"
@@ -701,18 +742,18 @@ export default function AdminBlogManager() {
                   className="flex items-start gap-4 p-4 hover:bg-slate-50 transition-colors"
                   data-testid={`blog-row-${post.id}`}
                 >
-                  {/* Cover thumbnail */}
-                  {post.coverImageUrl ? (
-                    <img
-                      src={post.coverImageUrl}
-                      alt={post.title}
-                      className="w-16 h-16 object-cover rounded-lg border flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg border bg-slate-100 flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-6 h-6 text-slate-300" />
-                    </div>
-                  )}
+                  {/* Cover thumbnail — fallback behind, image on top; hides on error */}
+                  <div className="w-16 h-16 rounded-lg border bg-slate-100 flex items-center justify-center flex-shrink-0 relative overflow-hidden">
+                    <FileText className="w-6 h-6 text-slate-300" />
+                    {post.coverImageUrl && (
+                      <img
+                        src={post.coverImageUrl}
+                        alt={post.title}
+                        className="absolute inset-0 w-full h-full object-cover rounded-lg"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    )}
+                  </div>
 
                   {/* Post info */}
                   <div className="flex-1 min-w-0">
