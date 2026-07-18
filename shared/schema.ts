@@ -492,12 +492,31 @@ export const notificationRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
-export const blogPostRelations = relations(blogPosts, ({ one }) => ({
+export const blogComments = pgTable("blog_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  blogPostId: varchar("blog_post_id").notNull().references(() => blogPosts.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const blogPostRelations = relations(blogPosts, ({ one, many }) => ({
   author: one(users, {
     fields: [blogPosts.authorId],
     references: [users.id],
   }),
+  comments: many(blogComments),
 }));
+
+export const blogCommentRelations = relations(blogComments, ({ one }) => ({
+  blogPost: one(blogPosts, { fields: [blogComments.blogPostId], references: [blogPosts.id] }),
+  user: one(users, { fields: [blogComments.userId], references: [users.id] }),
+}));
+
+export const insertBlogCommentSchema = createInsertSchema(blogComments).omit({ id: true, userId: true, createdAt: true, updatedAt: true });
+export type BlogComment = typeof blogComments.$inferSelect;
+export type InsertBlogComment = z.infer<typeof insertBlogCommentSchema>;
 
 export const kycVerificationRelations = relations(kycVerifications, ({ one, many }) => ({
   user: one(users, {

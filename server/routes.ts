@@ -5,7 +5,9 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema, insertPlatformSettingSchema, insertCompetitorSchema, insertCompetitorContentSchema } from "@shared/schema";
+import { insertUserSchema, insertListingSchema, insertEscrowSchema, insertReviewSchema, insertWalletSchema, insertFollowSchema, insertChatThreadSchema, insertMessageSchema, insertBlogPostSchema, insertPlatformWalletSchema, insertPaymentMethodSchema, insertKycVerificationSchema, insertKycDocumentSchema, insertFacialVerificationSchema, insertShipmentSchema, insertShipmentEventSchema, insertPlatformSettingSchema, insertCompetitorSchema, insertCompetitorContentSchema, blogComments, users as usersTable } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -1792,9 +1794,14 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
       const updateSchema = insertBlogPostSchema.omit({ authorId: true, slug: true }).partial();
       const rawData = updateSchema.parse(req.body);
 
-      // Strip undefined values so Drizzle doesn't attempt to set required columns to NULL
+      // Strip undefined values so Drizzle doesn't attempt to set required columns to NULL.
+      // Also protect coverImageUrl: never wipe a working image URL by setting it to empty string.
       const postData = Object.fromEntries(
-        Object.entries(rawData).filter(([, v]) => v !== undefined)
+        Object.entries(rawData).filter(([k, v]) => {
+          if (v === undefined) return false;
+          if (k === 'coverImageUrl' && (v === '' || v === null)) return false;
+          return true;
+        })
       ) as Partial<typeof rawData>;
 
       if (Object.keys(postData).length === 0) {
@@ -1835,6 +1842,75 @@ export async function registerRoutes(app: Express, existingServer?: HttpServer):
     } catch (error) {
       console.error("Error deleting blog post:", error);
       res.status(500).json({ message: "Failed to delete blog post" });
+    }
+  });
+
+  // Blog comments routes
+  app.get('/api/blog/:slug/comments', async (req, res) => {
+    try {
+      const post = await storage.getBlogPost(req.params.slug);
+      if (!post) return res.status(404).json({ message: "Post not found" });
+      const comments = await db
+        .select({
+          id: blogComments.id,
+          content: blogComments.content,
+          createdAt: blogComments.createdAt,
+          userId: blogComments.userId,
+          user: {
+            id: usersTable.id,
+            username: usersTable.username,
+            firstName: usersTable.firstName,
+            lastName: usersTable.lastName,
+          },
+        })
+        .from(blogComments)
+        .leftJoin(usersTable, eq(blogComments.userId, usersTable.id))
+        .where(eq(blogComments.blogPostId, post.id))
+        .orderBy(blogComments.createdAt);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching blog comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  app.post('/api/blog/:slug/comments', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const post = await storage.getBlogPost(req.params.slug);
+      if (!post) return res.status(404).json({ message: "Post not found" });
+      const content = req.body?.content?.trim();
+      if (!content) return res.status(400).json({ message: "Comment cannot be empty" });
+      const userId = req.user.claims.sub;
+      const [comment] = await db
+        .insert(blogComments)
+        .values({ blogPostId: post.id, userId, content })
+        .returning();
+      // Fetch user info to return with comment
+      const [user] = await db
+        .select({ id: usersTable.id, username: usersTable.username, firstName: usersTable.firstName, lastName: usersTable.lastName })
+        .from(usersTable)
+        .where(eq(usersTable.id, userId));
+      res.json({ ...comment, user });
+    } catch (error) {
+      console.error("Error posting blog comment:", error);
+      res.status(500).json({ message: "Failed to post comment" });
+    }
+  });
+
+  app.delete('/api/blog/comments/:id', isAuthenticatedEnhanced, async (req: any, res) => {
+    try {
+      const [comment] = await db.select().from(blogComments).where(eq(blogComments.id, req.params.id)).limit(1);
+      if (!comment) return res.status(404).json({ message: "Comment not found" });
+      const userId = req.user.claims.sub;
+      const [currentUser] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+      if (comment.userId !== userId && currentUser?.role !== 'ADMIN') {
+        return res.status(403).json({ message: "Not authorized to delete this comment" });
+      }
+      await db.delete(blogComments).where(eq(blogComments.id, req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting blog comment:", error);
+      res.status(500).json({ message: "Failed to delete comment" });
     }
   });
 
